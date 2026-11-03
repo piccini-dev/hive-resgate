@@ -193,6 +193,11 @@ async function postEdge<T>(fn: string, body: unknown): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+// Olhar Bee (agente público): contrato em docs/olhar-bee/PROMPT-PAGINA-LP.md §5; cliente em src/lib/olhar.ts.
+export function olharBee<T>(body: Record<string, unknown>): Promise<T> {
+  return postEdge<T>('olhar-bee', body);
+}
+
 export const edge = {
   // A IA cria uma PESSOA inteira a partir de um público-base + pistas (não salva).
   async generatePersona(input: { base?: object; hints?: string }): Promise<GeneratePersonaOutput> {

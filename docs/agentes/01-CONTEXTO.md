@@ -212,5 +212,6 @@ scripts/sql.sh "select column_name, data_type from information_schema.columns wh
 | Identidade e contextos, fases 1–6 | `docs/identidade/FASE*.md`, `RESUMO-FASES-1-6.md` | f15–f20 |
 | Coach com reescrita | — | f21 |
 | **Estabilização E1–E5** (out/2026) | `docs/estabilizacao/PLANO-IMPLEMENTACAO.md`, `ENTREGAS.md` | f22–f26, unit-fuso |
+| **Olhar Bee** — agente público da LP (nov/2026; E1 base, E2 bancada) | `docs/olhar-bee/DECISOES.md`, contrato da LP em `PROMPT-PAGINA-LP.md` | f27, unit-olhar-filtro |
 
 Antes de mexer numa área, leia a ficha da iniciativa que a criou. Ela diz as decisões, os critérios (ex.: `04/T03`) e as limitações conhecidas.

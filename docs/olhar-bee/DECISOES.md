@@ -31,3 +31,35 @@ Respondidas pelo formulário da proposta (`proposta.html`). Todas as recomendaç
   - só membros da marca leem; o público não tem acesso.
 - **Fonte dos textos:** `base-publica-rascunho.json`. Depois da conferência v2, atualizar o `status` no banco por migration nova; nunca reeditar a já aplicada.
 - **Conferência v2 (03/11, 13:37):** os 9 aprovados (migration `20261103000002_olhar_base_aprovacao_v2.sql`). **E1 concluída: 53 de 53 textos aprovados.**
+
+## E2 · Bancada de calibração (03/11/2026)
+
+**No ar:**
+- **Tela:** Hive → Inteligência → "Olhar Bee · calibração" (`/olhar/calibracao`), com os 14 casos fictícios e um caso livre.
+- **Função `olhar-bee`:**
+  - segue o contrato da LP, com as ações `start` e `answer`, mais `calibrate` só para a bancada;
+  - `report` e `contact` respondem `disabled` até a E3/E4;
+  - o público sem login recebe `disabled` (403);
+  - entram apenas membros da marca ou chamada de serviço (origem `teste`).
+
+**Como pensa:**
+- usa só a `olhar_base` aprovada e os ajustes de calibração ativos (`olhar_calibracao`, "ajustar" com comentário);
+- acolhimento e recusas saem com os textos aprovados (G1–G6), sem a IA reescrever;
+- o CVV só aparece com sinal de risco à vida.
+
+**Revisão de nomes:**
+- toda resposta escrita pela IA passa por `olhar_nomes_proibidos`;
+- se algum nome aparecer, a IA refaz a resposta uma vez;
+- se aparecer de novo, devolve `unavailable` e marca `barrado`.
+
+**Teste real (03/11, gemini-3.5-flash):**
+
+| Caso | Resultado |
+|---|---|
+| C01 | Leitura de Cultura, com 2 cards |
+| C07 | 2 perguntas; depois da resposta, leitura de Estrutura |
+| C08 | Acolhimento sem CVV |
+| C09 | Recusa G2 |
+| C10 | Recusa G3 |
+
+**Próximo passo:** o Marcos calibra os 14 casos na bancada. O critério para ir ao site são os 14 aprovados, sem nome real nos casos 9, 10 e 12.

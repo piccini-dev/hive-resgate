@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
+  ScanEye,
   Image as ImageIcon,
   Settings,
   Sparkles,
@@ -88,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/curadoria', label: 'Curadoria', icon: Sparkles },
       { to: '/feedback', label: 'Feedback contínuo', icon: MessageSquarePlus },
       { to: '/coach', label: 'Coach de voz', icon: MessagesSquare },
+      { to: '/olhar/calibracao', label: 'Olhar Bee · calibração', icon: ScanEye },
       { to: '/personas', label: 'Simular público', icon: Users },
       { to: '/custos', label: 'Custos de API', icon: DollarSign },
       { to: '/labs/imagens', label: 'Teste de imagem', icon: ImageIcon },

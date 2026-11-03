@@ -38,6 +38,7 @@ import { HiveConvite } from '@/pages/hive/HiveConvite';
 import { HiveTesteM02 } from '@/pages/hive/HiveTesteM02'; // TEMP: apagar depois
 import { HiveTesteM01 } from '@/pages/hive/HiveTesteM01'; // TEMP: apagar depois
 import { Custos } from '@/pages/custos/Custos';
+import { OlharCalibracao } from '@/pages/olhar/Calibracao';
 import { ImageLab } from '@/pages/labs/ImageLab';
 import { Pipeline } from '@/pages/pipeline/Pipeline';
 import { PhotoEngine } from '@/pages/hive/PhotoEngine';
@@ -145,6 +146,7 @@ export default function App() {
           <Route path="hive/teste-m02" element={<HiveTesteM02 />} /> {/* TEMP: apagar depois */}
           <Route path="hive/teste-m01" element={<HiveTesteM01 />} /> {/* TEMP: apagar depois */}
           <Route path="custos" element={<Custos />} />
+          <Route path="olhar/calibracao" element={<OlharCalibracao />} />
           <Route path="labs/imagens" element={<ImageLab />} />
           <Route path="criar" element={<CreateHub />} />
           <Route path="criar/conteudo" element={<OneContent />} />
