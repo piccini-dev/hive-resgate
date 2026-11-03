@@ -149,18 +149,26 @@ function summarize(code) {
   console.log('\n──────── Resultado ────────');
   console.log(`  ${passed} passaram · ${failed} falharam${flaky ? ` · ${flaky} instáveis` : ''}${skipped ? ` · ${skipped} não rodaram` : ''}`);
   const blocks = log.split(/\n\s+\d+\) \[e2e\] › /).slice(1);
+  // Para cada falha: o erro e as linhas que dizem o quê/esperado/recebido (bastam para diagnosticar).
+  const detalhe = (b) => {
+    const err = (b.match(/Received message: "([^"]+)"/) ?? b.match(/Error: ([^\n]+)/))?.[1] ?? '';
+    const extra = b.split('\n').map((l) => l.trim()).filter((l) => /^(Locator|Expected|Received|Expected substring|Expected pattern|Received string):/.test(l)).slice(0, 4);
+    const onde = b.match(/at [^\n]*?(e2e\/[\w./-]+:\d+):\d+/)?.[1];
+    return { err, extra, onde };
+  };
   for (const b of blocks.slice(0, 30)) {
     const title = b.split('\n')[0].trim();
-    const err = (b.match(/Received message: "([^"]+)"/) ?? b.match(/Error: ([^\n]+)/))?.[1] ?? '';
-    console.log(`  ✘ ${title}\n      ${err.slice(0, 180)}`);
+    const d = detalhe(b);
+    console.log(`  ✘ ${title}\n      ${d.err.slice(0, 180)}${d.extra.map((l) => `\n      ${l.slice(0, 180)}`).join('')}${d.onde ? `\n      em ${d.onde}` : ''}`);
   }
   // Resumo em Markdown para o GitHub (página da execução e comentário no PR).
   if (process.env.RESUMO_MD) {
     const md = [`## ${code === 0 ? '✅ Regressão verde' : '❌ Regressão com falhas'}`, '', `**${passed} passaram · ${failed} falharam**${flaky ? ` · ${flaky} instáveis` : ''}${skipped ? ` · ${skipped} não rodaram` : ''}`, ''];
     for (const b of blocks.slice(0, 30)) {
       const title = b.split('\n')[0].trim();
-      const err = (b.match(/Received message: "([^"]+)"/) ?? b.match(/Error: ([^\n]+)/))?.[1] ?? '';
-      md.push(`- \`${title.replace(/`/g, "'")}\`  \n  ${err.slice(0, 300).replace(/[<>]/g, '')}`);
+      const d = detalhe(b);
+      const linhas = [d.err.slice(0, 300), ...d.extra.map((l) => l.slice(0, 300)), ...(d.onde ? [`em \`${d.onde}\``] : [])].filter(Boolean).map((l) => l.replace(/[<>]/g, ''));
+      md.push(`- \`${title.replace(/`/g, "'")}\`${linhas.map((l) => `  \n  ${l}`).join('')}`);
     }
     if ((log.match(/fetch failed|HTTP 502|ECONNRESET/g) ?? []).length >= 5) md.push('', '⚠ Muitas falhas de rede/Supabase: costuma ser instabilidade. Rode de novo antes de investigar o código.');
     try { fs.writeFileSync(process.env.RESUMO_MD, md.join('\n') + '\n'); } catch { /* sem resumo */ }
