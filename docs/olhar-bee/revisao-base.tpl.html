@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisão da base pública</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+/* Visual da LP da Bee. Layout: barra de progresso fixa no topo; grupos A–H; um cartão por texto com Aprovar / Ajustar / Retirar. */
+:root {
+  --paper: #f6f5f1; --panel: #edf2fb; --card: #ffffff; --ink: #1b2340; --muted: #5a6280;
+  --line: #d5dcec; --accent: #2346b8; --action: #e8954a; --ok: #2f7d4f; --warn: #b5541c; --adj: #9a6a00;
+  --display: "Libre Baskerville", Georgia, serif;
+  --body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11152a; --panel: #182042; --card: #1d2547; --ink: #e7eaf4; --muted: #a3abc6;
+    --line: #2d3763; --accent: #93abff; --action: #f0a862; --ok: #6fc490; --warn: #f09a66; --adj: #e2b84f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #11152a; --panel: #182042; --card: #1d2547; --ink: #e7eaf4; --muted: #a3abc6;
+  --line: #2d3763; --accent: #93abff; --action: #f0a862; --ok: #6fc490; --warn: #f09a66; --adj: #e2b84f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 var(--body); }
+main { max-width: 780px; margin: 0 auto; padding: 32px 20px 80px; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; line-height: 1.25; }
+h1 { font-size: clamp(26px, 5vw, 36px); }
+h2 { font-size: 22px; }
+h3 { font-size: 17px; }
+p { margin: 0; }
+.eyebrow { font: 700 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+header { display: grid; gap: 12px; }
+.intro { background: var(--panel); border-radius: 14px; padding: 16px 20px; display: grid; gap: 8px; font-size: 15px; }
+.bar { position: sticky; top: 0; z-index: 2; background: var(--paper); border-bottom: 1px solid var(--line); padding: 12px 0; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.meter { flex: 1 1 200px; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .3s; }
+.count { font: 500 14px/1 var(--body); font-variant-numeric: tabular-nums; }
+.bar label { font-size: 14px; display: flex; gap: 6px; align-items: center; }
+#save { font-size: 13px; color: var(--muted); min-width: 120px; }
+#save.err { color: var(--warn); }
+section.group { display: grid; gap: 12px; }
+.ghead { display: grid; gap: 4px; }
+.item { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 12px; }
+.item[data-s="aprovado"] { border-left-color: var(--ok); }
+.item[data-s="ajustar"] { border-left-color: var(--adj); }
+.item[data-s="retirar"] { border-left-color: var(--warn); opacity: .8; }
+.item .top { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.id { font: 700 12px/1 var(--body); color: var(--accent); letter-spacing: .06em; }
+.txt { white-space: pre-line; font-size: 15px; }
+.nota { font-size: 13.5px; color: var(--muted); border-left: 2px solid var(--line); padding-left: 10px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices label { font: 500 14px/1 var(--body); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+.choices input { margin: 0; accent-color: var(--accent); }
+.choices label:has(input[value="aprovado"]:checked) { border-color: var(--ok); color: var(--ok); }
+.choices label:has(input[value="ajustar"]:checked) { border-color: var(--adj); color: var(--adj); }
+.choices label:has(input[value="retirar"]:checked) { border-color: var(--warn); color: var(--warn); }
+.choices label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.edit { display: none; gap: 8px; }
+.item[data-s="ajustar"] .edit, .item[data-s="retirar"] .edit { display: grid; }
+.item[data-s="retirar"] .edit .newtxt-wrap { display: none; }
+.edit label { font-size: 13.5px; font-weight: 500; display: grid; gap: 4px; }
+textarea { font: inherit; font-size: 15px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; min-height: 70px; resize: vertical; }
+textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button { font: 700 13px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; border-radius: 6px; padding: 13px 18px; cursor: pointer; border: 1px solid var(--accent); background: transparent; color: var(--accent); }
+button.primary { background: var(--action); border-color: var(--action); color: #1b2340; }
+#footmsg { font-size: 14px; }
+.hidden { display: none !important; }
+@media (max-width: 420px) { main { padding: 24px 16px 72px; } .item { padding: 14px; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <span class="eyebrow">Olhar Bee · etapa 1</span>
+  <h1>Revisão da base pública</h1>
+  <div class="intro">
+    <p>Marcos, estes são todos os textos que o agente público poderá usar. Tudo saiu do Genesis e das 6 áreas da LP; nada vem da biblioteca com casos reais.</p>
+    <p class="small">Para cada texto, escolha <b>Aprovar</b>, <b>Ajustar</b> (reescreva do seu jeito ou comente) ou <b>Retirar</b>. Tudo é salvo sozinho, e dá para parar e voltar depois. O agente só vai usar o que estiver aprovado ou ajustado.</p>
+  </div>
+</header>
+
+<div class="bar">
+  <span class="count" id="count">0 de 0 revisados</span>
+  <span class="meter" aria-hidden="true"><i id="meter"></i></span>
+  <label for="onlyPending"><input type="checkbox" id="onlyPending"> só pendentes</label>
+  <span id="save" role="status" aria-live="polite"></span>
+</div>
+
+<div id="groups"></div>
+
+<div class="foot">
+  <button type="button" class="primary" id="approveRest">Aprovar todos os pendentes</button>
+  <button type="button" id="copy">Copiar revisão</button>
+  <span id="footmsg" role="status" aria-live="polite"></span>
+</div>
+</main>
+
+<script id="dados" type="application/json">__DADOS__</script>
+<script>
+(() => {
+  const DADOS = JSON.parse(document.getElementById('dados').textContent);
+  // Versão de conferência: só os itens de DADOS.foco, salvos em DADOS.colecao.
+  const FOCO = DADOS.foco ? new Set(DADOS.foco) : null;
+  const ITENS = DADOS.itens.filter((i) => !FOCO || FOCO.has(i.id));
+  const COL = DADOS.colecao || 'revisao';
+  const LOCAL = 'olhar-bee-revisao-base-' + COL;
+  let rev = {};             // { [id]: { status, texto, comentario } }
+  let db = null, me = null, timer = null, saving = false, dirty = false;
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function render() {
+    const root = $('groups');
+    root.textContent = '';
+    for (const g of DADOS.grupos) {
+      const sec = el('section', 'group');
+      const head = el('div', 'ghead');
+      head.append(el('span', 'eyebrow', 'Grupo ' + g.id), el('h2', null, g.titulo), el('p', 'small muted', g.descricao));
+      sec.append(head);
+      const its = ITENS.filter((i) => i.grupo === g.id);
+      if (!its.length) continue;
+      for (const it of its) sec.append(card(it));
+      root.append(sec);
+    }
+    refresh();
+  }
+
+  function card(it) {
+    const r = rev[it.id] || {};
+    const c = el('article', 'item');
+    c.dataset.id = it.id;
+    c.dataset.s = r.status || '';
+    const top = el('div', 'top');
+    top.append(el('span', 'id', it.id), el('h3', null, it.titulo));
+    c.append(top, el('p', 'txt', it.texto));
+    if (it.comentario_marcos) c.append(el('p', 'nota', 'Seu pedido na primeira revisão: ' + it.comentario_marcos));
+    if (it.nota) c.append(el('p', 'nota', it.nota));
+    const ch = el('div', 'choices');
+    ch.setAttribute('role', 'radiogroup');
+    ch.setAttribute('aria-label', 'Decisão para ' + it.id);
+    for (const [v, label] of [['aprovado', 'Aprovar'], ['ajustar', 'Ajustar'], ['retirar', 'Retirar']]) {
+      const l = el('label');
+      const inp = document.createElement('input');
+      inp.type = 'radio'; inp.name = 's_' + it.id; inp.value = v; inp.checked = r.status === v;
+      inp.addEventListener('change', () => { setItem(it, { status: v }); c.dataset.s = v; if (v === 'ajustar' && !ta.value) ta.value = it.texto; refresh(); });
+      l.append(inp, document.createTextNode(label));
+      ch.append(l);
+    }
+    c.append(ch);
+    const edit = el('div', 'edit');
+    const w1 = el('label', 'newtxt-wrap', 'Como deveria ficar (opcional)');
+    const ta = document.createElement('textarea');
+    ta.id = 't_' + it.id; ta.value = r.texto || '';
+    ta.addEventListener('input', () => setItem(it, { texto: ta.value }));
+    w1.append(ta);
+    const w2 = el('label', null, 'Comentário (opcional)');
+    const tc = document.createElement('textarea');
+    tc.id = 'c_' + it.id; tc.value = r.comentario || ''; tc.style.minHeight = '48px';
+    tc.addEventListener('input', () => setItem(it, { comentario: tc.value }));
+    w2.append(tc);
+    edit.append(w1, w2);
+    c.append(edit);
+    return c;
+  }
+
+  function setItem(it, patch) {
+    rev[it.id] = Object.assign({}, rev[it.id], patch);
+    try { localStorage.setItem(LOCAL, JSON.stringify(rev)); } catch (e) {}
+    scheduleSave();
+  }
+
+  function refresh() {
+    const total = ITENS.length;
+    const done = ITENS.filter((i) => rev[i.id] && rev[i.id].status).length;
+    $('count').textContent = done + ' de ' + total + ' revisados';
+    $('meter').style.width = (100 * done / total) + '%';
+    const only = $('onlyPending').checked;
+    document.querySelectorAll('.item').forEach((c) => c.classList.toggle('hidden', only && !!c.dataset.s));
+    $('approveRest').disabled = done === total;
+  }
+
+  function scheduleSave() {
+    dirty = true;
+    if (!db) { $('save').textContent = 'Salvo neste navegador'; return; }
+    $('save').className = ''; $('save').textContent = 'Salvando…';
+    clearTimeout(timer);
+    timer = setTimeout(save, 900);
+  }
+  async function save() {
+    if (saving) { timer = setTimeout(save, 600); return; }
+    saving = true; dirty = false;
+    try {
+      await db.doc(COL + '/' + me).set({ itens: rev, autor: me, versao: DADOS.versao, atualizado_em: new Date().toISOString() });
+      $('save').className = ''; $('save').textContent = dirty ? 'Salvando…' : 'Tudo salvo';
+    } catch (e) {
+      $('save').className = 'err'; $('save').textContent = 'Não salvou. Use “Copiar revisão” no fim.';
+    } finally { saving = false; if (dirty) { clearTimeout(timer); timer = setTimeout(save, 600); } }
+  }
+
+  $('onlyPending').addEventListener('change', refresh);
+  $('approveRest').addEventListener('click', () => {
+    for (const it of ITENS) if (!(rev[it.id] && rev[it.id].status)) rev[it.id] = Object.assign({}, rev[it.id], { status: 'aprovado' });
+    try { localStorage.setItem(LOCAL, JSON.stringify(rev)); } catch (e) {}
+    render(); scheduleSave();
+    $('footmsg').textContent = 'Pendentes aprovados.';
+  });
+  $('copy').addEventListener('click', async () => {
+    const L = ['Revisão da base pública (' + DADOS.versao + ')', ''];
+    for (const it of ITENS) {
+      const r = rev[it.id] || {};
+      if (!r.status || (r.status === 'aprovado' && !r.comentario)) continue;
+      L.push(it.id + ' ' + it.titulo + ': ' + r.status.toUpperCase());
+      if (r.texto && r.status === 'ajustar') L.push('  novo texto: ' + r.texto);
+      if (r.comentario) L.push('  comentário: ' + r.comentario);
+    }
+    const aprov = ITENS.filter((i) => rev[i.id] && rev[i.id].status === 'aprovado').length;
+    L.push('', 'Aprovados sem comentário: ' + aprov);
+    try { await navigator.clipboard.writeText(L.join('\n')); $('footmsg').textContent = 'Copiado. Cole na conversa com o Raul.'; }
+    catch (e) { $('footmsg').textContent = 'Seu navegador bloqueou a cópia. Tire prints e mande ao Raul.'; }
+  });
+
+  if (DADOS.intro) { const box = document.querySelector('.intro'); box.textContent = ''; DADOS.intro.forEach((p, n) => box.append(el('p', n ? 'small' : null, p))); }
+  if (DADOS.titulo) document.querySelector('h1').textContent = DADOS.titulo;
+  try { const s = localStorage.getItem(LOCAL); if (s) rev = JSON.parse(s) || {}; } catch (e) {}
+  render();
+
+  (async () => {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      const [dbNs, userNs] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!dbNs || !userNs) return;
+      db = dbNs; me = await userNs.id();
+      const snap = await db.doc(COL + '/' + me).get();
+      const prev = snap && (typeof snap.data === 'function' ? snap.data() : snap.data);
+      if (prev && prev.itens) { rev = Object.assign({}, prev.itens, rev); render(); }
+      $('save').textContent = 'Tudo salvo';
+      if (Object.keys(rev).length) scheduleSave();
+    } catch (e) { db = null; }
+  })();
+})();
+</script>
+</body>
+</html>

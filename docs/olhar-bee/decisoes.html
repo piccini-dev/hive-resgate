@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisões do Olhar Bee</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap" rel="stylesheet">
+<style>
+/* Mesmo visual da proposta (LP da Bee). Layout: formulário em coluna única, uma decisão por cartão, recomendação marcada. */
+:root {
+  --paper: #f6f5f1; --panel: #edf2fb; --card: #ffffff; --ink: #1b2340; --muted: #5a6280;
+  --line: #d5dcec; --accent: #2346b8; --action: #e8954a; --ok: #2f7d4f; --warn: #b5541c;
+  --display: "Libre Baskerville", Georgia, serif;
+  --body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11152a; --panel: #182042; --card: #1d2547; --ink: #e7eaf4; --muted: #a3abc6;
+    --line: #2d3763; --accent: #93abff; --action: #f0a862; --ok: #6fc490; --warn: #f09a66; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #11152a; --panel: #182042; --card: #1d2547; --ink: #e7eaf4; --muted: #a3abc6;
+  --line: #2d3763; --accent: #93abff; --action: #f0a862; --ok: #6fc490; --warn: #f09a66; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 16px/1.55 var(--body); }
+main { max-width: 760px; margin: 0 auto; padding: 44px 20px 80px; display: grid; gap: 28px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; line-height: 1.25; }
+h1 { font-size: clamp(28px, 5vw, 38px); }
+h2 { font-size: 20px; }
+p { margin: 0; }
+a { color: var(--accent); }
+.eyebrow { font: 700 12px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+header { display: grid; gap: 14px; }
+.intro { background: var(--panel); border-radius: 14px; padding: 18px 20px; display: grid; gap: 8px; font-size: 15px; }
+form { display: grid; gap: 18px; }
+fieldset { margin: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+legend { padding: 0; float: left; width: 100%; display: grid; gap: 6px; }
+legend + * { clear: both; }
+.num { font: 700 12px/1 var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.ctx { font-size: 14px; color: var(--muted); }
+.opts { display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.opt:has(input:checked) { border-color: var(--accent); background: var(--panel); }
+.opt input { margin: 3px 0 0; accent-color: var(--accent); }
+.opt b { font-weight: 500; }
+.tag { display: inline-block; margin-left: 6px; font: 700 11px/1 var(--body); letter-spacing: .06em; text-transform: uppercase; color: var(--ok); border: 1px solid var(--ok); border-radius: 999px; padding: 3px 7px; vertical-align: 2px; }
+label.f { display: grid; gap: 6px; font-size: 14px; font-weight: 500; }
+input[type="text"], select, textarea { font: inherit; font-size: 15px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; }
+textarea { min-height: 76px; resize: vertical; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, .opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.actions { position: sticky; bottom: 0; background: var(--paper); border-top: 1px solid var(--line); padding: 14px 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button { font: 700 13px/1 var(--body); letter-spacing: .08em; text-transform: uppercase; border-radius: 6px; padding: 14px 18px; cursor: pointer; border: 1px solid var(--accent); background: transparent; color: var(--accent); }
+button.primary { background: var(--action); border-color: var(--action); color: #1b2340; }
+button:disabled { opacity: .55; cursor: default; }
+#status { font-size: 14px; flex: 1 1 220px; }
+#status.ok { color: var(--ok); }
+#status.err { color: var(--warn); }
+.done { background: var(--panel); border-radius: 14px; padding: 18px 20px; display: none; gap: 6px; }
+.done.show { display: grid; }
+@media (max-width: 420px) { main { padding: 32px 16px 72px; } fieldset { padding: 16px; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <span class="eyebrow">Olhar Bee · agente público da Hive</span>
+  <h1>Sete decisões para começar</h1>
+  <div class="intro">
+    <p>Marcos, cada pergunta já traz a recomendação do Raul marcada. Se concordar, é só deixar como está. Mude o que quiser e use os campos de observação à vontade.</p>
+    <p class="small muted">Leva uns 5 minutos. A proposta completa, com o fluxo, a confidencialidade e os 14 casos fictícios, está em <a href="https://claude.ai/artifact/5uTRTXaKhEHJPMT5QZM37N">Agente Olhar Bee</a>.</p>
+  </div>
+</header>
+
+<form id="f" novalidate>
+
+  <fieldset>
+    <legend><span class="num">Decisão 1</span><h2>Onde a LP está e quem mexe nela?</h2></legend>
+    <p class="ctx">A ideia é manter a seção que já está desenhada e só ligá-la à Hive. Para isso, preciso saber a plataforma, o domínio e quem tem acesso.</p>
+    <div class="row">
+      <label class="f" for="d1_plataforma">Plataforma da LP
+        <select id="d1_plataforma" name="d1_plataforma">
+          <option value="">Escolha…</option>
+          <option>WordPress</option><option>Webflow</option><option>Wix</option><option>Framer</option>
+          <option>HTML / código próprio</option><option>Não sei</option>
+        </select>
+      </label>
+      <label class="f" for="d1_dominio">Endereço do site
+        <input type="text" id="d1_dominio" name="d1_dominio" placeholder="ex.: beeconsulting.com.br">
+      </label>
+    </div>
+    <label class="f" for="d1_acesso">Quem tem acesso para editar o site (nome e contato)
+      <input type="text" id="d1_acesso" name="d1_acesso">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Decisão 2</span><h2>Quantas perguntas o agente faz antes da leitura?</h2></legend>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d2" value="Até 2, só se o relato for vago, com opção de pular" checked><span><b>Até 2, só quando o relato for vago, com “pular e ver a leitura”</b><span class="tag">Recomendado</span></span></label>
+      <label class="opt"><input type="radio" name="d2" value="Nenhuma: leitura direta"><span><b>Nenhuma: leitura direta</b></span></label>
+      <label class="opt"><input type="radio" name="d2" value="Até 3 perguntas"><span><b>Até 3 perguntas</b></span></label>
+    </div>
+    <label class="f" for="d2_obs">Observação <textarea id="d2_obs" name="d2_obs"></textarea></label>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Decisão 3</span><h2>Formato do relatório aprofundado</h2></legend>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d3" value="E-mail com resumo e link para a página do relatório" checked><span><b>E-mail com resumo e link para a página do relatório, no visual da Bee</b><span class="tag">Recomendado</span><br><span class="small muted">Abre bem no celular, e vocês sabem se foi lido.</span></span></label>
+      <label class="opt"><input type="radio" name="d3" value="PDF anexo no e-mail"><span><b>PDF anexo no e-mail</b></span></label>
+      <label class="opt"><input type="radio" name="d3" value="Os dois"><span><b>Os dois</b></span></label>
+    </div>
+    <label class="f" for="d3_obs">O que não pode faltar no relatório? <textarea id="d3_obs" name="d3_obs"></textarea></label>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Decisão 4</span><h2>De qual endereço sai o e-mail?</h2></legend>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d4" value="Serviço de envio (Resend) com endereço do domínio da Bee" checked><span><b>Serviço de envio com um endereço do domínio da Bee</b><span class="tag">Recomendado</span><br><span class="small muted">Alguém com acesso ao domínio adiciona 3 registros de DNS. Sem isso, o e-mail cai no spam.</span></span></label>
+      <label class="opt"><input type="radio" name="d4" value="Usar o e-mail que a Bee já tem (Google Workspace/Outlook)"><span><b>Usar o e-mail que a Bee já tem (Google Workspace, Outlook…)</b></span></label>
+    </div>
+    <div class="row">
+      <label class="f" for="d4_endereco">Endereço desejado <input type="text" id="d4_endereco" name="d4_endereco" placeholder="ex.: olhar@beeconsulting.com.br"></label>
+      <label class="f" for="d4_dns">Quem mexe no domínio/DNS <input type="text" id="d4_dns" name="d4_dns"></label>
+    </div>
+    <label class="f" for="d4_aviso">Quem recebe o aviso quando alguém pede conversa <input type="text" id="d4_aviso" name="d4_aviso" placeholder="e-mail do Marcos ou da equipe"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Decisão 5</span><h2>Proteção contra abuso e custo</h2></legend>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d5" value="Anti-robô invisível + 3 leituras por pessoa/dia + teto diário de gasto" checked><span><b>Anti-robô invisível, até 3 leituras por pessoa por dia e teto diário de gasto</b><span class="tag">Recomendado</span><br><span class="small muted">Se o teto for atingido, o agente desliga sozinho e mostra “Fale com a Bee” no lugar.</span></span></label>
+      <label class="opt"><input type="radio" name="d5" value="Sem limite por pessoa, só o teto diário"><span><b>Sem limite por pessoa, só o teto diário</b></span></label>
+    </div>
+    <label class="f" for="d5_teto">Gasto máximo aceitável por mês com o agente (R$) <input type="text" id="d5_teto" name="d5_teto" placeholder="ex.: 200"></label>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Decisão 6</span><h2>Base pública e “desafios semelhantes”</h2></legend>
+    <p class="ctx">A base pública é o que o agente pode usar: só o conceitual, sem casos reais. Os cards de “desafios semelhantes” são fixos e genéricos.</p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d6" value="Raul rascunha a partir do Genesis e Marcos revisa texto por texto" checked><span><b>O Raul rascunha a partir do Genesis e das 6 áreas da LP, e o Marcos revisa texto por texto</b><span class="tag">Recomendado</span></span></label>
+      <label class="opt"><input type="radio" name="d6" value="Marcos escreve a base e os cards do zero"><span><b>O Marcos escreve a base e os cards do zero</b></span></label>
+    </div>
+    <label class="f" for="d6_cards">Algum desafio semelhante que você já quer nos cards? (genérico, sem nome de cliente) <textarea id="d6_cards" name="d6_cards" placeholder="ex.: Liderança · Um problema aparentemente individual sustentado por uma dinâmica maior."></textarea></label>
+    <p class="small muted">A lista de nomes que o agente nunca pode citar (clientes, alunos, empresas) não vai aqui. Mande direto ao Raul, por mensagem privada.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Decisão 7</span><h2>Por quanto tempo guardar as conversas?</h2></legend>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d7" value="12 meses para conversas sem contato; contatos até pedirem para sair" checked><span><b>12 meses para conversas sem contato; contatos até a pessoa pedir para sair</b><span class="tag">Recomendado</span></span></label>
+      <label class="opt"><input type="radio" name="d7" value="6 meses"><span><b>6 meses</b></span></label>
+      <label class="opt"><input type="radio" name="d7" value="24 meses"><span><b>24 meses</b></span></label>
+    </div>
+    <label class="f" for="d7_juridico">Revisão do aviso de privacidade (LGPD)
+      <select id="d7_juridico" name="d7_juridico">
+        <option value="">Escolha…</option>
+        <option>Temos advogado(a) para revisar</option>
+        <option>Não temos: o Raul sugere um texto e decidimos depois</option>
+      </select>
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend><span class="num">Calibração</span><h2>Quem testa e com quais casos</h2></legend>
+    <label class="f" for="cal_quem">Quem vai calibrar o agente na bancada <input type="text" id="cal_quem" name="cal_quem" placeholder="ex.: Marcos e …"></label>
+    <label class="f" for="cal_casos">Casos fictícios que você quer acrescentar aos 14 da proposta <textarea id="cal_casos" name="cal_casos"></textarea></label>
+    <label class="f" for="geral">Algo mais? <textarea id="geral" name="geral"></textarea></label>
+  </fieldset>
+
+  <div class="done" id="done" aria-live="polite">
+    <b>Respostas recebidas. Obrigado!</b>
+    <p class="small">O Raul já consegue ver. Se quiser mudar algo, altere aqui e envie de novo.</p>
+  </div>
+
+  <div class="actions">
+    <button type="submit" class="primary" id="send">Enviar respostas</button>
+    <button type="button" id="copy">Copiar respostas</button>
+    <span id="status" role="status" aria-live="polite"></span>
+  </div>
+</form>
+</main>
+
+<script>
+(() => {
+  const form = document.getElementById('f');
+  const statusEl = document.getElementById('status');
+  const sendBtn = document.getElementById('send');
+  const DRAFT = 'olhar-bee-decisoes-rascunho';
+  let db = null, me = null;
+
+  const setStatus = (msg, kind) => { statusEl.textContent = msg; statusEl.className = kind || ''; };
+
+  function collect() {
+    const out = {};
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; }
+      else out[el.name] = el.value.trim();
+    }
+    return out;
+  }
+  function fill(data) {
+    for (const el of form.elements) {
+      if (!el.name || !(el.name in data)) continue;
+      if (el.type === 'radio') el.checked = el.value === data[el.name];
+      else el.value = data[el.name] ?? '';
+    }
+  }
+
+  // Texto legível para colar no WhatsApp (funciona mesmo sem salvar).
+  function asText(d) {
+    const L = ['Olhar Bee: minhas respostas', ''];
+    L.push('1. LP: ' + (d.d1_plataforma || '-') + ' | site: ' + (d.d1_dominio || '-') + ' | acesso: ' + (d.d1_acesso || '-'));
+    L.push('2. Perguntas: ' + (d.d2 || '-') + (d.d2_obs ? ' | obs: ' + d.d2_obs : ''));
+    L.push('3. Relatório: ' + (d.d3 || '-') + (d.d3_obs ? ' | não pode faltar: ' + d.d3_obs : ''));
+    L.push('4. E-mail: ' + (d.d4 || '-') + ' | endereço: ' + (d.d4_endereco || '-') + ' | DNS: ' + (d.d4_dns || '-') + ' | aviso para: ' + (d.d4_aviso || '-'));
+    L.push('5. Abuso/custo: ' + (d.d5 || '-') + ' | teto mensal: R$ ' + (d.d5_teto || '-'));
+    L.push('6. Base: ' + (d.d6 || '-') + (d.d6_cards ? ' | cards: ' + d.d6_cards : ''));
+    L.push('7. Retenção: ' + (d.d7 || '-') + ' | jurídico: ' + (d.d7_juridico || '-'));
+    L.push('Calibração: ' + (d.cal_quem || '-') + (d.cal_casos ? ' | casos: ' + d.cal_casos : ''));
+    if (d.geral) L.push('Mais: ' + d.geral);
+    return L.join('\n');
+  }
+
+  try { const saved = localStorage.getItem(DRAFT); if (saved) fill(JSON.parse(saved)); } catch (e) {}
+  form.addEventListener('input', () => { try { localStorage.setItem(DRAFT, JSON.stringify(collect())); } catch (e) {} });
+
+  (async () => {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      const [dbNs, userNs] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!dbNs || !userNs) return;
+      db = dbNs;
+      me = await userNs.id();
+      const snap = await db.doc('respostas/' + me).get();
+      const prev = snap && (typeof snap.data === 'function' ? snap.data() : snap.data);
+      if (prev && prev.respostas) {
+        fill(prev.respostas);
+        document.getElementById('done').classList.add('show');
+        setStatus('Suas respostas anteriores foram carregadas.', 'ok');
+      }
+    } catch (e) { db = null; }
+  })();
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const data = collect();
+    if (!db || !me) {
+      setStatus('Não deu para salvar por aqui. Use “Copiar respostas” e mande ao Raul pelo WhatsApp.', 'err');
+      return;
+    }
+    sendBtn.disabled = true;
+    setStatus('Enviando…');
+    try {
+      await db.doc('respostas/' + me).set({ respostas: data, autor: me, enviado_em: new Date().toISOString() });
+      document.getElementById('done').classList.add('show');
+      setStatus('Enviado.', 'ok');
+    } catch (e) {
+      setStatus('Não foi possível salvar (' + (e && e.message ? e.message : 'erro') + '). Use “Copiar respostas” e mande ao Raul.', 'err');
+    } finally { sendBtn.disabled = false; }
+  });
+
+  document.getElementById('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(asText(collect())); setStatus('Copiado. Cole na conversa com o Raul.', 'ok'); }
+    catch (e) { setStatus('Seu navegador bloqueou a cópia. Tire um print da página e mande ao Raul.', 'err'); }
+  });
+})();
+</script>
+</body>
+</html>
