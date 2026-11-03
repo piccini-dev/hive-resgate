@@ -154,7 +154,19 @@ function summarize(code) {
     const err = (b.match(/Received message: "([^"]+)"/) ?? b.match(/Error: ([^\n]+)/))?.[1] ?? '';
     const extra = b.split('\n').map((l) => l.trim()).filter((l) => /^(Locator|Expected|Received|Expected substring|Expected pattern|Received string):/.test(l)).slice(0, 4);
     const onde = b.match(/at [^\n]*?(e2e\/[\w./-]+:\d+):\d+/)?.[1];
-    return { err, extra, onde };
+    // Avisos (toasts) que estavam na tela na hora da falha: costumam dizer o motivo ("Não foi possível agendar: …").
+    let avisos = [];
+    const ctx = b.match(/Error Context: (\S+error-context\.md)/)?.[1];
+    try {
+      const snap = ctx ? fs.readFileSync(path.join(ROOT, ctx), 'utf8').split('\n') : [];
+      const i = snap.findIndex((l) => /region "Notifications/.test(l));
+      if (i >= 0) {
+        const nivel = snap[i].search(/\S/);
+        for (const l of snap.slice(i + 1, i + 15)) { if (l.trim() && l.search(/\S/) <= nivel) break; const t = l.replace(/^[\s-]*(listitem|text|generic)?:?\s*/, '').replace(/^"|"$/g, '').trim(); if (t && !/^(list|button|img)\b/.test(t)) avisos.push(t); }
+      }
+    } catch { /* sem retrato da tela */ }
+    avisos = [...new Set(avisos)].slice(0, 3).map((a) => `aviso na tela: ${a}`);
+    return { err, extra: [...extra, ...avisos], onde };
   };
   for (const b of blocks.slice(0, 30)) {
     const title = b.split('\n')[0].trim();
