@@ -74,7 +74,7 @@ npm run regressao
 ```
 
 - Leva **uns 40 minutos**. O script mantém o PC acordado, mas deixe-o **na tomada** e não feche a janela.
-- Ele mostra o progresso ("teste 57 de 191…") e, no fim, o resultado:
+- Ele mostra o progresso ("teste 57 de 192…") e, no fim, o resultado:
   - **✅ Regressão verde:** pode seguir.
   - **❌ com falhas:** aparece a lista dos testes que falharam, com o motivo, e o caminho do log completo. Mande essa lista (ou o arquivo de log) ao Raul antes de subir qualquer mudança.
 - Para rodar só um arquivo de teste (mais rápido, para conferir uma área):

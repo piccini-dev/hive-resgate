@@ -52,7 +52,8 @@ test.describe('F7 · home, pipeline e navegação', () => {
     await expect(page.getByTestId('home-greeting')).toContainText('Olá');
     await expect(page.getByTestId('stat-campaigns')).toContainText('2campanhas ativas');
     await expect(page.getByTestId('stat-scheduled')).toContainText('1conteúdo programado');
-    await expect(page.getByTestId('stat-production')).toContainText('1em produção');
+    // R1 (PR #2): cada peça conta, inclusive as 2 alternativas do mesmo grupo (decisão do Raul, 03/11).
+    await expect(page.getByTestId('stat-production')).toContainText('2em produção');
 
     const items = page.getByTestId('pending-item');
     await expect(page.getByTestId('pending-count')).toHaveText('3 pendências');
@@ -195,7 +196,11 @@ test.describe('F7 · home, pipeline e navegação', () => {
     await expect(page.getByText('Sem campanha')).toHaveCount(0);
     await page.goto('/pipeline');
     await page.getByLabel('Campanha').selectOption({ label: 'Sem campanha' });
-    await expect(page.getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' })).toBeVisible();
+    // R1 (PR #2): um cartão por peça — a validação (aprovada) e o desdobramento (pendente).
+    const cards = page.getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' });
+    await expect(cards).toHaveCount(2);
+    await expect(page.getByTestId('col-aprovado').getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' })).toBeVisible();
+    await expect(page.getByTestId('col-pendente').getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' })).toBeVisible();
 
     // Um segundo conteúdo reusa o mesmo contêiner (novo "ciclo" só dele).
     await createOne('Reunião boa termina com decisão');
