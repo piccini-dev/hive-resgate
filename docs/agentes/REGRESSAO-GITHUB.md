@@ -7,7 +7,7 @@
 
 Você **não roda testes**, nem no seu ambiente nem no computador do Marcos. Cada Pull Request (PR) para a `main` dispara **a regressão completa no próprio GitHub** (~200 testes, ~45 min). O resultado aparece no PR como ✅ ou ❌, com a lista do que falhou.
 
-A `main` é protegida: nada entra sem ✅. Quem aprova e faz o merge é o Raul.
+A `main` é protegida: **nada entra sem ✅**. Com ✅, **o próprio Marcos faz o merge**, e o app vai ao ar sozinho (Netlify, ~2 min).
 
 ## Passo a passo
 
@@ -52,10 +52,14 @@ Para cada teste da lista, decida qual é o caso:
 - **Junte as correções num único push.** Cada push dispara uma nova regressão de ~45 min. Vários pushes seguidos só enchem a fila.
 - O comentário do PR é atualizado a cada nova execução, sempre com o commit testado.
 
-### 6. Se vier ✅
+### 6. Se vier ✅: publicar
 
-- Avise o Marcos: "regressão verde no commit `abc1234`; pronto para o Raul aprovar".
-- **Não faça merge.** Quem faz é o Raul. Você também não consegue enviar direto para a `main`: ela é protegida.
+1. Confira no PR que **não há nada em "Precisa do Raul"** pendente (veja "Banco e funções" abaixo). Se houver, espere o Raul.
+2. Se o GitHub mostrar **"This branch is out-of-date with the base branch"**, clique em **"Update branch"**. A regressão roda de novo com a `main` atual e o merge só libera quando voltar ✅. Isso garante que o que entra foi testado junto com o que já estava no ar.
+3. Clique em **"Merge pull request"** e depois em **"Confirm merge"**. Pode ser o Marcos, ou você, se ele pedir.
+4. Em ~2 minutos o Netlify publica o app. Avise o Marcos: "publicado: <o que mudou, em linguagem de uso>".
+
+Ninguém consegue enviar direto para a `main` sem passar pelo PR com ✅. Só o Raul, como dono, pode.
 
 ## Banco e funções (o merge NÃO publica isso)
 
@@ -74,6 +78,7 @@ A regressão roda contra o **banco de produção**, então um PR que depende de 
 - Colar senhas, tokens ou chaves em código, PR, comentário ou commit. **O repositório é público.**
 - Rodar `npm run regressao` no seu ambiente ou pedir isso ao Marcos. O caminho é o GitHub.
 - Abrir vários PRs ao mesmo tempo sobre a mesma área: um termina e o outro precisa ser refeito em cima dele.
+- Fazer merge com ❌, ou com "Precisa do Raul" pendente.
 
 ## A prévia do Netlify
 
