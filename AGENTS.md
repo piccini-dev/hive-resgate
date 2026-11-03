@@ -21,6 +21,7 @@ A Hive organiza **Campanha → Ciclo → Ideia → Conteúdo → Peças → Agen
 1. **Nunca publicar de verdade** em rede social (LinkedIn/Instagram do Marcos ou de qualquer cliente) sem autorização explícita e específica do Raul.
    - Testes de publicação usam contas com **token falso**: a rede devolve 4xx antes de criar o post.
 2. **Regressão completa obrigatória** antes de qualquer push que mexa em `src/`, `supabase/` ou `e2e/`: `npm run regressao` (funciona em Windows, macOS e Linux), cerca de 40 minutos, todos os testes verdes.
+   - **PRs (fluxo do Marcos e do agente dele):** a regressão roda sozinha no GitHub a cada PR, e a `main` só aceita com ✅. Veja [REGRESSAO-GITHUB](docs/agentes/REGRESSAO-GITHUB.md).
    - Mudança só em `docs/` ou em texto: build basta.
    - Detalhes em [04-TESTES](docs/agentes/04-TESTES.md).
 3. **Nunca rodar duas suítes de teste ao mesmo tempo**, e **nunca editar `src/` enquanto a regressão roda**. Existe um único usuário de teste, e o cleanup de uma suíte apaga os dados da outra.
@@ -69,7 +70,7 @@ O app antigo continua rodando até o Netlify terminar o deploy, então nunca que
 | Rodar o app | `npm run dev` |
 | Máquina pronta para testar? | `npm run regressao:check` |
 | Um spec (iteração) | `npm run regressao -- e2e/f25-publicacao-e4.spec.ts` |
-| Regressão completa | `npm run regressao` (Windows: ver [REGRESSAO-WINDOWS](docs/agentes/REGRESSAO-WINDOWS.md)) |
+| Regressão completa | `npm run regressao` no computador (recusa se houver uma rodando no GitHub). Em PR: automática ([REGRESSAO-GITHUB](docs/agentes/REGRESSAO-GITHUB.md)) |
 | SQL em produção | `npm run sql -- "select …"` · `npm run sql -- -f arquivo.sql` (no macOS/Linux também `scripts/sql.sh`) |
 | Deploy de edge function | `npx supabase functions deploy <nome> --project-ref djlorvdehedcupeykyes` |
 | Bundle compartilhado do plano | `npm run build:edge-shared` (depois redeploy `campaign-tick`) |

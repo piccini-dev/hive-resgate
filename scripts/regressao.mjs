@@ -66,6 +66,18 @@ async function preflight() {
   const min = Number(process.env.MIN_FREE_GB ?? 2);
   if (free !== null && free < min) fail(`pouco espaço em disco (${free.toFixed(1)} GB livres)`, `libere pelo menos ${min} GB: os testes gravam vídeos e o navegador precisa de espaço`);
   else if (free !== null) ok(`${free.toFixed(1)} GB livres em disco`);
+
+  // A regressão do GitHub (PRs, .github/workflows/regressao.yml) usa o MESMO usuário de teste:
+  // rodar no computador ao mesmo tempo faz uma apagar os dados da outra. Sem `gh`, não confere.
+  if (process.env.GITHUB_ACTIONS !== 'true') {
+    const r = spawnSync('gh', ['run', 'list', '--workflow', 'regressao.yml', '--limit', '10', '--json', 'status,url'], { cwd: ROOT, encoding: 'utf8', timeout: 20000 });
+    if (r.status === 0) {
+      let ativos = [];
+      try { ativos = JSON.parse(r.stdout || '[]').filter((x) => ['in_progress', 'queued', 'waiting', 'pending', 'requested'].includes(x.status)); } catch { /* saída inesperada: não bloqueia */ }
+      if (ativos.length) fail(`há uma regressão rodando no GitHub (${ativos[0].url})`, 'espere ela terminar: as duas usam o mesmo usuário de teste');
+      else ok('nenhuma regressão rodando no GitHub');
+    }
+  }
 }
 
 function freeDiskGb() {
@@ -141,6 +153,17 @@ function summarize(code) {
     const title = b.split('\n')[0].trim();
     const err = (b.match(/Received message: "([^"]+)"/) ?? b.match(/Error: ([^\n]+)/))?.[1] ?? '';
     console.log(`  ✘ ${title}\n      ${err.slice(0, 180)}`);
+  }
+  // Resumo em Markdown para o GitHub (página da execução e comentário no PR).
+  if (process.env.RESUMO_MD) {
+    const md = [`## ${code === 0 ? '✅ Regressão verde' : '❌ Regressão com falhas'}`, '', `**${passed} passaram · ${failed} falharam**${flaky ? ` · ${flaky} instáveis` : ''}${skipped ? ` · ${skipped} não rodaram` : ''}`, ''];
+    for (const b of blocks.slice(0, 30)) {
+      const title = b.split('\n')[0].trim();
+      const err = (b.match(/Received message: "([^"]+)"/) ?? b.match(/Error: ([^\n]+)/))?.[1] ?? '';
+      md.push(`- \`${title.replace(/`/g, "'")}\`  \n  ${err.slice(0, 300).replace(/[<>]/g, '')}`);
+    }
+    if ((log.match(/fetch failed|HTTP 502|ECONNRESET/g) ?? []).length >= 5) md.push('', '⚠ Muitas falhas de rede/Supabase: costuma ser instabilidade. Rode de novo antes de investigar o código.');
+    try { fs.writeFileSync(process.env.RESUMO_MD, md.join('\n') + '\n'); } catch { /* sem resumo */ }
   }
   if (/ENOSPC/.test(log)) console.log('\n  ⚠ "no space left on device": o disco encheu — libere espaço e rode de novo.');
   if ((log.match(/fetch failed|HTTP 502|ECONNRESET/g) ?? []).length >= 5) console.log('\n  ⚠ Muitas falhas de rede/Supabase: costuma ser ambiente (internet, suspensão, instabilidade). Rode de novo só os specs que falharam antes de investigar o código.');

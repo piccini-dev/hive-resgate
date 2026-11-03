@@ -1,5 +1,7 @@
 # Regressão completa no Windows — passo a passo
 
+> **Não é mais o caminho do Marcos.** Os PRs rodam a regressão sozinhos no GitHub: veja [REGRESSAO-GITHUB](REGRESSAO-GITHUB.md). Este guia fica só como alternativa.
+
 A regressão roda **no seu computador**, num terminal (PowerShell). **Não roda dentro do ChatGPT/Codex na nuvem:** lá não existem as senhas do usuário de teste nem o acesso ao Supabase, e a rede é bloqueada. Por isso o GPT "não conseguiu executar".
 
 Um agente instalado no próprio PC (Codex CLI, Claude Code etc.) consegue rodar, desde que a preparação abaixo esteja feita.

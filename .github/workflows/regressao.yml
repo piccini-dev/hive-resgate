@@ -1,0 +1,94 @@
+# Regressão completa no GitHub — o caminho do Marcos (docs/agentes/REGRESSAO-GITHUB.md).
+#
+# Roda os testes E2E contra o banco de PRODUÇÃO com o usuário de teste isolado, igual a
+# `npm run regressao` no computador. Por isso:
+#   - uma única execução por vez no repositório inteiro (concurrency), nunca duas suítes juntas;
+#   - só PRs de branches DESTE repositório (fork não recebe segredos e não roda);
+#   - nada de artefatos (vídeos/traces): o repositório é público e eles mostram a sessão de teste.
+# Segredos: Settings → Secrets and variables → Actions (nunca no código).
+
+name: Regressão completa
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: 'Specs específicos, separados por espaço (vazio = suíte completa)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: regressao-usuario-de-teste
+  cancel-in-progress: false
+
+jobs:
+  regressao:
+    name: regressao
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TZ: America/Sao_Paulo
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Arquivos de ambiente (a partir dos segredos)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_FACEBOOK_APP_ID: ${{ secrets.VITE_FACEBOOK_APP_ID }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          E2E_USER_ID: ${{ secrets.E2E_USER_ID }}
+        run: |
+          printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_PUBLISHABLE_KEY=%s\nVITE_FACEBOOK_APP_ID=%s\n' "$VITE_SUPABASE_URL" "$VITE_SUPABASE_PUBLISHABLE_KEY" "$VITE_FACEBOOK_APP_ID" > .env.local
+          printf 'E2E_EMAIL=%s\nE2E_PASSWORD=%s\nE2E_USER_ID=%s\n' "$E2E_EMAIL" "$E2E_PASSWORD" "$E2E_USER_ID" > .env.e2e.local
+
+      - name: Navegador de teste
+        run: npx playwright install --with-deps chromium
+
+      - name: Regressão
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          LOG: ${{ runner.temp }}/regressao.log
+          RESUMO_MD: ${{ runner.temp }}/resumo.md
+          SPECS: ${{ inputs.specs }}
+        run: npm run -s regressao -- $SPECS
+
+      - name: Resumo na página da execução
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/resumo.md" ]; then cat "$RUNNER_TEMP/resumo.md" >> "$GITHUB_STEP_SUMMARY";
+          else echo "A regressão não chegou a rodar os testes: veja o passo que falhou acima." >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Resultado no PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const file = `${process.env.RUNNER_TEMP}/resumo.md`;
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const corpo = fs.existsSync(file)
+              ? fs.readFileSync(file, 'utf8')
+              : '## ❌ A regressão não chegou a rodar os testes\n\nUm passo de preparação falhou (instalação, segredos ou acesso ao Supabase).';
+            const marca = '<!-- regressao-hive -->';
+            const body = `${marca}\n${corpo}\nCommit \`${context.payload.pull_request.head.sha.slice(0, 7)}\` · [execução completa](${run})`;
+            const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number, per_page: 100 });
+            const anterior = comments.find((c) => c.body?.startsWith(marca));
+            if (anterior) await github.rest.issues.updateComment({ ...context.repo, comment_id: anterior.id, body });
+            else await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
