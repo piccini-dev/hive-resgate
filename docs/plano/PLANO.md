@@ -139,7 +139,8 @@ Sem mudança.
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
 |---|---|---|---|---|---|
 | 01 | Base do resgate | Ambiente seguro e medição antes de cortar | Site de teste no ar com faixa; uso real medido; `FLUXOS.md` com os passos atuais | — | 5 |
-| 02 | Fora o morto | Tirar do front o que não tem efeito | Build verde; telas e chamadas mortas removidas; login sem escrita inútil | 01 | 6 |
+| 01b | Métricas do LinkedIn | Trazer ao repositório o trabalho de 03–04/11 que só existia no zip | Patch de 16 arquivos na `main`; funções e migrations conferidas contra a produção (só leitura); regressão verde | 01 | 3 |
+| 02 | Fora o morto | Tirar do front o que não tem efeito | Build verde; telas e chamadas mortas removidas; login sem escrita inútil | 01b | 6 |
 | 03 | Menu novo | Configurações honestas, ferramentas internas separadas, menu de 15 itens | Menu da §6.1 do relatório; rotas antigas redirecionam | 02 | 6 |
 | 04 | Ensinar a Hive | Um lugar para ensinar a voz | `/coach` com abas Conversa, Observações e Lições; `/feedback` e `/aprendizado` redirecionam; portão fora | 03 | 5 |
 | 05 | Voz da Hive | Base em 4 telas | "Como escrevo" (Genesis + Diretrizes); Arsenal dentro de Editoriais; Produtos dentro da Identidade | 03 | 5 |
@@ -161,6 +162,11 @@ Só as do bloco atual viram issue no GitHub (`/issues`). As dos blocos seguintes
 - 01-C `exec:claude` Criar o site Netlify de teste ligado ao `hive-resgate` (o Raul faz o login).
 - 01-D `exec:claude` Medir o uso real no banco (só SELECT) e atualizar o relatório §11.
 - 01-E `exec:claude` Percorrer os fluxos principais, contar passos e telas, rodar `/impeccable critique` e gravar `docs/plano/FLUXOS.md`.
+
+**01b · Métricas do LinkedIn** (decisão de 04/11: bloco próprio, antes do 02)
+- `exec:claude` Aplicar `trabalho-nao-enviado.patch` (zip de transferência, base `8350a79`, 16 arquivos) e passar no build e nos unitários.
+- `exec:claude` Conferir, só por leitura, que `linkedin-import` e as migrations `20261103000005/6/7` do patch são as que estão em produção. Sem deploy.
+- `exec:claude` Regressão completa e merge.
 
 **02 · Fora o morto** (relatório §4)
 - Remover `LinhasEditoriais.tsx`, `GateLock.tsx` e `editorialLinesApi`.
