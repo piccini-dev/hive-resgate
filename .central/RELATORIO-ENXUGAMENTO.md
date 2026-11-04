@@ -434,3 +434,51 @@ Feita na issue #4 do hive-resgate. Todas as consultas foram só leitura. As cont
 | `publish-scheduler` | `*/2 * * * *` | sim |
 
 Não há cron de `editorial-line-tick` (confirma §4.2). O `linkedin-metrics` vem do trabalho de 03/11 que ainda não está no repositório (migration `20261103000006`, só no patch de transferência).
+
+### 11.3 Edge Functions publicadas e chamadas em 30 dias
+- **48 publicadas, as mesmas 48 do repositório** (o §5 dizia 46). Nenhuma publicada fora do repo nem no repo sem publicar.
+- O `linkedin-import` publicado (v9, 03/11) é **mais novo que o código do repo**: a versão nova só existe no patch de transferência.
+- Chamadas lidas dos logs de borda (`function_edge_logs`), dia a dia, de 05/10 a 04/11. Colunas: **usuário** = JWT de usuário logado que não é o de teste (Marcos, ou o Raul testando); **E2E** = usuário de teste; **serviço** = cron, service role, chamada entre funções ou preflight sem JWT.
+
+| Função | Usuário | E2E | Serviço | Última chamada de usuário |
+|---|---:|---:|---:|---|
+| `identity-setup` | 43 | 0 | 3 | 2026-11-03 |
+| `publish-post` | 38 | 236 | 67 | 2026-11-03 |
+| `hive-decide` | 31 | 0 | 24 | 2026-10-19 |
+| `generate-content` | 30 | 2 | 70 | 2026-10-19 |
+| `schedule-piece` | 29 | 360 | 100 | 2026-10-21 |
+| `content-develop` | 23 | 0 | 19 | 2026-10-16 |
+| `content-memory` | 9 | 0 | 18 | 2026-11-03 |
+| `learn-from-correction` | 9 | 0 | 9 | 2026-10-20 |
+| `linkedin-import` | 8 | 0 | 33 | 2026-11-03 |
+| `voice-coach` | 7 | 0 | 9 | 2026-10-20 |
+| `post-chat` | 6 | 0 | 8 | 2026-10-20 |
+| `cycle-pauta` | 5 | 0 | 9 | 2026-10-15 |
+| `campaign-moment` | 3 | 0 | 4 | 2026-10-27 |
+| `metrics-ingest` | 2 | 17 | 48 | 2026-10-19 |
+| `olhar-bee` | 2 | 0 | 30 | 2026-11-03 |
+| `edit-text` | 2 | 0 | 2 | 2026-10-13 |
+| `distribute-schedule` | 2 | 0 | 2 | 2026-10-19 |
+| `acj-orchestrator` | 1 | 0 | 5 | 2026-10-13 |
+| `commit-learning` | 1 | 0 | 2 | 2026-10-20 |
+| `campaign-strategy` | 1 | 0 | 1 | 2026-10-13 |
+| `publish-scheduler` | 0 | 0 | 20432 | - |
+| `meta-ads-sync` | 0 | 0 | 1356 | - |
+| `meta-ads-attribution` | 0 | 0 | 1208 | - |
+| `campaign-tick` | 0 | 0 | 43 | - |
+| `qa-check` | 0 | 0 | 37 | - |
+| `instagram-refresh` | 0 | 0 | 28 | - |
+| `marcos-photo` | 0 | 28 | 23 | - |
+| `sequence-script` | 0 | 0 | 1 | - |
+
+**Nenhuma chamada em 30 dias (20):** `download-proxy`, `editorial-line-tick`, `generate-caption-from-video`, `generate-image-ai`, `generate-persona`, `generate-script`, `hybrid-image-search`, `ingest-document`, `instagram-connect`, `instagram-import`, `learn-from-feedback`, `mine-content`, `nano-scene`, `persona-chat`, `process-video`, `regenerate-snippet`, `search-knowledge`, `suggest-audience`, `test-linkedin`, `youtube-meta`.
+
+### 11.4 Dependências SQL das tabelas de §4.3
+| Tabela | Dependência | Efeito no corte |
+|---|---|---|
+| `genesis_dimensoes`, `genesis_paradigmas` | **não existem mais** no banco | já saíram; tirar da lista |
+| `alma_eventos` | a função `ai_gate_recompute` (trigger `trg_ai_gate_recompute` em `ai_reviews`) **grava** nela | continua só escrita, mas apagar a tabela quebra a revisão de IA: primeiro tirar o insert da função |
+| `alma_dimensoes` | FK de `alma_crencas` e `alma_sombra` | sai junto com elas |
+| `editorial_lines` | FK de `editorial_line_runs` e de `user_posts.editorial_line_id` (0 posts preenchidos); trigger `trg_editorial_lines_next_run` | soltar a FK de `user_posts` antes |
+| `kanban_columns` | a função `handle_new_user` (cadastro) cria as colunas padrão | tirar de `handle_new_user` antes (além do `ensureDefaults` no login) |
+| demais (`alma_crencas`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra`, `acj_definitions`, `editorial_line_runs`, `bee_themes`, `bee_logics`) | nenhuma view, função, trigger, FK ou cron | confirmado: sem leitor no banco |
