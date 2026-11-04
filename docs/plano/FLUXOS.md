@@ -21,7 +21,7 @@
 |---|---|---|---|---|---|---|
 | F1 Campanha → 1ª peça aprovada | 13 | 14 | 1 | 9 | ~9 min (~8 min) | Funciona; "Aprovar conteúdo" fica a ~4 telas de rolagem |
 | F2 Um conteúdo → aprovado | 6 | 6 | 2 de 8 | 4 | ~4 min 30 s (~1 min 40 s) | Funciona; formulário longo com 8 campos |
-| F3 Vídeo → peça (lido no código a partir do passo 4) | 7 | 9 | 9 | 7 | não medido (transcrição: "30 s a 2 min") | Não verificado além do passo 1 |
+| F3 Vídeo → peça aprovada | 7 | 6 | 3 de 9 | 7 | ~2 min (~35 s) | Passos 1–2 cabem; 3–4 não verificados no celular |
 | F4 Agendar uma peça aprovada | 2 | 3 | 0 | 2 | ~1 min 30 s (sem IA) | Calendário corta a semana em Dom–Ter; arrastar não funciona no toque |
 | F5 Corrigir o texto e ensinar a lição | 4 | 7 | 2 | 3 | ~2 min (~40 s) | Editor: os botões do topo saem da tela |
 | F6 Achar onde se muda a voz | 9 lugares em 3 grupos do menu | 2 por lugar | — | — | — | Menu em gaveta com 28 itens |
@@ -96,21 +96,24 @@
 
 **Caminho:** Início → Criar → Um conteúdo → Vídeo → `/podcasts/novo` ("Novo corte de podcast"), com 4 passos na mesma tela.
 
-**Medição:** percorrido no app até o passo 1. Daí em diante foi lido em `src/pages/podcasts/NewPodcastClip.tsx`. O passo 1 exige o link de um episódio no YouTube; seguir pediria escolher um link e subir um vídeo, e não há corte de teste no repositório. **Não verificado no app:** upload, transcrição, legenda e a peça criada.
+**Medição:** percorrido no app de ponta a ponta, com um corte de teste de 23 s (fala sintetizada em português, feito com FFmpeg) e o link de um episódio que já estava no banco.
 
 | # | Tela / rota | Ação | Observação |
 |---|---|---|---|
 | 1 | Início `/` | **+ Criar** | — |
 | 2 | Criar `/criar` | **Um conteúdo** | O Criar não mostra "Vídeo"; ele está um nível abaixo. |
 | 3 | Um conteúdo `/criar/conteudo` | **Vídeo** | O cartão promete "Vídeo pronto ou roteiro"; **não existe opção de roteiro** nesse caminho. |
-| 4 | Corte · passo 1 `/podcasts/novo` | Cola o link do YouTube; **Buscar**; **Continuar pro upload** | **Beco sem saída:** sem episódio no YouTube não dá para continuar ("Continuar" desabilitado). Um vídeo que não é corte de podcast não tem caminho. O menu pula para Base Hive › Vídeos. Textos sem acento ("Episodio", "titulo", "descricao", "pro upload"). |
-| 5 | Corte · passo 2 | Escolhe LinkedIn e/ou Instagram; **clica e escolhe o arquivo** | Upload de até 200 MB; "Transcrevendo com Gemini… pode levar 30 s–2 min" (nome do modelo na tela). |
-| 6 | Corte · passo 3 "Configura a geracao" | Editorial (opcional), **Avatar** ("O Identificado" / "O Incomodado"), briefing; **Gerar caption** | Usa um terceiro modelo de público (`bee_avatars`), diferente dos perfis da Identidade usados no F1 e no F2. Não pergunta perfil nem campanha. "Caption" em inglês. |
-| 7 | Corte · passo 4 "Preview e edicao" | Revisa título e legenda; data opcional; **Aprovar e mandar pro Kanban** (ou **Agendar**) | **Fura dois contratos (regra 7):** grava `status: approved` ou `scheduled` direto (`postApi.update`), sem `approve_piece` nem `schedule-piece`. "Kanban" é o Pipeline, que o plano tira. Ao terminar, volta para o **Início**, não para a peça. |
+| 4 | Corte · passo 1 `/podcasts/novo` | Cola o link do YouTube e tecla Enter (ou **Buscar**); **Continuar pro upload** | **Beco sem saída:** sem episódio no YouTube não dá para continuar ("Continuar" desabilitado). Um vídeo que não é corte de podcast não tem caminho. O link cria um registro de podcast para o usuário. O menu pula para Base Hive › Vídeos. Textos sem acento ("Episodio", "titulo", "descricao", "pro upload"). |
+| 5 | Corte · passo 2 | Mantém o Instagram (vem marcado sozinho; o LinkedIn fica desmarcado); **clica e escolhe o arquivo** | Upload e transcrição em ~15 s para 23 s de vídeo. A transcrição saiu fiel. A tela diz "Transcrevendo com Gemini" (nome do modelo). |
+| 6 | Corte · passo 3 "Configura a geracao" | Mantém editorial "livre" e avatar "Ambos"; o briefing vem do título do episódio; **Gerar caption** | Usa um terceiro modelo de público (`bee_avatars`: "O Identificado", "O Incomodado"), diferente dos perfis da Identidade usados no F1 e no F2. Não pergunta perfil nem campanha. "Caption" em inglês. Legenda gerada em ~20 s (1.195 caracteres). |
+| 7 | Corte · passo 4 "Preview e edicao" | Revisa a legenda; sem data; **Aprovar e mandar pro Kanban** | O "Título interno" é o nome do arquivo ("corte-teste-e2e"). **Fura dois contratos (regra 7):** grava `status: approved` (ou `scheduled`, se houver data) direto, por `postApi.update`, sem `approve_piece` nem `schedule-piece`. "Kanban" é o Pipeline, que o plano tira. Ao terminar, volta para o **Início** com o aviso "Post aprovado e no Kanban", não para a peça. |
+| — | Agenda `/agenda` | (conferência) | A peça entra na fila "Sem campanha" com o título "corte-teste-e2e" e o rótulo **"Imagem"**, embora seja vídeo. No banco: `format: video`, `status: approved`, sem campanha e sem conteúdo-mãe. |
 
-**Totais F3 (contagem pelo código):** 7 telas · 9 cliques · 9 campos (link, plataforma, arquivo, editorial, avatar, briefing, título, legenda, data) · 7 decisões · tempo não medido.
+**Totais F3:** 7 telas · 6 cliques · 3 campos usados de 9 visíveis (link, plataforma, arquivo; editorial, avatar, briefing, título, legenda e data com padrão) · 7 decisões · ~2 min, dos quais ~35 s de IA.
 
-**Celular (375 px):** não verificado além do passo 1, que cabe na tela.
+**Celular (375 px):**
+- Passos 1 e 2 conferidos: cabem; o campo do link corta o texto de exemplo.
+- Os passos 3 e 4 não foram abertos no celular: o upload de arquivo não funciona dentro do iframe de 375 px. Pelo código, são um cartão de uma coluna (`sm:grid-cols-2`).
 
 ---
 
@@ -187,7 +190,7 @@
 **Método:** duas avaliações isoladas.
 - **A · design:** leu o código de `/criar`, `/criar/conteudo`, `/campanhas/nova`, `/producao` (+ `components/production`), `/agenda` e `/podcasts/novo`, e abriu as telas só para olhar.
 - **B · detector:** `impeccable detect`, mais o overlay no navegador em 4 páginas.
-- **Não avaliado ao vivo pela A:** o formulário "Imagem e texto", o celular e os passos 2–4 do vídeo (avaliados pelo código e por esta medição).
+- **Não avaliado ao vivo pela A:** o formulário "Imagem e texto", o celular e os passos 2–4 do vídeo (avaliados pelo código e por esta medição; o F3 foi medido ao vivo depois).
 
 **Nota de usabilidade (Nielsen): 14/40, faixa "Ruim".**
 
@@ -266,7 +269,7 @@ Ordenados por impacto no Marcos. Cada linha traz o fluxo, a tela e a proposta.
 | 6 | F1, F2, F4 | Assistente, pauta, validação, Agenda | Jargão interno: ACJ-01…05, "Movimento realizado 90/100", "desdobramento", "BEE-041126-G2-D2", "M01-B Tensao", "Caption", "Kanban", "a recalibrar: Recalibrar" | Termos do dia a dia; ACJ e códigos só atrás de "ver detalhes" |
 | 7 | F5 | Editor da peça | Salvar uma correção devolve a peça para "pendente" e ela some da fila sem aviso claro | Ao salvar, mostrar "Esta peça precisa de nova aprovação" com o botão Aprovar ao lado |
 | 8 | F6, F5 | Menu (Base Hive, Inteligência, Configurações) | 9 lugares mexem na voz; o único que diz "Voz" (Configurações › Voz Bee) não é lido por nenhum código | Tirar a aba Voz Bee; juntar Coach, Feedback e Aprendizado em "Ensinar a Hive"; Identidade como porta de entrada (relatório §3.3, §3.5, §3.6) |
-| 9 | F3 | Criar → Um conteúdo → Vídeo | Vídeo escondido em "Um conteúdo"; promete "roteiro" que não existe; exige episódio no YouTube; outro modelo de público (Avatar); termina no Início | "Vídeo" no Criar, com o mesmo assistente, o mesmo seletor de perfil e a mesma esteira até a peça (relatório §3.1) |
+| 9 | F3 | Criar → Um conteúdo → Vídeo | Vídeo escondido em "Um conteúdo"; promete "roteiro" que não existe; exige episódio no YouTube; outro modelo de público (Avatar); termina no Início; na Agenda aparece como "Imagem", com o nome do arquivo como título | "Vídeo" no Criar, com o mesmo assistente, o mesmo seletor de perfil e a mesma esteira até a peça (relatório §3.1) |
 | 10 | F1, F2 | Produção · validação (celular) | 9 ou mais controles por conteúdo; no celular o "Aprovar" fica a ~4 telas de rolagem | Barra fixa "Aprovar · Pedir mudança"; blocos técnicos recolhidos |
 | 11 | F2 | `/criar/conteudo` · ideia | 8 campos (2 ACJ), quando só título e direção são necessários | Mostrar só título e direção; o resto em "Mais opções" |
 | 12 | F2 | Produção · revisão | Três telas de resumo seguidas ("Ver resumo", "Desenvolver desdobramentos", "Revisar produção") para chegar à peça do Instagram | Ir direto para as peças a revisar depois de aprovar o conteúdo |
