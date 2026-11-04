@@ -1,0 +1,333 @@
+# Relatório de enxugamento e reorganização — bee-platform (Hive)
+
+Data: 2026-11-04 · Base: `main` (407a6e5) · **Só leitura: nada foi alterado.**
+Versão 2: substitui a versão 1 do mesmo dia e corrige um erro dela (§10).
+
+---
+
+## 0. Resumo em 1 minuto
+
+A Hive cresceu em camadas: Alma → Genesis → Identidade, linhas editoriais → campanhas, wizard → produção. **A camada nova entrou, mas a velha não saiu.** Por isso a mesma coisa aparece em dois, três ou cinco lugares.
+
+| | Hoje | Proposta |
+|---|---|---|
+| Itens no menu do Marcos | 26 + Criar | 15 + Criar (e uma área Admin para o Raul) |
+| Jeitos de criar conteúdo | 3 | 2 (campanha e conteúdo avulso; o vídeo entra no avulso) |
+| Lugares para ver "o que está andando" | 4 | 2 (Início e Agenda) |
+| Jeitos de ensinar a voz | 4 telas | 1 tela ("Ensinar a Hive") + a correção automática |
+| Lugares onde a "voz" é definida | 4 | 2 (Identidade e Como escrevo) |
+| Representações de "público" | 5 | 1 (meta; é a etapa mais arriscada) |
+| Edge Functions | 46 | cerca de 33 |
+| Tabelas | ~100 | cerca de 83 |
+| Linhas em telas e componentes | — | cerca de -5.300 |
+
+**Limite:** o uso real não foi medido no banco (sem token; ver §11). O "morto" abaixo é morto **no código**. Antes de apagar tabela, é preciso conferir no banco.
+
+---
+
+## 1. Por que está confuso: as 6 causas
+
+1. **Migrações de conceito pela metade.** A Alma virou Genesis, mas 7 tabelas `alma_*` continuam e o app ainda grava em `alma_eventos`, que ninguém lê. As linhas editoriais viraram campanhas, mas a tela, a função, as tabelas e o "portão da IA" delas continuam.
+2. **Um wizard antigo em paralelo à esteira nova.** `/posts/novo` (2.269 linhas) faz o mesmo que Campanha → Produção e Um conteúdo, com outras funções de IA.
+3. **Configurações que não configuram nada.** As abas "Voz Bee" e "Branding" de Configurações, e o tom de voz do Onboarding, gravam campos que **nenhum código lê** (§3.6).
+4. **Ferramentas de construção no menu do usuário.** Teste de imagem, prévia do compositor, calibração do Olhar e custos de API aparecem para o Marcos.
+5. **O mesmo conceito com nomes diferentes.** "Público" existe como `bee_avatars`, `genesis_avatares`, `audiences`, `bee_personas` e o público do editorial (`suggest-audience`). "Voz" existe no Genesis, nas Diretrizes, nos perfis da Identidade e em Configurações.
+6. **Menu organizado por "quando foi construído", não por "o que o Marcos faz".** "Base Hive" tem 11 itens e "Inteligência" tem 9, misturando o diário com o raro.
+
+---
+
+## 2. Mapa completo das telas (com veredito)
+
+Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S** sair · **T** tem teste E2E.
+
+### Menu principal
+| Tela | Rota | O que faz | Veredito |
+|---|---|---|---|
+| Início | `/` | O que precisa de você, o que vai ao ar e as recomendações | **M**, absorve o que o Pipeline tem de único · T |
+| Criar (botão) | `/criar` | Escolhe entre Campanha, Um conteúdo e Vídeo | **M** |
+| Campanhas | `/campanhas`, `/nova`, `/:id` | Estratégia, ciclos e mix | **M** · T |
+| Produção | `/producao` | Passo a passo do ciclo: pauta → ideias → desenvolvimento → revisão | **M** · T |
+| Pipeline | `/pipeline` | Kanban de ideias, conteúdos e peças | **J** com o Início (status) e a Agenda (fila) · T |
+| Agenda | `/agenda` | Calendário + fila para agendar | **M**, com um só jeito de sugerir data (§3.2) · T |
+| Desempenho | `/desempenho`, `/contas` | Métricas, comparativo de contas, tráfego pago | **M**, vira "Resultados" · T |
+
+### "Base Hive" (11 itens)
+| Tela | Rota | Veredito |
+|---|---|---|
+| Minha identidade | `/identidade` (+ sessões e perfis) | **M**: marca, quem fala, frentes, público, perfis · T |
+| Genesis | `/genesis` | **J** com Diretrizes numa tela "Como escrevo" (abas Princípios / Ofício) · T |
+| Diretrizes de Criação | `/diretrizes` | **J** (ver acima) |
+| Editoriais | `/editoriais` | **M**, absorve o Arsenal e os exemplos (já são por editorial) |
+| Arsenal | `/arsenal` | **J** com Editoriais |
+| Produtos | `/produtos` | **J** com Identidade (há sobreposição com "frentes de negócio", `business_fronts`; ver §3.5) |
+| Conhecimento | `/conhecimento` | **M** (RAG) |
+| Fotografia do Marcos | `/hive/fotografia` | **J** com `/hive/marcos`: uma tela de fotos do Marcos · T |
+| Templates | `/templates` | **M** |
+| Biblioteca | `/biblioteca` | **M**, absorve a lista de Vídeos |
+| Vídeos | `/podcasts`, `/podcasts/novo` | **J**: a lista vai para a Biblioteca e "novo corte" entra pelo Criar |
+
+### "Inteligência" (9 itens)
+| Tela | Rota | Veredito |
+|---|---|---|
+| Aprendizado | `/aprendizado` | **J**: a lista de lições vai para "Ensinar a Hive"; o painel do portão sai (§3.4) |
+| Jornada relacional (ACJ) | `/jornada` | **J**: vira uma aba de "Resultados" · T |
+| Curadoria | `/curadoria` | **M** (regra 9: nada entra na voz sem humano) |
+| Feedback contínuo | `/feedback` | **J** com o Coach |
+| Coach de voz | `/coach` | **M**, vira "Ensinar a Hive" |
+| Olhar Bee · calibração | `/olhar/calibracao` | **A** · T |
+| Simular público | `/personas` | **S** (isolada do fluxo; confirmar com o Marcos) |
+| Custos de API | `/custos` | **A** |
+| Teste de imagem | `/labs/imagens` | **S** depois de registrar qual modelo de imagem venceu |
+
+### Fora do menu
+| Tela | Rota | Veredito |
+|---|---|---|
+| Wizard antigo | `/posts/novo` | **S** (§3.1) |
+| Editor da peça | `/posts/:id` | **M** |
+| Editor de template | `/templates/:id` | **M** |
+| Um conteúdo | `/criar/conteudo` | **M**, recebe o vídeo |
+| Onboarding | `/onboarding` | **J**: o cliente novo vai direto para o setup da Identidade (o wizard atual grava campos que ninguém lê) |
+| Prévia, assets e convite do Hive | `/hive/preview`, `/hive/assets`, `/hive/convite` | **A** para a prévia e os assets; o convite M04 vira opção no Criar |
+| Fotos reais do Marcos | `/hive/marcos` | **J** com Fotografia do Marcos |
+| Testes M01 e M02 | `/hive/teste-m01`, `/hive/teste-m02` | **S** (o código já diz "TEMP: apagar") |
+| Linhas editoriais | arquivo `LinhasEditoriais.tsx` | **S** (sem rota; `/linhas` já redireciona) |
+
+---
+
+## 3. Redundâncias por tema
+
+### 3.1 Criar conteúdo: 3 caminhos → 2
+- **Campanha → Produção** é o fluxo principal.
+- **Um conteúdo** (`/criar/conteudo`) já usa a mesma esteira para conteúdo avulso.
+- **Wizard antigo** (`/posts/novo`, 2.269 linhas) ainda é usado para:
+  - retomar posts antigos com texto pendente (links do Início e de `postReview.ts`);
+  - o vídeo (roteiro, transcrição, legenda);
+  - o link "Gerar um post individual" do `GateLock` (que só aparece na tela morta de Linhas).
+- **Só o wizard usa:** 6 componentes de `components/posts/wizard/` (~720 linhas), `lib/hive/batchCompose.ts`, `lib/templates/resolve.ts`, e as funções `generate-script`, `regenerate-snippet` e `nano-scene` (esta marcada como "TEMPORÁRIA, apagar").
+- **Proposta:**
+  1. Resolver de uma vez os pendentes antigos (aprovar ou arquivar), com uma lista para o Marcos.
+  2. Passar o vídeo para "Um conteúdo" (formato vídeo), reaproveitando `process-video` e `generate-caption-from-video`.
+  3. Remover o wizard.
+- **Pergunta para o Marcos:** ele usa "regenerar trecho" ou "roteiro de vídeo"? Se usa, essas ações vão para o editor da peça, sem tela própria.
+
+### 3.2 Ver o andamento: 4 lugares → 2
+- **Início** mostra o que precisa de você. **Produção** é o passo a passo de um ciclo (fica, é outra coisa). **Pipeline** é um kanban. **Agenda** mostra calendário e fila.
+- **Proposta:** o Pipeline sai. As contagens por estágio vão para o Início; a fila "para agendar" já está na Agenda.
+- **Dentro da Agenda há dois sugeridores de data:**
+  - "janela sugerida pela Hive" (regra fixa, `lib/campaign`);
+  - "IA distribui" (LLM, `distribute-schedule`).
+- Proposta: ficar com um. Recomendo a janela da Hive, que é previsível e não custa IA.
+
+### 3.3 Ensinar a voz: 4 telas → 1
+| Caminho | Funções | Proposta |
+|---|---|---|
+| Feedback contínuo (`/feedback`) | `learn-from-feedback` | Vira o modo "observação geral" do Coach |
+| Coach de voz (`/coach`) | `voice-coach` + `commit-learning` | Vira **"Ensinar a Hive"** |
+| PostCoach (no editor) | `post-chat` + `voice-coach` | Fica (é o Coach dentro da peça) |
+| Correção automática ao editar | `learn-from-correction` | Fica (invisível) |
+| Lista de lições (dentro de Aprendizado) | `ai_learnings` | Vai para uma aba de "Ensinar a Hive" |
+| Curadoria | `mine-content` | Fica separada (regra 9) |
+
+### 3.4 O "portão da IA": resto do piloto automático antigo
+- `ai_segment_gate`, as RPCs `ai_gate_status`, `ai_gate_recompute` e `ai_segment_status`, o painel de Aprendizado e o `GateLock` serviam para **liberar o piloto automático das linhas editoriais** por segmento. O piloto automático saiu no cutover de campanhas (o cron `editorial-line-tick` foi desligado).
+- Ainda lê o portão: o `voice-coach` (usa `ai_segment_status` para escolher em que focar).
+- **Proposta:** remover o painel e o `GateLock`. O foco do Coach passa a vir das lições e correções recentes. A tabela e as RPCs saem na fase 2 (apagar).
+
+### 3.5 Voz e identidade: 4 lugares → 2
+| Onde | O que guarda | Lido pela geração? |
+|---|---|---|
+| Genesis (`genesis_*`) | Princípios, fluxo, tensões, avatares | Sim |
+| Diretrizes (`bee_directives`) | Regras do ofício | Sim |
+| Identidade (`brands`, `emitters`, `business_fronts`, `audiences`, `communication_profiles*`) | Quem fala, frentes, público, perfis versionados | Sim (`_shared/context.ts`) |
+| Configurações → "Voz Bee" (`user_settings.persona`, `tone_of_voice`, `content_structure`) | Texto livre | **Não: nenhum código lê** |
+
+- **Proposta:**
+  - "Minha identidade" fica com quem fala, frentes, público e marca.
+  - "Como escrevo" junta Genesis e Diretrizes.
+  - A aba "Voz Bee" sai.
+- **Produtos × frentes de negócio:** `bee_products` (campanha e pauta) e `business_fronts` (Identidade) podem ser o mesmo conceito. Conferir antes de juntar.
+
+### 3.6 Configurações que não configuram nada
+- Aba **Voz Bee**: persona, tom e estrutura. Grava, mas nada lê. Ela também mostra contagens de `bee_themes` e `bee_logics`, tabelas que nenhuma geração lê.
+- Aba **Branding**: `brand_colors`, `brand_logo_url`. Grava, mas nada lê (a arte usa `design_tokens` e `brands`).
+- **Onboarding:** grava `persona` e `tone_of_voice`, que ninguém lê.
+- **Proposta:** remover as duas abas. O onboarding leva ao setup da Identidade.
+
+### 3.7 Público: 5 representações → 1 (etapa mais arriscada)
+| Tabela ou função | Quem usa |
+|---|---|
+| `genesis_avatares` | `generate-content`, `acj-orchestrator` |
+| `bee_avatars` | Roteiro e legenda de vídeo, Simular público, wizard |
+| `audiences` | Identidade, `_shared/context.ts` |
+| `bee_personas` | Só a tela Simular público |
+| Público do editorial | `suggest-audience` (Editoriais) |
+
+- **Proposta:** `audiences` (Identidade) como fonte única, com as outras lidas por ela ou migradas. **Mexe no prompt da geração:** fazer por último, com testes de voz e aprovação do Marcos.
+
+### 3.8 Fotos e imagens
+- Há duas telas de foto do Marcos: `/hive/fotografia` (motor fotográfico, `photo_*`) e `/hive/marcos` (fotos reais em `design_assets`, M02).
+- `/hive/assets` gera fotos atmosféricas e texturas; `/labs/imagens` compara modelos.
+- **Proposta:** uma tela "Fotos do Marcos" (as duas juntas). Assets e prévia do compositor vão para Admin; o Lab sai.
+- **Dois sistemas visuais convivem:** Templates (`post_templates`, editáveis no Fabric) e as matrizes Hive M01–M04 (`design_*`, compostas em código). Não proponho juntar agora: é refazer a arte. Fica registrado como dívida.
+
+### 3.9 Biblioteca e Vídeos
+- A Biblioteca mostra publicados e cortes de podcast; "Vídeos" lista podcasts e cortes de novo.
+- **Proposta:** a lista de Vídeos vai para a Biblioteca; criar corte entra pelo Criar.
+
+---
+
+## 4. Morto no código (lista verificada)
+
+### 4.1 Telas e componentes
+- `pages/linhas/LinhasEditoriais.tsx` (423 linhas): sem import.
+- `pages/hive/HiveTesteM01.tsx` e `HiveTesteM02.tsx` (525 linhas): marcadas como TEMP.
+- `components/ai/GateLock.tsx`: só a tela de Linhas usa.
+- Lógica de item "travado" no `Sidebar.tsx` (`unlocked = true` fixo).
+
+### 4.2 Edge Functions sem chamador
+- `editorial-line-tick` (444 linhas; o cron foi desligado no cutover).
+- `hybrid-image-search` (`edge.searchImages` sem uso).
+- `search-knowledge` (`edge.searchKnowledge` sem uso; o RAG da geração usa a RPC `match_knowledge` direto).
+- `download-proxy` (nenhuma referência).
+
+### 4.3 Tabelas sem leitor
+| Tabela | Situação |
+|---|---|
+| `alma_crencas`, `alma_dimensoes`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra` | Trocadas pelo Genesis; nada lê |
+| `alma_eventos` | **Só escrita**: `generate-content` e `almaApi.emitEvento` gravam, ninguém lê |
+| `genesis_dimensoes`, `genesis_paradigmas` | Trocadas por `genesis_tensoes`; nada lê |
+| `acj_definitions` | Semeada, mas a biblioteca ACJ vem de `lib/acj/library.generated.ts` e `_shared/acj-library.ts` |
+| `editorial_lines`, `editorial_line_runs` | Só a tela e a função mortas usam |
+| `kanban_columns` | `kanbanApi` não é usada, mas o login roda `kanbanApi.ensureDefaults()` **a cada entrada** (escrita inútil) |
+| `bee_themes`, `bee_logics` | Só contadas na aba Voz Bee; nenhuma geração lê |
+
+Colunas sem leitor em `user_settings`: `persona`, `tone_of_voice`, `content_structure`, `brand_colors`, `brand_logo_url`.
+
+### 4.4 Código de cliente
+- `src/lib/api.ts` (1.214 linhas) tem 27 funções sem uso. Entre elas: `kanbanApi.*` (exceto `ensureDefaults`), `draftApi.*`, `editorialLinesApi.get/runs`, `podcastApi.get/create/update/findByVideoId`, `podcastClipApi.get/delete/listByPodcast`, `beeApi.updateExample/arsenalForEditorial/styleRules`, `exampleApi.create`, `suggestionApi.create/countPending`, `genesisApi.removePrincipio`, `aiApi.segments`, `templateApi.upsertSystem` e `productApi.get`.
+- O mapa de preços de IA está duplicado: `src/lib/pricing.ts` e `_shared/security.ts`.
+
+### 4.5 Repositório e documentação
+- `README.md` (52 KB) está desatualizado: descreve a "Alma" como eixo central. Proposta: reduzir a uma página que aponta para o `AGENTS.md`.
+- `GEMINI.md` e `playwright.r1.config.ts`: conferir se ainda servem.
+- `docs/` (2,5 MB, 48 arquivos): manter como histórico, mas marcar no índice o que é legado (Alma, linhas editoriais).
+
+---
+
+## 5. Edge Functions: 46 → cerca de 33
+
+| Situação | Funções |
+|---|---|
+| **Saem (mortas)** | `editorial-line-tick`, `hybrid-image-search`, `search-knowledge`, `download-proxy` |
+| **Saem com o wizard** | `generate-script`, `regenerate-snippet`, `nano-scene` |
+| **Saem com Feedback → Coach** | `learn-from-feedback` |
+| **Saem com Simular público** | `generate-persona`, `persona-chat` |
+| **Sai com um só sugeridor na Agenda** | `distribute-schedule` |
+| **Sai com o público unificado** | `suggest-audience` |
+| **Ficam: produção** | `campaign-moment`, `campaign-strategy`, `campaign-tick`, `cycle-pauta`, `content-develop`, `generate-content`, `qa-check`, `edit-text`, `content-memory`, `sequence-script`, `acj-orchestrator` |
+| **Ficam: visual** | `hive-decide`, `generate-image-ai`, `marcos-photo` |
+| **Ficam: agenda e publicação** | `schedule-piece`, `publish-post`, `publish-scheduler` |
+| **Ficam: contas e métricas** | `instagram-connect`, `instagram-import`, `instagram-refresh`, `linkedin-import`, `test-linkedin`, `metrics-ingest`, `meta-ads-sync`, `meta-ads-attribution` |
+| **Ficam: voz** | `voice-coach`, `commit-learning`, `learn-from-correction`, `post-chat`, `mine-content`, `ingest-document`, `identity-setup` |
+| **Ficam: vídeo** | `process-video`, `generate-caption-from-video`, `youtube-meta` |
+| **Fica: agente público da LP** | `olhar-bee` |
+
+---
+
+## 6. Organização proposta
+
+### 6.1 Menu novo
+```
++ Criar            → Campanha · Um conteúdo (texto, imagem, carrossel, vídeo) · Convite
+Início             (o que precisa de você + andamento por estágio)
+Campanhas
+Produção
+Agenda
+Resultados         (Desempenho · Contas · Tráfego pago · Jornada ACJ)
+
+Voz da Hive
+  Minha identidade (quem fala · frentes/produtos · público · marca)
+  Como escrevo     (Genesis · Diretrizes)
+  Editoriais       (editoriais · arsenal · exemplos)
+  Conhecimento     (documentos do RAG)
+
+Ensinar a Hive
+  Coach            (conversa · observações gerais · lições ativas)
+  Curadoria
+
+Visual
+  Templates
+  Fotos do Marcos
+  Biblioteca       (publicados · vídeos e cortes · imagens)
+
+Configurações      (Perfil · Contas · Integrações)
+
+Admin (só para o Raul): Custos · Olhar Bee · Prévia e assets do Hive
+```
+
+### 6.2 De → para das rotas (os links antigos continuam funcionando por redirecionamento)
+| Rota antiga | Vai para |
+|---|---|
+| `/pipeline` | `/` |
+| `/posts/novo` | `/criar/conteudo` (pendentes antigos já resolvidos) |
+| `/feedback` | `/coach` |
+| `/aprendizado` | `/coach` (aba Lições) |
+| `/jornada` | `/desempenho` (aba ACJ) |
+| `/diretrizes` | `/genesis` (aba Ofício) |
+| `/arsenal` | `/editoriais` |
+| `/produtos` | `/identidade` |
+| `/hive/marcos` | `/hive/fotografia` |
+| `/podcasts` | `/biblioteca` |
+| `/podcasts/novo` | `/criar/conteudo?formato=video` |
+| `/personas`, `/labs/imagens`, `/hive/teste-*` | `/` |
+
+---
+
+## 7. Banco depois do enxugamento
+- **Saem (fase 2, com rollback):** as 15 tabelas de §4.3, mais `bee_personas` e `image_model_trials` (se Simular público e o Lab saírem) e `ai_segment_gate` (portão).
+- **Colunas que saem:** as 5 de `user_settings` (§4.3).
+- **Fase posterior:** juntar público (§3.7) e talvez produtos com frentes (§3.5).
+
+---
+
+## 8. Ordem de execução (base para o PLANO.md)
+
+Cada onda segue a regra decidida: **primeiro esconder** (rota redireciona, sai do menu, o cron para), **depois apagar** (código, função e tabela, com rollback), após um prazo sem reclamação.
+
+| Onda | O quê | Risco |
+|---|---|---|
+| 0 | Medir o uso real no banco (§11) e ajustar este relatório | Nenhum |
+| 1 | Morto: §4, sem efeito para o Marcos | Baixo |
+| 2 | Configurações falsas (§3.6) + Admin (§2) + menu novo com redirecionamentos | Baixo |
+| 3 | Ensinar a Hive (§3.3) + fim do portão (§3.4) | Médio |
+| 4 | Pipeline → Início (§3.2) + um sugeridor de data na Agenda | Médio |
+| 5 | Fotos, Biblioteca e Vídeos (§3.8, §3.9) | Médio |
+| 6 | Aposentar o wizard (§3.1): resolver pendentes, levar o vídeo para "Um conteúdo", remover | Alto |
+| 7 | Voz em 2 lugares (§3.5): "Como escrevo" e Produtos na Identidade | Médio |
+| 8 | Fase 2 de apagar: funções e tabelas das ondas 1 a 7 | Médio |
+| 9 | Público único (§3.7) | Alto (mexe no prompt) |
+
+Cada onda passa pela regressão completa (cerca de 40 min) antes do push. Com menos telas, a suíte também encolhe (o `f7-home-pipeline` muda na onda 4).
+
+---
+
+## 9. O que perguntar ao Marcos (antes das ondas 3 a 6)
+1. Você abre o Pipeline ou só o Início e a Agenda?
+2. Usa "IA distribui" na Agenda?
+3. Usa Simular público?
+4. Usa Feedback contínuo e Coach, ou só o Coach dentro do post?
+5. Ainda cria algo por "Gerar post individual" (wizard antigo)? Usa "regenerar trecho" ou "roteiro de vídeo"?
+
+---
+
+## 10. Correção em relação à versão 1
+A versão 1 chamou de órfãs 12 tabelas. Três delas **são usadas** por funções SQL e triggers: `piece_versions` (versionamento de peças), `workspaces` (multi-cliente) e `ai_segment_gate` (portão). A lista de §4.3 só tem as que não têm leitor nem no app, nem nas funções, nem no SQL.
+
+## 11. Para medir no banco (só SELECT)
+1. Linhas e data do último registro por tabela, sem o usuário de teste.
+2. `select jobname, schedule, active from cron.job;`
+3. Edge Functions publicadas e não presentes no repo; chamadas dos últimos 30 dias por função.
+4. `pg_depend`, views e funções SQL que tocam as tabelas de §4.3.
+5. Uso por tela: `usage_events` e `ai_measurement_events` agrupados por origem, nos últimos 60 dias.
+
+**Bloqueio:** falta `.env.e2e.local` com `SUPABASE_ACCESS_TOKEN`, e o projeto `djlorvdehedcupeykyes` não está na conta Supabase conectada.
