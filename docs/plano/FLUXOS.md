@@ -179,3 +179,97 @@
 - O lugar que diz "Voz" com todas as letras (Configurações › Voz Bee) é o único que não muda nada.
 
 **Celular (375 px):** o menu abre como gaveta, com a lista inteira (28 itens). O Genesis cabe e se lê bem.
+
+---
+
+## Critique de interface (`/impeccable critique`, telas de F1 a F4)
+
+**Método:** duas avaliações isoladas.
+- **A · design:** leu o código de `/criar`, `/criar/conteudo`, `/campanhas/nova`, `/producao` (+ `components/production`), `/agenda` e `/podcasts/novo`, e abriu as telas só para olhar.
+- **B · detector:** `impeccable detect`, mais o overlay no navegador em 4 páginas.
+- **Não avaliado ao vivo pela A:** o formulário "Imagem e texto", o celular e os passos 2–4 do vídeo (avaliados pelo código e por esta medição).
+
+**Nota de usabilidade (Nielsen): 14/40, faixa "Ruim".**
+
+| # | Heurística | Nota | Problema principal |
+|---|---|---|---|
+| 1 | Status do sistema | 1 | "Primeira peça aprovada" com a peça `pending_approval`; a barra "0 de 4" para e some; carga inicial com ~20 s de spinner sem texto |
+| 2 | Linguagem do usuário | 1 | ACJ-01, desdobramento, "Movimento realizado (90/100)", BEE-041126-…, Caption, Kanban, Gemini; "ciclo" ora é semana, ora campanha |
+| 3 | Controle e saída | 1 | Voltar ou recarregar perde o assistente; botões travados até o último conteúdo terminar; "Remover da agenda" sem confirmação |
+| 4 | Consistência | 1 | 3 botões de distribuir, 2 sugestões de horário, Perfil (Identidade) × Avatar (vídeo), 3 jeitos de "voltar", vídeo sem acentos |
+| 5 | Prevenção de erro | 1 | A falta de conta só aparece no passo 5; datas no passado; vídeo grava `approved`/`scheduled` por fora dos contratos |
+| 6 | Reconhecer em vez de lembrar | 2 | O stepper ajuda, mas recomeça em "Campanha/Ciclo"; as pílulas 01–04 não têm rótulo |
+| 7 | Flexibilidade | 2 | Ajustar, editar, nova versão e "Hive, recomende" existem; não há ação em lote |
+| 8 | Minimalismo | 2 | Paleta calma, mas os blocos ACJ e estratégia se repetem; 3 painéis antes da fila na Agenda |
+| 9 | Recuperação de erro | 2 | `LoadError` com "tentar de novo" é bom; os toasts mostram `error.message` cru |
+| 10 | Ajuda | 1 | Os ícones "i" do planejamento não têm dica; não há ajuda no ponto de decisão |
+
+**Carga cognitiva: alta** (6 de 8 itens falham). Decisões com mais de 4 opções:
+- **Validação do conteúdo:** 9 ou mais controles.
+- **Pauta:** 4 ações × 4 ideias, mais 3.
+- **Formulário "Um conteúdo":** 8 campos, só 2 necessários.
+- **Topo da Agenda:** 8 controles.
+- **Gaveta da peça:** 6 ações.
+
+**Detector (B):**
+- Pelo código não acha nada: em `.tsx` ele só roda regex, então esse resultado conta a menos.
+- **No navegador:**
+  - ~18 de contraste baixo, quase todas pelo **âmbar de destaque #E7A14B usado como cor de texto sobre o creme (~2:1)**: kickers "Nova campanha", "Um conteúdo", "A Hive desenvolveu…", "Ver contrato completo".
+  - Faixa de campanha na Agenda: branco sobre verde (2,5:1).
+  - ~21 textos de 9–11 px: selos, "Hive sugere", "Recomendado", o "Consulting" do logo.
+- **Prováveis escolhas de marca, não erro:** "Inter em excesso" e "paleta creme".
+
+**O que funciona:**
+- Uma pergunta por tela em `/criar` e no 1º passo da campanha (`WizardShell`/`ChoiceCard`).
+- O cartão de validação "Frase + Texto" e a prévia da arte na gaveta da Agenda.
+- A caixa "O que acontecerá a seguir" no planejamento: diz o que o clique faz e é o padrão a repetir.
+
+**Problemas prioritários:**
+1. **[P0] Aprovação que não aprova e agendamento sem hora.**
+   - A tela de "aprovado" precisa ler o status real e mostrar a arte.
+   - O próximo passo é Agendar.
+   - O botão diz a hora ("Agendar para qua 05/11 às 18:00"), e só fica uma sugestão de horário.
+   - Comandos: `harden` e depois `clarify`.
+2. **[P0] Beco do assistente de campanha.**
+   - Conferir as contas no 1º passo.
+   - Guardar o rascunho (URL ou armazenamento local) para não perder a IA ao voltar.
+   - Comandos: `harden` e `onboard`.
+3. **[P1] Jargão interno nas telas de decisão.**
+   - ACJ atrás de um "por quê?".
+   - Códigos escondidos.
+   - Termos do dia a dia.
+   - Comando: `clarify`.
+4. **[P1] Validação e pauta sobrecarregadas.**
+   - Barra fixa com "Aprovar" e "Pedir mudança"; o resto num menu.
+   - Contrato ACJ e "o que a Hive considerou" recolhidos.
+   - Formulário com só título e direção, e "Mais opções" para o resto.
+   - Comandos: `distill` e `layout`.
+5. **[P2] Vídeo como mundo à parte.**
+   - "Vídeo" no Criar.
+   - Mesmo assistente e mesmo seletor de perfil.
+   - Termina na peça.
+   - Comando: `shape`.
+
+---
+
+## Pontos sem nexo (para o bloco 09)
+
+Ordenados por impacto no Marcos. Cada linha traz o fluxo, a tela e a proposta.
+
+| # | Fluxo | Tela | Ponto sem nexo | Proposta |
+|---|---|---|---|---|
+| 1 | F1, F4 | Produção · "Conteúdo aprovado" | Diz "Primeira peça aprovada", mas a peça fica `pending_approval` e não chega à Agenda (no F2 a mesma tela grava `approved`) | A tela mostra o status real, vindo do banco, e a arte; a aprovação passa por `approve_piece`; o botão seguinte leva à Agenda |
+| 2 | F1 | `/campanhas/nova` · passo 5 | Sem conta conectada, "Ativar" fica desabilitado no último passo, e voltar ou recarregar perde ~1,5 min de IA | Conferir as contas no passo 1 e guardar o rascunho do assistente |
+| 3 | F4, F5, F3 | Agenda, gaveta, editor, vídeo | Quatro lugares põem data (gaveta, "janela sugerida", editor, vídeo) e duas sugestões de horário se contradizem (18:00 × 08:00); o vídeo agenda por fora do `schedule-piece` | Um só jeito de agendar (`schedule-piece`), uma só sugestão (a janela da Hive), e o botão diz dia e hora |
+| 4 | F1, F2 | Produção · desenvolvimento | ~5 min de espera com a barra parada em "0 de 4" e todos os botões travados até o último conteúdo | Liberar cada conteúdo assim que fica pronto e mostrar o progresso real por conteúdo |
+| 5 | F1, F2 | Produção · pauta → desenvolvimento | Duas confirmações seguidas para a mesma coisa ("Aprovar pauta e desenvolver" e depois "Desenvolver conteúdos"; "Desenvolver com a Hive" e depois "Desenvolver conteúdos") | Um clique: aprovar a pauta já começa o desenvolvimento |
+| 6 | F1, F2, F4 | Assistente, pauta, validação, Agenda | Jargão interno: ACJ-01…05, "Movimento realizado 90/100", "desdobramento", "BEE-041126-G2-D2", "M01-B Tensao", "Caption", "Kanban", "a recalibrar: Recalibrar" | Termos do dia a dia; ACJ e códigos só atrás de "ver detalhes" |
+| 7 | F5 | Editor da peça | Salvar uma correção devolve a peça para "pendente" e ela some da fila sem aviso claro | Ao salvar, mostrar "Esta peça precisa de nova aprovação" com o botão Aprovar ao lado |
+| 8 | F6, F5 | Menu (Base Hive, Inteligência, Configurações) | 9 lugares mexem na voz; o único que diz "Voz" (Configurações › Voz Bee) não é lido por nenhum código | Tirar a aba Voz Bee; juntar Coach, Feedback e Aprendizado em "Ensinar a Hive"; Identidade como porta de entrada (relatório §3.3, §3.5, §3.6) |
+| 9 | F3 | Criar → Um conteúdo → Vídeo | Vídeo escondido em "Um conteúdo"; promete "roteiro" que não existe; exige episódio no YouTube; outro modelo de público (Avatar); termina no Início | "Vídeo" no Criar, com o mesmo assistente, o mesmo seletor de perfil e a mesma esteira até a peça (relatório §3.1) |
+| 10 | F1, F2 | Produção · validação (celular) | 9 ou mais controles por conteúdo; no celular o "Aprovar" fica a ~4 telas de rolagem | Barra fixa "Aprovar · Pedir mudança"; blocos técnicos recolhidos |
+| 11 | F2 | `/criar/conteudo` · ideia | 8 campos (2 ACJ), quando só título e direção são necessários | Mostrar só título e direção; o resto em "Mais opções" |
+| 12 | F2 | Produção · revisão | Três telas de resumo seguidas ("Ver resumo", "Desenvolver desdobramentos", "Revisar produção") para chegar à peça do Instagram | Ir direto para as peças a revisar depois de aprovar o conteúdo |
+| 13 | F1 | Produção · planejamento | O stepper repete "Campanha" e "Ciclo", já escolhidos; o "ciclo atual" inclui dias passados; "Recomendado" pula para o ciclo seguinte antes de terminar o atual | O stepper começa em Planejamento; o ciclo começa hoje; "Recomendado" só depois de fechar o atual |
+| 14 | F4 | Agenda (celular) | Três painéis antes da fila; o calendário corta em Dom–Ter; "arraste pro dia" não funciona no toque | Fila primeiro; no celular, lista por dia em vez de grade; agendar pela gaveta |
+| 15 | Todos | Textos e cores | Contraste ~2:1 no âmbar como texto; 9–11 px em selos; textos sem acento ("Configuracoes", "Episodio", "pro upload"); plurais errados ("1 conteúdos") | Passada de `clarify` + `polish`: âmbar só em fundo, mínimo de 12 px, acentos e plurais |
