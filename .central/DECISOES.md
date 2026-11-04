@@ -19,3 +19,7 @@ Formato: `- AAAA-MM-DD: decisão. Motivo: ...`. Só acrescentar no fim.
 - 2026-11-04: a lista de funções e as chamadas em 30 dias foram lidas pela Management API (`/functions` e `/analytics/endpoints/logs`, 24 h por consulta) em vez da CLI do Supabase. Motivo: a CLI não está instalada e não se instala nada sem pedido; o dado é o mesmo.
 - 2026-11-04: site de teste criado no Netlify como projeto `hive-resgate` (time RMF), publicando só a `main`, com branch deploys e deploy previews desligados, e publicado antes do merge do bloco 01 (ainda sem a faixa). Motivo: ordem do Raul.
 - 2026-11-04: pela medição, "Teste de imagem" sai direto (0 registros) e a área de vídeo vira candidata a sair (1 vídeo em junho, 0 cortes); o `distribute-schedule` foi usado 2 vezes e depende do Marcos. Motivo: §11 do relatório.
+- 2026-11-04: o usuário de teste recebeu as 2 contas falsas de `seedAccounts()` para medir F1 e F4. Motivo: sem conta não se ativa campanha, e conectar conta real abre OAuth; ok do Raul.
+- 2026-11-04: o F3 (vídeo) foi medido no app só até o passo 1 e o resto contado pelo código. Motivo: o fluxo exige um link de episódio no YouTube e um vídeo para subir; não se inventa link.
+- 2026-11-04: o bloco 09 começa pelos 2 P0 do critique (aprovação que não aprova + agendar com hora; beco das contas no assistente de campanha). Motivo: escolha do Raul.
+- 2026-11-04: PRODUCT.md registra que a Hive vai virar plataforma aberta para qualquer pessoa. Por isso nada de "Bee/Marcos" fixo na tela. Motivo: resposta do Raul no `/impeccable init`.
