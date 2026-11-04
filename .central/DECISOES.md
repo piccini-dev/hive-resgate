@@ -14,3 +14,4 @@ Formato: `- AAAA-MM-DD: decisão. Motivo: ...`. Só acrescentar no fim.
 - 2026-11-04: o problema do Marcos é de fluxo (confuso, longo, sem nexo), não de erro técnico; o plano junta enxugamento (blocos 02–08) com simplificação de fluxo medida (blocos 01-E e 09).
 - 2026-11-04: todas as issues ficam planejadas no PLANO.md; só as do bloco atual são criadas no GitHub, e as próximas no /integrar do bloco anterior. Motivo: as especificações batem com o código já integrado.
 - 2026-11-04: proteção da `main` do `hive-resgate` vale só pelo protocolo do `AGENTS.md` §0 (repositório privado em conta gratuita não tem ruleset). E2E/regressão no GitHub viraram só manuais; o PR do bloco roda `ci.yml` (build + unitários).
+- 2026-11-04: bloco 01 quebrado em 5 issues (#1–#5), sem dependência entre elas: 2 exec:gpt (faixa de teste, README) e 3 exec:claude (Netlify de teste, medir banco, medir fluxos). Painel em https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k.
