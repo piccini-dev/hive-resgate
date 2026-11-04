@@ -323,11 +323,114 @@ Cada onda passa pela regressão completa (cerca de 40 min) antes do push. Com me
 ## 10. Correção em relação à versão 1
 A versão 1 chamou de órfãs 12 tabelas. Três delas **são usadas** por funções SQL e triggers: `piece_versions` (versionamento de peças), `workspaces` (multi-cliente) e `ai_segment_gate` (portão). A lista de §4.3 só tem as que não têm leitor nem no app, nem nas funções, nem no SQL.
 
-## 11. Para medir no banco (só SELECT)
-1. Linhas e data do último registro por tabela, sem o usuário de teste.
-2. `select jobname, schedule, active from cron.job;`
-3. Edge Functions publicadas e não presentes no repo; chamadas dos últimos 30 dias por função.
-4. `pg_depend`, views e funções SQL que tocam as tabelas de §4.3.
-5. Uso por tela: `usage_events` e `ai_measurement_events` agrupados por origem, nos últimos 60 dias.
+## 11. Medição no banco (2026-11-04, só SELECT)
 
-**Bloqueio:** falta `.env.e2e.local` com `SUPABASE_ACCESS_TOKEN`, e o projeto `djlorvdehedcupeykyes` não está na conta Supabase conectada.
+Feita na issue #4 do hive-resgate. Todas as consultas foram só leitura. As contagens excluem o usuário de teste E2E onde a tabela tem `user_id`.
+
+### 11.1 Tabelas: linhas e último registro
+Último registro = maior `updated_at` (ou `created_at`); `-` = a tabela não tem essas colunas.
+
+**Vazias (19):** `acj_learning_decisions`, `acj_learning_entries`, `acj_learning_evidence`, `acj_signal_readings`, `ai_chat_messages`, `content_idea_feedback`, `content_ideas_cache`, `image_model_trials`, `olhar_calibracao`, `photo_generations`, `photo_style_approvals`, `piece_candidates`, `piece_versions`, `podcast_clips`, `post_drafts`, `post_unit_publications`, `post_units`, `setup_sessions`, `user_feedback`.
+
+| Tabela | Linhas | Último |
+|---|---:|---|
+| `acj_campaign_plans` | 2 | 2026-10-13 |
+| `acj_content_contracts` | 16 | 2026-10-16 |
+| `acj_cycle_plans` | 1 | 2026-10-13 |
+| `acj_definitions` | 5 | 2026-10-06 |
+| `ai_generations` | 114 | 2026-10-19 |
+| `ai_learnings` | 29 | 2026-10-20 |
+| `ai_measurement_events` | 16 | 2026-10-20 |
+| `ai_reviews` | 64 | 2026-10-19 |
+| `ai_segment_gate` | 27 | 2026-10-20 |
+| `ai_variations` | 122 | 2026-10-19 |
+| `alma_crencas` | 8 | 2026-07-01 |
+| `alma_dimensoes` | 6 | 2026-07-01 |
+| `alma_estado` | 1 | - |
+| `alma_eventos` | 295 | 2026-10-20 |
+| `alma_objetivo` | 2 | 2026-07-01 |
+| `alma_pulsoes` | 5 | 2026-07-01 |
+| `alma_sombra` | 4 | 2026-07-01 |
+| `audiences` | 3 | 2026-10-14 |
+| `bee_analogies` | 13 | 2026-05-27 |
+| `bee_arsenal` | 83 | 2026-07-10 |
+| `bee_avatars` | 2 | - |
+| `bee_directives` | 32 | 2026-08-07 |
+| `bee_editorials` | 8 | 2026-07-10 |
+| `bee_example_posts` | 14 | 2026-07-10 |
+| `bee_glossary` | 17 | 2026-07-01 |
+| `bee_hashtags` | 15 | - |
+| `bee_headline_types` | 4 | 2026-05-27 |
+| `bee_logics` | 7 | - |
+| `bee_personas` | 2 | 2026-07-20 |
+| `bee_products` | 5 | 2026-09-25 |
+| `bee_style_rules` | 46 | 2026-07-10 |
+| `bee_suggestions` | 2 | 2026-09-11 |
+| `bee_themes` | 8 | - |
+| `brands` | 1 | 2026-10-14 |
+| `business_fronts` | 2 | 2026-10-14 |
+| `campaign_cycles` | 10 | 2026-10-31 |
+| `campaigns` | 2 | 2026-10-26 |
+| `communication_profile_versions` | 3 | 2026-10-14 |
+| `communication_profiles` | 3 | 2026-10-14 |
+| `content_memory` | 527 | 2026-11-03 |
+| `content_piece_plans` | 8 | 2026-10-19 |
+| `contents` | 522 | 2026-11-03 |
+| `context_snapshots` | 12 | 2026-10-19 |
+| `design_assets` | 54 | 2026-09-21 |
+| `design_manifestacoes` | 8 | 2026-10-14 |
+| `design_selection_config` | 1 | 2026-10-14 |
+| `design_tokens` | 9 | 2026-10-14 |
+| `design_variacoes` | 16 | 2026-10-14 |
+| `editorial_line_runs` | 4 | - |
+| `editorial_lines` | 1 | 2026-09-25 |
+| `emitters` | 2 | 2026-10-14 |
+| `format_capabilities` | 5 | - |
+| `genesis_avatares` | 5 | 2026-08-05 |
+| `genesis_core` | 1 | 2026-08-05 |
+| `genesis_fluxo` | 7 | 2026-08-05 |
+| `genesis_lentes` | 6 | 2026-08-05 |
+| `genesis_principios` | 46 | 2026-08-05 |
+| `genesis_tensoes` | 2 | 2026-08-05 |
+| `ideas` | 39 | 2026-10-31 |
+| `kanban_columns` | 20 | 2026-05-27 |
+| `knowledge_chunks` | 17121 | 2026-05-27 |
+| `knowledge_documents` | 90 | 2026-07-10 |
+| `meta_ad_accounts` | 4 | - |
+| `meta_ad_insights_daily` | 1182 | - |
+| `meta_ads` | 262 | - |
+| `meta_adsets` | 188 | - |
+| `meta_businesses` | 2 | - |
+| `meta_campaigns` | 66 | - |
+| `meta_connections` | 1 | 2026-11-04 |
+| `olhar_base` | 53 | 2026-11-03 |
+| `olhar_nomes_proibidos` | 325 | 2026-11-03 |
+| `olhar_sessions` | 2 | 2026-11-03 |
+| `photo_references` | 39 | 2026-10-06 |
+| `podcasts` | 1 | 2026-06-10 |
+| `post_comments` | 3 | 2026-11-04 |
+| `post_metrics` | 537 | 2026-11-04 |
+| `post_publications` | 13 | 2026-10-29 |
+| `post_templates` | 4 | 2026-07-16 |
+| `profiles` | 3 | 2026-09-24 |
+| `publication_packages` | 18 | 2026-10-21 |
+| `schedule_commands` | 30 | 2026-10-21 |
+| `schedule_plans` | 2 | 2026-10-19 |
+| `social_accounts` | 3 | 2026-11-04 |
+| `usage_events` | 753 | 2026-11-03 |
+| `user_posts` | 565 | 2026-11-03 |
+| `user_settings` | 2 | 2026-10-23 |
+| `workspace_members` | 2 | 2026-10-14 |
+| `workspaces` | 1 | 2026-10-14 |
+
+### 11.2 Crons (`cron.job`)
+| Job | Agenda | Ativo |
+|---|---|---|
+| `campaign-tick` | `0 9 * * *` | sim |
+| `instagram-refresh` | `17 4 * * *` | sim |
+| `linkedin-metrics` | `15 * * * *` | sim |
+| `meta-ads-sync` | `*/30 * * * *` | sim |
+| `metrics-ingest` | `30 9 * * *` | sim |
+| `publish-scheduler` | `*/2 * * * *` | sim |
+
+Não há cron de `editorial-line-tick` (confirma §4.2). O `linkedin-metrics` vem do trabalho de 03/11 que ainda não está no repositório (migration `20261103000006`, só no patch de transferência).
