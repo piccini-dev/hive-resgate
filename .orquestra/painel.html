@@ -1,0 +1,251 @@
+<title>Issues Hive resgate</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: mesa de despacho — resumo no topo, blocos em sequência, cada issue numa linha operável */
+:root{
+  --bg:#f5f6f4; --surface:#ffffff; --sunken:#eceeea; --line:#d9ddd6;
+  --fg:#1d2420; --muted:#5f6b64; --accent:#0e7a6f; --accent-fg:#ffffff;
+  --st-bloqueada:#8a938d; --st-pronta:#0e7a6f; --st-andamento:#a8770c; --st-entregue:#2b62c9; --st-validada:#1b7a35; --st-devolvida:#c2362f;
+  --tint:.12;
+  --f-display:"Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1a201d; --sunken:#0e1210; --line:#2c3531;
+  --fg:#e3e9e5; --muted:#97a39c; --accent:#3fbfae; --accent-fg:#06221e;
+  --st-bloqueada:#7d8781; --st-pronta:#3fbfae; --st-andamento:#e2b341; --st-entregue:#7aa4f2; --st-validada:#5ccf7a; --st-devolvida:#f0756d;
+  --tint:.18; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1a201d; --sunken:#0e1210; --line:#2c3531;
+  --fg:#e3e9e5; --muted:#97a39c; --accent:#3fbfae; --accent-fg:#06221e;
+  --st-bloqueada:#7d8781; --st-pronta:#3fbfae; --st-andamento:#e2b341; --st-entregue:#7aa4f2; --st-validada:#5ccf7a; --st-devolvida:#f0756d;
+  --tint:.18; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--f-body);}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 48px;display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline;justify-content:space-between}
+h1{font:600 clamp(24px,4vw,32px)/1.1 var(--f-display);margin:0;text-wrap:balance}
+.repo{font:500 13px var(--f-mono);color:var(--muted)}
+.sync{font-size:13px;color:var(--muted)}
+.sum{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:13px;background:var(--surface);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.chip b{font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;color:var(--fg);font:500 13px var(--f-body);padding:7px 12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+select{font:500 13px var(--f-body);color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+button:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{display:grid;gap:28px}
+.bloco{display:grid;gap:8px}
+.bloco-h{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.bloco-h h2{font:600 17px var(--f-body);margin:0}
+.branch{font:400 12px var(--f-mono);color:var(--muted)}
+.prog{flex:1 1 120px;max-width:220px;height:6px;border-radius:3px;background:var(--sunken);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--st-validada)}
+.count{font:500 13px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.flag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;color:var(--st-entregue);background:color-mix(in srgb,var(--st-entregue) calc(var(--tint)*100%),transparent)}
+.issue{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:8px}
+.issue.livre{border-color:color-mix(in srgb,var(--st-pronta) 55%,var(--line))}
+.row1{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.num{font:500 14px var(--f-mono);color:var(--muted);min-width:3.2em}
+.tit{flex:1 1 260px;min-width:0;font-weight:500}
+.tit a{color:var(--fg);text-decoration:none}
+.tit a:hover{text-decoration:underline}
+.pill{font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap;color:var(--c);background:color-mix(in srgb,var(--c) calc(var(--tint)*100%),transparent)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:13px;color:var(--muted);align-items:center}
+.tag{font:400 12px var(--f-mono)}
+.deps a{font:500 12px var(--f-mono);text-decoration:none;color:var(--c);margin-right:6px}
+.steps{display:inline-flex;align-items:center;gap:6px;font:400 12px var(--f-mono)}
+.steps .prog{width:70px;flex:none}
+.steps .prog i{background:var(--st-andamento)}
+.nota{font-size:13px;color:var(--muted);background:var(--sunken);border-radius:6px;padding:6px 10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:600 13px var(--f-body);border-radius:8px;padding:7px 14px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--fg)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+details>summary{cursor:pointer;font-size:13px;color:var(--muted)}
+pre{margin:8px 0 0;max-height:360px;overflow:auto;background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:12px;font:400 12px/1.55 var(--f-mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:28px 20px;color:var(--muted);text-align:center}
+.empty strong{display:block;color:var(--fg);font-size:16px;margin-bottom:4px}
+.alerta{font-size:13px;font-weight:500;color:var(--st-devolvida);background:color-mix(in srgb,var(--st-devolvida) calc(var(--tint)*100%),transparent);border-radius:8px;padding:8px 12px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500}
+@media (prefers-reduced-motion:no-preference){.issue{transition:border-color .2s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="nome">Painel de Issues</h1>
+      <div class="repo" id="repo"></div>
+    </div>
+    <div class="sync" id="sync">Aguardando dados</div>
+  </header>
+
+  <div class="alerta" id="alerta" hidden></div>
+  <div class="sum" id="sum"></div>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Filtro">
+      <button type="button" id="f-livres" data-f="livres" aria-pressed="true">Liberadas</button>
+      <button type="button" id="f-andamento" data-f="andamento" aria-pressed="false">Em andamento</button>
+      <button type="button" id="f-todas" data-f="todas" aria-pressed="false">Todas</button>
+    </div>
+    <label for="f-bloco" class="sync">Bloco</label>
+    <select id="f-bloco"><option value="">Todos</option></select>
+  </div>
+
+  <main id="lista">
+    <div class="empty"><strong>Nenhuma issue por aqui ainda</strong>O Claude preenche este painel ao rodar <code>/issues</code> no projeto. Depois, o status de cada tarefa se atualiza sozinho a cada 10 minutos.</div>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const ST = {
+  "bloqueada":    {rot:"Bloqueada",    c:"var(--st-bloqueada)"},
+  "pronta":       {rot:"Pronta",       c:"var(--st-pronta)"},
+  "em-andamento": {rot:"Em andamento", c:"var(--st-andamento)"},
+  "entregue":     {rot:"Entregue",     c:"var(--st-entregue)"},
+  "validada":     {rot:"Validada",     c:"var(--st-validada)"},
+  "devolvida":    {rot:"Devolvida",    c:"var(--st-devolvida)"}
+};
+const LIVRE = new Set(["pronta","devolvida"]);
+const state = { issues:new Map(), blocos:new Map(), meta:{}, filtro:"livres", bloco:"" };
+try { const f = localStorage.getItem("orq-filtro"); if (f) state.filtro = f; } catch(e) {}
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+const quando = iso => {
+  if (!iso) return "";
+  const d = new Date(iso); if (isNaN(d)) return "";
+  return d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+};
+
+function toast(msg){
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2200);
+}
+
+async function copiar(n){
+  const it = state.issues.get(n); if (!it || !it.prompt) return;
+  try { await navigator.clipboard.writeText(it.prompt); toast("Prompt da #" + n + " copiado"); }
+  catch(e){
+    const det = document.querySelector('[data-prompt="' + n + '"]');
+    if (det){ det.open = true; const pre = det.querySelector("pre"); const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    toast("Selecionei o texto: use Ctrl+C");
+  }
+}
+
+function render(){
+  const meta = state.meta;
+  if (meta.nome) { $("nome").textContent = meta.nome; document.title = "Issues · " + meta.nome; }
+  $("repo").textContent = meta.repo || "";
+  $("sync").textContent = meta.cronAt ? "Atualizado em " + quando(meta.cronAt) : (state.issues.size ? "" : "Aguardando dados");
+  const parado = meta.cronAt ? Math.round((Date.now() - Date.parse(meta.cronAt)) / 60000) : null;
+  const alerta = $("alerta");
+  const temAbertas = [...state.issues.values()].some(i => i.status !== "validada");
+  if (parado !== null && parado > 90 && temAbertas) {
+    alerta.textContent = "O status pode estar desatualizado: a última sincronização foi há " + (parado < 120 ? parado + " min" : Math.round(parado / 60) + " h") + ". Confira se o PC está ligado ou rode /sincronizar-painel no chat do projeto.";
+    alerta.hidden = false;
+  } else { alerta.hidden = true; }
+
+  const all = [...state.issues.values()];
+  const conta = s => all.filter(i => i.status === s).length;
+  const livres = all.filter(i => LIVRE.has(i.status)).length;
+  $("sum").innerHTML = all.length ? [
+    ["Liberadas agora", livres, "var(--st-pronta)"],
+    ["Em andamento", conta("em-andamento"), "var(--st-andamento)"],
+    ["Entregues", conta("entregue"), "var(--st-entregue)"],
+    ["Validadas", conta("validada"), "var(--st-validada)"],
+    ["Bloqueadas", conta("bloqueada"), "var(--st-bloqueada)"]
+  ].map(([r,v,c]) => '<span class="chip" style="color:' + c + '"><span class="dot"></span><span style="color:var(--fg)">' + r + ' <b>' + v + '</b></span></span>').join("") : "";
+
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === state.filtro)));
+  const sel = $("f-bloco");
+  const blocos = [...state.blocos.values()].sort((a,b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  const opts = '<option value="">Todos</option>' + blocos.map(b => '<option value="' + esc(b.id) + '">' + esc(b.id + " · " + b.titulo) + '</option>').join("");
+  if (sel.innerHTML !== opts) { sel.innerHTML = opts; sel.value = state.bloco; }
+
+  const passa = i => (state.filtro === "todas") || (state.filtro === "livres" && LIVRE.has(i.status)) || (state.filtro === "andamento" && i.status === "em-andamento");
+  const ids = blocos.length ? blocos.map(b => b.id) : [...new Set(all.map(i => i.bloco))];
+  let html = "";
+  for (const id of ids) {
+    if (state.bloco && state.bloco !== id) continue;
+    const b = state.blocos.get(id) || {id, titulo:"", branch:""};
+    const doBloco = all.filter(i => i.bloco === id).sort((x,y) => x.n - y.n);
+    const vis = doBloco.filter(passa);
+    if (!vis.length) continue;
+    const fechadas = doBloco.filter(i => i.status === "entregue" || i.status === "validada").length;
+    const pct = doBloco.length ? Math.round(fechadas / doBloco.length * 100) : 0;
+    const prontoIntegrar = doBloco.length && doBloco.every(i => i.status === "entregue" || i.status === "validada") && b.status !== "integrado";
+    html += '<section class="bloco"><div class="bloco-h"><h2>' + esc(id + " · " + (b.titulo || "")) + '</h2>' +
+      (b.branch ? '<span class="branch">' + esc(b.branch) + '</span>' : '') +
+      '<span class="prog" aria-hidden="true"><i style="width:' + pct + '%"></i></span><span class="count">' + fechadas + '/' + doBloco.length + '</span>' +
+      (prontoIntegrar ? '<span class="flag">Pronto para /integrar</span>' : '') +
+      (b.status === "integrado" ? '<span class="flag" style="color:var(--st-validada)">Integrado</span>' : '') + '</div>';
+    for (const i of vis) html += cartao(i);
+    html += '</section>';
+  }
+  $("lista").innerHTML = html || (all.length
+    ? '<div class="empty"><strong>Nada neste filtro</strong>Troque para "Todas" para ver as outras tarefas.</div>'
+    : '<div class="empty"><strong>Nenhuma issue por aqui ainda</strong>O Claude preenche este painel ao rodar <code>/issues</code> no projeto. Depois, o status de cada tarefa se atualiza sozinho a cada 10 minutos.</div>');
+}
+
+function cartao(i){
+  const st = ST[i.status] || ST["bloqueada"];
+  const livre = LIVRE.has(i.status);
+  const deps = (i.deps || []).map(d => {
+    const di = state.issues.get(d); const c = di ? (ST[di.status] || ST.bloqueada).c : "var(--muted)";
+    const url = di && di.url ? di.url : "#";
+    return '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="--c:' + c + '" title="' + esc(di ? (ST[di.status]||{}).rot : "") + '">#' + d + '</a>';
+  }).join("");
+  const p = i.passos || {}; const pp = p.total ? Math.round((p.feitos||0) / p.total * 100) : 0;
+  return '<article class="issue' + (livre ? ' livre' : '') + '">' +
+    '<div class="row1"><span class="num">#' + i.n + '</span><span class="tit"><a href="' + esc(i.url || "#") + '" target="_blank" rel="noopener">' + esc(i.titulo) + '</a></span>' +
+    '<span class="pill" style="--c:' + st.c + '">' + st.rot + '</span></div>' +
+    '<div class="meta">' +
+      (i.tam ? '<span class="tag">' + esc(i.tam) + '</span>' : '') +
+      (i.tipo ? '<span class="tag">' + esc(i.tipo) + '</span>' : '') +
+      (i.area ? '<span class="tag">' + esc(i.area) + '</span>' : '') +
+      (i.exec === "claude" ? '<span class="tag">fica com o Claude</span>' : '') +
+      (deps ? '<span class="deps">depende de ' + deps + '</span>' : '') +
+      (p.total ? '<span class="steps"><span class="prog" aria-hidden="true"><i style="width:' + pp + '%"></i></span>' + (p.feitos||0) + '/' + p.total + ' passos</span>' : '') +
+      (i.atualizado ? '<span>' + quando(i.atualizado) + '</span>' : '') +
+    '</div>' +
+    (i.nota ? '<div class="nota">' + esc(i.nota) + '</div>' : '') +
+    '<div class="acts">' +
+      (i.exec === "claude" ? '' : '<button type="button" class="btn' + (livre ? ' pri' : '') + '" data-copiar="' + i.n + '"' + (i.prompt ? '' : ' disabled') + '>Copiar prompt</button>') +
+      (i.prompt ? '<details data-prompt="' + i.n + '"><summary>Ver prompt</summary><pre>' + esc(i.prompt) + '</pre></details>' : '') +
+    '</div></article>';
+}
+
+document.addEventListener("click", e => {
+  const c = e.target.closest("[data-copiar]"); if (c) { copiar(Number(c.dataset.copiar)); return; }
+  const f = e.target.closest(".seg button"); if (f) { state.filtro = f.dataset.f; try { localStorage.setItem("orq-filtro", state.filtro); } catch(err) {} render(); }
+});
+$("f-bloco").addEventListener("change", e => { state.bloco = e.target.value; render(); });
+
+render();
+
+(async () => {
+  const db = await claude.use("db");
+  if (!db) { $("sync").textContent = "Dados indisponíveis nesta visualização"; return; }
+  const onErr = () => { $("sync").textContent = "Sem conexão com os dados; recarregue a página"; };
+  db.collection("issues").onSnapshot(snap => {
+    state.issues = new Map(snap.docs.map(d => { const v = d.data() || {}; return [Number(v.n ?? d.id), {...v, n:Number(v.n ?? d.id)}]; }));
+    render();
+  }, onErr);
+  db.collection("blocos").onSnapshot(snap => {
+    state.blocos = new Map(snap.docs.map(d => { const v = d.data() || {}; return [String(v.id ?? d.id), {...v, id:String(v.id ?? d.id)}]; }));
+    render();
+  }, onErr);
+  db.doc("meta/projeto").onSnapshot(s => { state.meta = s.exists ? (s.data() || {}) : {}; render(); }, onErr);
+})();
+</script>

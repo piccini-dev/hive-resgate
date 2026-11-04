@@ -67,7 +67,8 @@ test.describe('unit · métricas e desempenho', () => {
   test('planejador das edges = bundle gerado do mesmo código do app', () => {
     const r = buildSync({ entryPoints: ['src/lib/campaign/plan.ts'], bundle: true, format: 'esm', platform: 'neutral', write: false, logLevel: 'silent',
       banner: { js: "// GERADO por 'npm run build:edge-shared' a partir de src/lib/campaign/plan.ts — NÃO edite à mão." } });
-    const committed = readFileSync('supabase/functions/_shared/campaign-plan.js', 'utf8');
+    // checkout no Windows (autocrlf) troca LF por CRLF; o esbuild gera LF
+    const committed = readFileSync('supabase/functions/_shared/campaign-plan.js', 'utf8').replace(/\r\n/g, '\n');
     expect(r.outputFiles[0].text === committed, 'rode npm run build:edge-shared').toBe(true);
   });
 });

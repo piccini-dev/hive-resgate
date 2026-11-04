@@ -72,6 +72,7 @@ flowchart LR
 ```
 
 - Os dois sites usam o **mesmo** banco e as mesmas funções. No site de teste, aprovar, agendar e publicar **valem de verdade**. Por isso ele mostra a faixa de aviso (issue 01-A).
+- **Endereço do site de teste:** https://hive-resgate.netlify.app (projeto `hive-resgate`, time RMF no Netlify). Publica só a `main`; branch deploys e deploy previews desligados; `VITE_APP_ENV=teste`. Criado em 2026-11-04.
 - **Virada (bloco 10):** o domínio do Marcos passa a apontar para o site do `hive-resgate`. O `bee-platform` fica arquivado.
 - Nesta pasta local, o remoto antigo se chama `producao` e tem o push desligado.
 

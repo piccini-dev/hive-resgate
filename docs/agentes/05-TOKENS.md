@@ -8,7 +8,7 @@ O contexto do agente é o recurso mais caro e mais escasso. Ler um arquivo de 10
 
 ## 1. Ler pouco e no lugar certo
 
-**1.1 Comece pelo índice, não pelo README.** `AGENTS.md` → o doc de `docs/agentes/` que a tarefa pede → a ficha da iniciativa. O `README.md` tem 50 KB e está parcialmente desatualizado: consulte por seção (`grep -n "^## " README.md`), nunca inteiro.
+**1.1 Comece pelo índice, não pelo README.** `AGENTS.md` → o doc de `docs/agentes/` que a tarefa pede → a ficha da iniciativa. O `README.md` é curto (apresentação e comandos); o detalhe está no `AGENTS.md`.
 
 **1.2 Procure antes de abrir.**
 
@@ -31,7 +31,7 @@ Depois leia **só a faixa** (ex.: linhas 820–900). Na ferramenta Read use `off
 | `supabase/functions/generate-content/index.ts` | 75 | grep por `buildSystemPrompt`, bloco do prompt |
 | `supabase/functions/_shared/campaign-plan.js` | 58 | **gerado**: leia `src/lib/campaign/plan.ts` |
 | `src/pages/posts/PostEditor.tsx` | 50 | grep por handler |
-| `README.md` | 50 | por seção |
+| `README.md` | 3 | inteiro |
 | `src/lib/api.ts`, `src/lib/edge.ts` | 45 / 36 | grep pelo nome da função |
 | `package-lock.json`, `node_modules/`, `dist/`, `test-results/`, `playwright-report/` | — | nunca |
 

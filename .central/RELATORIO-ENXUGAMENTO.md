@@ -64,7 +64,7 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 | Fotografia do Marcos | `/hive/fotografia` | **J** com `/hive/marcos`: uma tela de fotos do Marcos · T |
 | Templates | `/templates` | **M** |
 | Biblioteca | `/biblioteca` | **M**, absorve a lista de Vídeos |
-| Vídeos | `/podcasts`, `/podcasts/novo` | **J**: a lista vai para a Biblioteca e "novo corte" entra pelo Criar |
+| Vídeos | `/podcasts`, `/podcasts/novo` | **J**: a lista vai para a Biblioteca e "novo corte" entra pelo Criar. ✎ Medição: 1 vídeo (junho), 0 cortes; se o Marcos não usa (§9, pergunta 6), candidata a **S** |
 
 ### "Inteligência" (9 itens)
 | Tela | Rota | Veredito |
@@ -72,12 +72,12 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 | Aprendizado | `/aprendizado` | **J**: a lista de lições vai para "Ensinar a Hive"; o painel do portão sai (§3.4) |
 | Jornada relacional (ACJ) | `/jornada` | **J**: vira uma aba de "Resultados" · T |
 | Curadoria | `/curadoria` | **M** (regra 9: nada entra na voz sem humano) |
-| Feedback contínuo | `/feedback` | **J** com o Coach |
+| Feedback contínuo | `/feedback` | **J** com o Coach. ✔ Medição: nunca gerou lição |
 | Coach de voz | `/coach` | **M**, vira "Ensinar a Hive" |
 | Olhar Bee · calibração | `/olhar/calibracao` | **A** · T |
-| Simular público | `/personas` | **S** (isolada do fluxo; confirmar com o Marcos) |
+| Simular público | `/personas` | **S** (isolada do fluxo; confirmar com o Marcos). ✔ Medição: parada desde 20/07 |
 | Custos de API | `/custos` | **A** |
-| Teste de imagem | `/labs/imagens` | **S** depois de registrar qual modelo de imagem venceu |
+| Teste de imagem | `/labs/imagens` | ✎ **S** direto: `image_model_trials` tem 0 linhas, não há modelo vencedor para registrar |
 
 ### Fora do menu
 | Tela | Rota | Veredito |
@@ -178,6 +178,8 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 
 ## 4. Morto no código (lista verificada)
 
+> **Medição de 04/11 (§11):** ✔ = confirmado no banco · ✎ = corrigido. Os itens 4.1, 4.4 e 4.5 são só de código: o banco não muda o veredito.
+
 ### 4.1 Telas e componentes
 - `pages/linhas/LinhasEditoriais.tsx` (423 linhas): sem import.
 - `pages/hive/HiveTesteM01.tsx` e `HiveTesteM02.tsx` (525 linhas): marcadas como TEMP.
@@ -185,21 +187,21 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 - Lógica de item "travado" no `Sidebar.tsx` (`unlocked = true` fixo).
 
 ### 4.2 Edge Functions sem chamador
-- `editorial-line-tick` (444 linhas; o cron foi desligado no cutover).
-- `hybrid-image-search` (`edge.searchImages` sem uso).
-- `search-knowledge` (`edge.searchKnowledge` sem uso; o RAG da geração usa a RPC `match_knowledge` direto).
-- `download-proxy` (nenhuma referência).
+- ✔ `editorial-line-tick` (444 linhas; o cron foi desligado no cutover). Sem cron e sem chamada em 30 dias.
+- ✔ `hybrid-image-search` (`edge.searchImages` sem uso). Sem chamada em 30 dias.
+- ✔ `search-knowledge` (`edge.searchKnowledge` sem uso; o RAG da geração usa a RPC `match_knowledge` direto). Sem chamada em 30 dias.
+- ✔ `download-proxy` (nenhuma referência). Sem chamada em 30 dias.
 
 ### 4.3 Tabelas sem leitor
-| Tabela | Situação |
-|---|---|
-| `alma_crencas`, `alma_dimensoes`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra` | Trocadas pelo Genesis; nada lê |
-| `alma_eventos` | **Só escrita**: `generate-content` e `almaApi.emitEvento` gravam, ninguém lê |
-| `genesis_dimensoes`, `genesis_paradigmas` | Trocadas por `genesis_tensoes`; nada lê |
-| `acj_definitions` | Semeada, mas a biblioteca ACJ vem de `lib/acj/library.generated.ts` e `_shared/acj-library.ts` |
-| `editorial_lines`, `editorial_line_runs` | Só a tela e a função mortas usam |
-| `kanban_columns` | `kanbanApi` não é usada, mas o login roda `kanbanApi.ensureDefaults()` **a cada entrada** (escrita inútil) |
-| `bee_themes`, `bee_logics` | Só contadas na aba Voz Bee; nenhuma geração lê |
+| Tabela | Situação | Medição (§11) |
+|---|---|---|
+| `alma_crencas`, `alma_dimensoes`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra` | Trocadas pelo Genesis; nada lê | ✔ Última mudança em 01/07. Só FKs entre elas |
+| `alma_eventos` | **Só escrita**: `generate-content` e `almaApi.emitEvento` gravam, ninguém lê | ✎ Também a função SQL `ai_gate_recompute` grava (trigger em `ai_reviews`). Continua sem leitor, mas tirar o insert da função antes de apagar a tabela |
+| ~~`genesis_dimensoes`, `genesis_paradigmas`~~ | Trocadas por `genesis_tensoes`; nada lê | ✎ **Já não existem** no banco: sair da lista |
+| `acj_definitions` | Semeada, mas a biblioteca ACJ vem de `lib/acj/library.generated.ts` e `_shared/acj-library.ts` | ✔ 5 linhas, sem dependência SQL |
+| `editorial_lines`, `editorial_line_runs` | Só a tela e a função mortas usam | ✎ `user_posts.editorial_line_id` tem FK para ela (0 posts preenchidos): soltar a FK antes |
+| `kanban_columns` | `kanbanApi` não é usada, mas o login roda `kanbanApi.ensureDefaults()` **a cada entrada** (escrita inútil) | ✎ A função de cadastro `handle_new_user` também cria as colunas: tirar dali antes |
+| `bee_themes`, `bee_logics` | Só contadas na aba Voz Bee; nenhuma geração lê | ✔ Sem dependência SQL |
 
 Colunas sem leitor em `user_settings`: `persona`, `tone_of_voice`, `content_structure`, `brand_colors`, `brand_logo_url`.
 
@@ -214,23 +216,25 @@ Colunas sem leitor em `user_settings`: `persona`, `tone_of_voice`, `content_stru
 
 ---
 
-## 5. Edge Functions: 46 → cerca de 33
+## 5. Edge Functions: 48 → cerca de 36
 
-| Situação | Funções |
-|---|---|
-| **Saem (mortas)** | `editorial-line-tick`, `hybrid-image-search`, `search-knowledge`, `download-proxy` |
-| **Saem com o wizard** | `generate-script`, `regenerate-snippet`, `nano-scene` |
-| **Saem com Feedback → Coach** | `learn-from-feedback` |
-| **Saem com Simular público** | `generate-persona`, `persona-chat` |
-| **Sai com um só sugeridor na Agenda** | `distribute-schedule` |
-| **Sai com o público unificado** | `suggest-audience` |
-| **Ficam: produção** | `campaign-moment`, `campaign-strategy`, `campaign-tick`, `cycle-pauta`, `content-develop`, `generate-content`, `qa-check`, `edit-text`, `content-memory`, `sequence-script`, `acj-orchestrator` |
-| **Ficam: visual** | `hive-decide`, `generate-image-ai`, `marcos-photo` |
-| **Ficam: agenda e publicação** | `schedule-piece`, `publish-post`, `publish-scheduler` |
-| **Ficam: contas e métricas** | `instagram-connect`, `instagram-import`, `instagram-refresh`, `linkedin-import`, `test-linkedin`, `metrics-ingest`, `meta-ads-sync`, `meta-ads-attribution` |
-| **Ficam: voz** | `voice-coach`, `commit-learning`, `learn-from-correction`, `post-chat`, `mine-content`, `ingest-document`, `identity-setup` |
-| **Ficam: vídeo** | `process-video`, `generate-caption-from-video`, `youtube-meta` |
-| **Fica: agente público da LP** | `olhar-bee` |
+✎ A medição (§11.3) achou **48** funções publicadas, as mesmas 48 do repositório (aqui dizia 46). Saem 12 → ficam cerca de 36.
+
+| Situação | Funções | Medição: chamadas em 30 dias (§11.3) |
+|---|---|---|
+| **Saem (mortas)** | `editorial-line-tick`, `hybrid-image-search`, `search-knowledge`, `download-proxy` | ✔ nenhuma |
+| **Saem com o wizard** | `generate-script`, `regenerate-snippet`, `nano-scene` | ✔ nenhuma (`regenerate-snippet` registrou uso de IA pela última vez em 15/09) |
+| **Saem com Feedback → Coach** | `learn-from-feedback` | ✔ nenhuma; 0 lições de origem feedback |
+| **Saem com Simular público** | `generate-persona`, `persona-chat` | ✔ nenhuma; personas paradas desde 20/07 |
+| **Sai com um só sugeridor na Agenda** | `distribute-schedule` | ✎ **2 chamadas de usuário** (19/10): é usada, pouco. Confirmar com o Marcos (§9, pergunta 2) |
+| **Sai com o público unificado** | `suggest-audience` | ✔ nenhuma |
+| **Ficam: produção** | `campaign-moment`, `campaign-strategy`, `campaign-tick`, `cycle-pauta`, `content-develop`, `generate-content`, `qa-check`, `edit-text`, `content-memory`, `sequence-script`, `acj-orchestrator` | ✔ todas com uso |
+| **Ficam: visual** | `hive-decide`, `generate-image-ai`, `marcos-photo` | ✔ `generate-image-ai` sem chamada em 30 dias (último uso de IA em 25/09) |
+| **Ficam: agenda e publicação** | `schedule-piece`, `publish-post`, `publish-scheduler` | ✔ uso alto |
+| **Ficam: contas e métricas** | `instagram-connect`, `instagram-import`, `instagram-refresh`, `linkedin-import`, `test-linkedin`, `metrics-ingest`, `meta-ads-sync`, `meta-ads-attribution` | ✔ conexão, importação e teste sem chamada em 30 dias: são de uso pontual. O `linkedin-import` publicado é mais novo que o do repo |
+| **Ficam: voz** | `voice-coach`, `commit-learning`, `learn-from-correction`, `post-chat`, `mine-content`, `ingest-document`, `identity-setup` | ✔ `mine-content` e `ingest-document` sem chamada em 30 dias (conhecimento parado desde 10/07) |
+| **Ficam: vídeo** | `process-video`, `generate-caption-from-video`, `youtube-meta` | ✎ **nenhuma chamada**; 1 vídeo (10/06) e 0 cortes. A área de vídeo não é usada: perguntar ao Marcos (§9, pergunta 6) |
+| **Fica: agente público da LP** | `olhar-bee` | ✔ em uso desde 03/11 |
 
 ---
 
@@ -317,17 +321,210 @@ Cada onda passa pela regressão completa (cerca de 40 min) antes do push. Com me
 3. Usa Simular público?
 4. Usa Feedback contínuo e Coach, ou só o Coach dentro do post?
 5. Ainda cria algo por "Gerar post individual" (wizard antigo)? Usa "regenerar trecho" ou "roteiro de vídeo"?
+6. Pretende usar os cortes de vídeo? (Medição de 04/11: 1 vídeo em junho e nenhum corte; as três funções de vídeo sem chamada em 30 dias.)
+
+**O que a medição de 04/11 (§11) já respondeu:**
+- Pergunta 2: "IA distribui" (`distribute-schedule`) teve 2 chamadas em 30 dias, a última em 19/10. É usado, raramente.
+- Pergunta 3: Simular público está parado desde 20/07 (2 personas, nenhuma chamada em 30 dias).
+- Pergunta 4: o Feedback contínuo nunca gerou lição (0). As 29 lições vêm da correção de texto (24) e da conversa (5).
+- Pergunta 5: nenhum post com texto pendente do wizard. `generate-script`, `regenerate-snippet` e `nano-scene` sem chamada em 30 dias.
+- Pergunta 1 (Pipeline) não dá para medir no banco: o app não registra a tela aberta.
 
 ---
 
 ## 10. Correção em relação à versão 1
 A versão 1 chamou de órfãs 12 tabelas. Três delas **são usadas** por funções SQL e triggers: `piece_versions` (versionamento de peças), `workspaces` (multi-cliente) e `ai_segment_gate` (portão). A lista de §4.3 só tem as que não têm leitor nem no app, nem nas funções, nem no SQL.
 
-## 11. Para medir no banco (só SELECT)
-1. Linhas e data do último registro por tabela, sem o usuário de teste.
-2. `select jobname, schedule, active from cron.job;`
-3. Edge Functions publicadas e não presentes no repo; chamadas dos últimos 30 dias por função.
-4. `pg_depend`, views e funções SQL que tocam as tabelas de §4.3.
-5. Uso por tela: `usage_events` e `ai_measurement_events` agrupados por origem, nos últimos 60 dias.
+## 11. Medição no banco (2026-11-04, só SELECT)
 
-**Bloqueio:** falta `.env.e2e.local` com `SUPABASE_ACCESS_TOKEN`, e o projeto `djlorvdehedcupeykyes` não está na conta Supabase conectada.
+Feita na issue #4 do hive-resgate. Todas as consultas foram só leitura. As contagens excluem o usuário de teste E2E onde a tabela tem `user_id`.
+
+### 11.1 Tabelas: linhas e último registro
+Último registro = maior `updated_at` (ou `created_at`); `-` = a tabela não tem essas colunas.
+
+**Vazias (19):** `acj_learning_decisions`, `acj_learning_entries`, `acj_learning_evidence`, `acj_signal_readings`, `ai_chat_messages`, `content_idea_feedback`, `content_ideas_cache`, `image_model_trials`, `olhar_calibracao`, `photo_generations`, `photo_style_approvals`, `piece_candidates`, `piece_versions`, `podcast_clips`, `post_drafts`, `post_unit_publications`, `post_units`, `setup_sessions`, `user_feedback`.
+
+| Tabela | Linhas | Último |
+|---|---:|---|
+| `acj_campaign_plans` | 2 | 2026-10-13 |
+| `acj_content_contracts` | 16 | 2026-10-16 |
+| `acj_cycle_plans` | 1 | 2026-10-13 |
+| `acj_definitions` | 5 | 2026-10-06 |
+| `ai_generations` | 114 | 2026-10-19 |
+| `ai_learnings` | 29 | 2026-10-20 |
+| `ai_measurement_events` | 16 | 2026-10-20 |
+| `ai_reviews` | 64 | 2026-10-19 |
+| `ai_segment_gate` | 27 | 2026-10-20 |
+| `ai_variations` | 122 | 2026-10-19 |
+| `alma_crencas` | 8 | 2026-07-01 |
+| `alma_dimensoes` | 6 | 2026-07-01 |
+| `alma_estado` | 1 | - |
+| `alma_eventos` | 295 | 2026-10-20 |
+| `alma_objetivo` | 2 | 2026-07-01 |
+| `alma_pulsoes` | 5 | 2026-07-01 |
+| `alma_sombra` | 4 | 2026-07-01 |
+| `audiences` | 3 | 2026-10-14 |
+| `bee_analogies` | 13 | 2026-05-27 |
+| `bee_arsenal` | 83 | 2026-07-10 |
+| `bee_avatars` | 2 | - |
+| `bee_directives` | 32 | 2026-08-07 |
+| `bee_editorials` | 8 | 2026-07-10 |
+| `bee_example_posts` | 14 | 2026-07-10 |
+| `bee_glossary` | 17 | 2026-07-01 |
+| `bee_hashtags` | 15 | - |
+| `bee_headline_types` | 4 | 2026-05-27 |
+| `bee_logics` | 7 | - |
+| `bee_personas` | 2 | 2026-07-20 |
+| `bee_products` | 5 | 2026-09-25 |
+| `bee_style_rules` | 46 | 2026-07-10 |
+| `bee_suggestions` | 2 | 2026-09-11 |
+| `bee_themes` | 8 | - |
+| `brands` | 1 | 2026-10-14 |
+| `business_fronts` | 2 | 2026-10-14 |
+| `campaign_cycles` | 10 | 2026-10-31 |
+| `campaigns` | 2 | 2026-10-26 |
+| `communication_profile_versions` | 3 | 2026-10-14 |
+| `communication_profiles` | 3 | 2026-10-14 |
+| `content_memory` | 527 | 2026-11-03 |
+| `content_piece_plans` | 8 | 2026-10-19 |
+| `contents` | 522 | 2026-11-03 |
+| `context_snapshots` | 12 | 2026-10-19 |
+| `design_assets` | 54 | 2026-09-21 |
+| `design_manifestacoes` | 8 | 2026-10-14 |
+| `design_selection_config` | 1 | 2026-10-14 |
+| `design_tokens` | 9 | 2026-10-14 |
+| `design_variacoes` | 16 | 2026-10-14 |
+| `editorial_line_runs` | 4 | - |
+| `editorial_lines` | 1 | 2026-09-25 |
+| `emitters` | 2 | 2026-10-14 |
+| `format_capabilities` | 5 | - |
+| `genesis_avatares` | 5 | 2026-08-05 |
+| `genesis_core` | 1 | 2026-08-05 |
+| `genesis_fluxo` | 7 | 2026-08-05 |
+| `genesis_lentes` | 6 | 2026-08-05 |
+| `genesis_principios` | 46 | 2026-08-05 |
+| `genesis_tensoes` | 2 | 2026-08-05 |
+| `ideas` | 39 | 2026-10-31 |
+| `kanban_columns` | 20 | 2026-05-27 |
+| `knowledge_chunks` | 17121 | 2026-05-27 |
+| `knowledge_documents` | 90 | 2026-07-10 |
+| `meta_ad_accounts` | 4 | - |
+| `meta_ad_insights_daily` | 1182 | - |
+| `meta_ads` | 262 | - |
+| `meta_adsets` | 188 | - |
+| `meta_businesses` | 2 | - |
+| `meta_campaigns` | 66 | - |
+| `meta_connections` | 1 | 2026-11-04 |
+| `olhar_base` | 53 | 2026-11-03 |
+| `olhar_nomes_proibidos` | 325 | 2026-11-03 |
+| `olhar_sessions` | 2 | 2026-11-03 |
+| `photo_references` | 39 | 2026-10-06 |
+| `podcasts` | 1 | 2026-06-10 |
+| `post_comments` | 3 | 2026-11-04 |
+| `post_metrics` | 537 | 2026-11-04 |
+| `post_publications` | 13 | 2026-10-29 |
+| `post_templates` | 4 | 2026-07-16 |
+| `profiles` | 3 | 2026-09-24 |
+| `publication_packages` | 18 | 2026-10-21 |
+| `schedule_commands` | 30 | 2026-10-21 |
+| `schedule_plans` | 2 | 2026-10-19 |
+| `social_accounts` | 3 | 2026-11-04 |
+| `usage_events` | 753 | 2026-11-03 |
+| `user_posts` | 565 | 2026-11-03 |
+| `user_settings` | 2 | 2026-10-23 |
+| `workspace_members` | 2 | 2026-10-14 |
+| `workspaces` | 1 | 2026-10-14 |
+
+### 11.2 Crons (`cron.job`)
+| Job | Agenda | Ativo |
+|---|---|---|
+| `campaign-tick` | `0 9 * * *` | sim |
+| `instagram-refresh` | `17 4 * * *` | sim |
+| `linkedin-metrics` | `15 * * * *` | sim |
+| `meta-ads-sync` | `*/30 * * * *` | sim |
+| `metrics-ingest` | `30 9 * * *` | sim |
+| `publish-scheduler` | `*/2 * * * *` | sim |
+
+Não há cron de `editorial-line-tick` (confirma §4.2). O `linkedin-metrics` vem do trabalho de 03/11 que ainda não está no repositório (migration `20261103000006`, só no patch de transferência).
+
+### 11.3 Edge Functions publicadas e chamadas em 30 dias
+- **48 publicadas, as mesmas 48 do repositório** (o §5 dizia 46). Nenhuma publicada fora do repo nem no repo sem publicar.
+- O `linkedin-import` publicado (v9, 03/11) é **mais novo que o código do repo**: a versão nova só existe no patch de transferência.
+- Chamadas lidas dos logs de borda (`function_edge_logs`), dia a dia, de 05/10 a 04/11. Colunas: **usuário** = JWT de usuário logado que não é o de teste (Marcos, ou o Raul testando); **E2E** = usuário de teste; **serviço** = cron, service role, chamada entre funções ou preflight sem JWT.
+
+| Função | Usuário | E2E | Serviço | Última chamada de usuário |
+|---|---:|---:|---:|---|
+| `identity-setup` | 43 | 0 | 3 | 2026-11-03 |
+| `publish-post` | 38 | 236 | 67 | 2026-11-03 |
+| `hive-decide` | 31 | 0 | 24 | 2026-10-19 |
+| `generate-content` | 30 | 2 | 70 | 2026-10-19 |
+| `schedule-piece` | 29 | 360 | 100 | 2026-10-21 |
+| `content-develop` | 23 | 0 | 19 | 2026-10-16 |
+| `content-memory` | 9 | 0 | 18 | 2026-11-03 |
+| `learn-from-correction` | 9 | 0 | 9 | 2026-10-20 |
+| `linkedin-import` | 8 | 0 | 33 | 2026-11-03 |
+| `voice-coach` | 7 | 0 | 9 | 2026-10-20 |
+| `post-chat` | 6 | 0 | 8 | 2026-10-20 |
+| `cycle-pauta` | 5 | 0 | 9 | 2026-10-15 |
+| `campaign-moment` | 3 | 0 | 4 | 2026-10-27 |
+| `metrics-ingest` | 2 | 17 | 48 | 2026-10-19 |
+| `olhar-bee` | 2 | 0 | 30 | 2026-11-03 |
+| `edit-text` | 2 | 0 | 2 | 2026-10-13 |
+| `distribute-schedule` | 2 | 0 | 2 | 2026-10-19 |
+| `acj-orchestrator` | 1 | 0 | 5 | 2026-10-13 |
+| `commit-learning` | 1 | 0 | 2 | 2026-10-20 |
+| `campaign-strategy` | 1 | 0 | 1 | 2026-10-13 |
+| `publish-scheduler` | 0 | 0 | 20432 | - |
+| `meta-ads-sync` | 0 | 0 | 1356 | - |
+| `meta-ads-attribution` | 0 | 0 | 1208 | - |
+| `campaign-tick` | 0 | 0 | 43 | - |
+| `qa-check` | 0 | 0 | 37 | - |
+| `instagram-refresh` | 0 | 0 | 28 | - |
+| `marcos-photo` | 0 | 28 | 23 | - |
+| `sequence-script` | 0 | 0 | 1 | - |
+
+**Nenhuma chamada em 30 dias (20):** `download-proxy`, `editorial-line-tick`, `generate-caption-from-video`, `generate-image-ai`, `generate-persona`, `generate-script`, `hybrid-image-search`, `ingest-document`, `instagram-connect`, `instagram-import`, `learn-from-feedback`, `mine-content`, `nano-scene`, `persona-chat`, `process-video`, `regenerate-snippet`, `search-knowledge`, `suggest-audience`, `test-linkedin`, `youtube-meta`.
+
+### 11.4 Dependências SQL das tabelas de §4.3
+| Tabela | Dependência | Efeito no corte |
+|---|---|---|
+| `genesis_dimensoes`, `genesis_paradigmas` | **não existem mais** no banco | já saíram; tirar da lista |
+| `alma_eventos` | a função `ai_gate_recompute` (trigger `trg_ai_gate_recompute` em `ai_reviews`) **grava** nela | continua só escrita, mas apagar a tabela quebra a revisão de IA: primeiro tirar o insert da função |
+| `alma_dimensoes` | FK de `alma_crencas` e `alma_sombra` | sai junto com elas |
+| `editorial_lines` | FK de `editorial_line_runs` e de `user_posts.editorial_line_id` (0 posts preenchidos); trigger `trg_editorial_lines_next_run` | soltar a FK de `user_posts` antes |
+| `kanban_columns` | a função `handle_new_user` (cadastro) cria as colunas padrão | tirar de `handle_new_user` antes (além do `ensureDefaults` no login) |
+| demais (`alma_crencas`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra`, `acj_definitions`, `editorial_line_runs`, `bee_themes`, `bee_logics`) | nenhuma view, função, trigger, FK ou cron | confirmado: sem leitor no banco |
+
+### 11.5 Uso de IA por função em 60 dias (`usage_events`, sem o usuário de teste)
+Total: 445 chamadas, US$ 1,47. Os eventos sem `fn` são do `generate-content` (texto, 143) e do `generate-image-ai` (imagem, 18).
+
+| Função · modo | Chamadas | US$ | Última |
+|---|---:|---:|---|
+| `generate-content` + `generate-image-ai` (sem `fn`) | 161 | 1.33 | 2026-10-19 |
+| `qa-check` | 104 | 0.02 | 2026-10-16 |
+| `hive-decide · M01` | 67 | 0.00 | 2026-10-19 |
+| `content-develop` | 24 | 0.02 | 2026-10-16 |
+| `learn-from-correction` | 17 | 0.00 | 2026-10-20 |
+| `cycle-pauta` | 14 | 0.01 | 2026-10-31 |
+| `cycle-pauta · full` | 11 | 0.04 | 2026-10-31 |
+| `edit-text` | 10 | 0.00 | 2026-10-13 |
+| `post-chat · rewrite` | 8 | 0.03 | 2026-10-20 |
+| `hive-decide · M02` | 8 | 0.00 | 2026-09-25 |
+| `campaign-moment` | 5 | 0.00 | 2026-10-13 |
+| `regenerate-snippet` | 4 | 0.00 | 2026-09-15 |
+| `cycle-pauta · swap` | 4 | 0.01 | 2026-10-15 |
+| `campaign-strategy · recommend` | 3 | 0.00 | 2026-10-13 |
+| `acj-orchestrator` | 2 | 0.01 | 2026-10-13 |
+| `olhar-bee` | 2 | 0.00 | 2026-11-03 |
+| `cycle-pauta · refresh` | 1 | 0.00 | 2026-10-07 |
+
+`ai_measurement_events`: 16 eventos `review:<hash>`, todos `done`, de 19 e 20/10. Só registram revisões; não separam área.
+
+### 11.6 Áreas candidatas a sair
+| Área | Medição | Leitura |
+|---|---|---|
+| Simular público (`bee_personas`) | 2 personas, última mudança em 20/07; `generate-persona` e `persona-chat` sem chamada em 30 dias | sem uso desde julho |
+| Teste de imagem (`image_model_trials`) | 0 linhas | nunca usado: não há "modelo vencedor" registrado |
+| Feedback contínuo (`ai_learnings` de origem feedback) | 0. As 29 lições ativas vêm de `correcao` (24) e `conversa` (5) | o Feedback nunca gerou lição; o Coach e a correção, sim |
+| Posts com texto pendente (wizard) | 0 | o bloco 08 não tem pendentes antigos para resolver |
+| Vídeo (`podcasts`, `podcast_clips`) | 1 vídeo (10/06), 0 cortes; `process-video`, `generate-caption-from-video` e `youtube-meta` sem chamada em 30 dias | sem uso desde junho |
