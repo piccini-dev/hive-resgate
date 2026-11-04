@@ -28,7 +28,7 @@ O banco e as Edge Functions são os de produção; ações no site de teste têm
 2. Copie `.env.example` para `.env.local` e preencha as variáveis.
 3. Inicie o aplicativo: `npm run dev`.
 
-Variáveis de ambiente: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_FACEBOOK_APP_ID` e `VITE_APP_ENV` (opcional; `teste` mostra a faixa de aviso).
+Variáveis de ambiente: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_FACEBOOK_APP_ID` e `VITE_APP_ENV`.
 
 ## Comandos
 
