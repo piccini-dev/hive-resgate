@@ -43,3 +43,6 @@ blob-report/
 
 # worktrees de agentes (locais)
 .claude/worktrees/
+
+# Central
+dados-cliente/
