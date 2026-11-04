@@ -142,3 +142,10 @@ Cada item: **sintoma → causa → regra**. Antes de depurar algo parecido, proc
 - **Rajada de "Management API: HTTP 502" no fim da suíte.**
   - Causa: instabilidade da API de administração do Supabase, não do app.
   - Regra: rode de novo só os specs afetados antes de investigar.
+
+### Teste passa no computador e falha no GitHub com "Expected … Received …" de contagem ou estado (nov/2026)
+
+- **Sintoma:** no GitHub, `f6` "IA distribuir" esperava a fila em 0 e via 4; a mesma suíte passava 100% no computador.
+- **Causa:** latência. As máquinas do GitHub ficam nos EUA e o banco em São Paulo (`sa-east-1`). Uma ação que faz várias chamadas em sequência (4 agendamentos) passava do limite de 15 s do `expect`.
+- **Correção:** `playwright.config.ts` usa limites maiores quando `CI=true` (expect 40 s, teste 150 s). As condições são as mesmas; só há mais tempo para acontecerem.
+- **Diagnóstico:** o resumo da regressão traz `Locator`/`Expected`/`Received` e os avisos da tela. Para ir além, instrumente o teste numa branch e rode só ele pelo "Run workflow" (escolha a branch e preencha `specs`).

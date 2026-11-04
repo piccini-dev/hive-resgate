@@ -178,7 +178,7 @@ export function Performance() {
                       </div>
                       {editing === p.id && (
                         <div className="mt-3">
-                          <MetricsForm post={p} current={r.metrics?.source === 'manual' ? r.metrics : null}
+                          <MetricsForm post={p} current={metrics.find((m) => m.post_id === p.id && m.source === 'manual') ?? null}
                             onSaved={(m) => { setExtra((xs) => [...xs.filter((x) => x.id !== m.id), m]); setEditing(null); }} onCancel={() => setEditing(null)} />
                         </div>
                       )}

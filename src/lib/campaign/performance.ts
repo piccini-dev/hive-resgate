@@ -13,11 +13,20 @@ export function rateOf(m: PostMetrics): number | null {
 }
 
 // API > manual quando as duas existem (a API é mais completa).
+// Uma linha por post juntando as fontes CAMPO A CAMPO: a coleta automática vem primeiro
+// (Instagram, planilha do LinkedIn, Apify) e o que ela não traz — no LinkedIn, alcance e
+// impressões, que só o autor vê — sai do registro manual.
+const PRIORIDADE: Record<PostMetrics['source'], number> = { instagram_api: 0, linkedin_export: 1, linkedin_apify: 2, manual: 3 };
+const CAMPOS = ['reach', 'impressions', 'likes', 'comments', 'saves', 'shares', 'engagement_rate'] as const;
 export function metricsByPost(metrics: PostMetrics[]): Map<string, PostMetrics> {
+  const porPost = new Map<string, PostMetrics[]>();
+  for (const x of metrics) porPost.set(x.post_id, [...(porPost.get(x.post_id) ?? []), x]);
   const m = new Map<string, PostMetrics>();
-  for (const x of metrics) {
-    const cur = m.get(x.post_id);
-    if (!cur || (cur.source === 'manual' && x.source === 'instagram_api')) m.set(x.post_id, x);
+  for (const [id, rows] of porPost) {
+    const ord = [...rows].sort((a, b) => (PRIORIDADE[a.source] ?? 9) - (PRIORIDADE[b.source] ?? 9));
+    const out: PostMetrics = { ...ord[0] };
+    for (const c of CAMPOS) if (out[c] == null) out[c] = ord.find((r) => r[c] != null)?.[c] ?? out[c];
+    m.set(id, out);
   }
   return m;
 }

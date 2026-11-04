@@ -11,8 +11,11 @@ const PORT = Number(process.env.E2E_PORT ?? 5199);
 
 export default defineConfig({
   testDir: './e2e',
-  timeout: 90_000,
-  expect: { timeout: 15_000 },
+  // No GitHub (CI=true) as máquinas ficam nos EUA e o banco em São Paulo (sa-east-1): cada ida ao
+  // servidor demora mais e ações em sequência (ex.: aplicar um plano de 4 agendamentos, f6) passam
+  // de 15 s. Mesmas condições, só mais tempo para elas acontecerem.
+  timeout: process.env.CI ? 150_000 : 90_000,
+  expect: { timeout: process.env.CI ? 40_000 : 15_000 },
   fullyParallel: false,       // um único usuário de teste → sem corrida entre specs
   workers: 1,
   retries: 0,

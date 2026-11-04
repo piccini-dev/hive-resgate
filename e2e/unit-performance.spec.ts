@@ -49,6 +49,14 @@ test.describe('unit · métricas e desempenho', () => {
     expect(resultFor(posts[0], by, baselines(posts, by, TODAY))).toMatchObject({ deltaPct: null, label: null });
   });
 
+  test('LinkedIn: reações do Apify + alcance do registro manual no mesmo post (métricas LinkedIn 03/11)', () => {
+    const by = metricsByPost([
+      met('li', { source: 'manual', reach: 1200, likes: 3 }),
+      met('li', { id: 'y', source: 'linkedin_apify', likes: 40, comments: 6, shares: 2, reach: null }),
+    ]);
+    expect(by.get('li')).toMatchObject({ source: 'linkedin_apify', likes: 40, comments: 6, shares: 2, reach: 1200 });
+  });
+
   test('melhor horário aprendido', () => {
     const posts = [
       ...[1, 2, 3].map((i) => post(`e${i}`, { platform: 'instagram', published_at: day(i, 18) })),
