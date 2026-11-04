@@ -6,7 +6,7 @@ Este é o método com que a Hive foi construída: Campanhas, ACJ, Identidade (6 
 
 ## 0. Ao começar (ou retomar) uma sessão
 
-1. Leia o `AGENTS.md`. Ele está atualizado; não releia o README inteiro de 50 KB.
+1. Leia o `AGENTS.md`. Ele está atualizado; o README é curto e só apresenta o projeto.
 2. Veja o estado do repositório:
 
    ```bash
