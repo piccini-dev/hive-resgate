@@ -482,3 +482,37 @@ Não há cron de `editorial-line-tick` (confirma §4.2). O `linkedin-metrics` ve
 | `editorial_lines` | FK de `editorial_line_runs` e de `user_posts.editorial_line_id` (0 posts preenchidos); trigger `trg_editorial_lines_next_run` | soltar a FK de `user_posts` antes |
 | `kanban_columns` | a função `handle_new_user` (cadastro) cria as colunas padrão | tirar de `handle_new_user` antes (além do `ensureDefaults` no login) |
 | demais (`alma_crencas`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra`, `acj_definitions`, `editorial_line_runs`, `bee_themes`, `bee_logics`) | nenhuma view, função, trigger, FK ou cron | confirmado: sem leitor no banco |
+
+### 11.5 Uso de IA por função em 60 dias (`usage_events`, sem o usuário de teste)
+Total: 445 chamadas, US$ 1,47. Os eventos sem `fn` são do `generate-content` (texto, 143) e do `generate-image-ai` (imagem, 18).
+
+| Função · modo | Chamadas | US$ | Última |
+|---|---:|---:|---|
+| `generate-content` + `generate-image-ai` (sem `fn`) | 161 | 1.33 | 2026-10-19 |
+| `qa-check` | 104 | 0.02 | 2026-10-16 |
+| `hive-decide · M01` | 67 | 0.00 | 2026-10-19 |
+| `content-develop` | 24 | 0.02 | 2026-10-16 |
+| `learn-from-correction` | 17 | 0.00 | 2026-10-20 |
+| `cycle-pauta` | 14 | 0.01 | 2026-10-31 |
+| `cycle-pauta · full` | 11 | 0.04 | 2026-10-31 |
+| `edit-text` | 10 | 0.00 | 2026-10-13 |
+| `post-chat · rewrite` | 8 | 0.03 | 2026-10-20 |
+| `hive-decide · M02` | 8 | 0.00 | 2026-09-25 |
+| `campaign-moment` | 5 | 0.00 | 2026-10-13 |
+| `regenerate-snippet` | 4 | 0.00 | 2026-09-15 |
+| `cycle-pauta · swap` | 4 | 0.01 | 2026-10-15 |
+| `campaign-strategy · recommend` | 3 | 0.00 | 2026-10-13 |
+| `acj-orchestrator` | 2 | 0.01 | 2026-10-13 |
+| `olhar-bee` | 2 | 0.00 | 2026-11-03 |
+| `cycle-pauta · refresh` | 1 | 0.00 | 2026-10-07 |
+
+`ai_measurement_events`: 16 eventos `review:<hash>`, todos `done`, de 19 e 20/10. Só registram revisões; não separam área.
+
+### 11.6 Áreas candidatas a sair
+| Área | Medição | Leitura |
+|---|---|---|
+| Simular público (`bee_personas`) | 2 personas, última mudança em 20/07; `generate-persona` e `persona-chat` sem chamada em 30 dias | sem uso desde julho |
+| Teste de imagem (`image_model_trials`) | 0 linhas | nunca usado: não há "modelo vencedor" registrado |
+| Feedback contínuo (`ai_learnings` de origem feedback) | 0. As 29 lições ativas vêm de `correcao` (24) e `conversa` (5) | o Feedback nunca gerou lição; o Coach e a correção, sim |
+| Posts com texto pendente (wizard) | 0 | o bloco 08 não tem pendentes antigos para resolver |
+| Vídeo (`podcasts`, `podcast_clips`) | 1 vídeo (10/06), 0 cortes; `process-video`, `generate-caption-from-video` e `youtube-meta` sem chamada em 30 dias | sem uso desde junho |
