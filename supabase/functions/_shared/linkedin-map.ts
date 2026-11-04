@@ -1,5 +1,6 @@
 // Mapeamento puro de um post do LinkedIn (scraper Apify apimaestro/linkedin-profile-posts)
-// para a base de posts. Sem métricas por enquanto (só o que foi DITO, para não repetir).
+// para a base de posts (o que foi DITO, para não repetir) e as métricas PÚBLICAS do post
+// (reações, comentários, compartilhamentos). Impressões/alcance só o autor vê: não vêm daqui.
 import { quoteFromCaption } from './instagram-map.ts';
 
 export interface LiScraped {
@@ -7,6 +8,9 @@ export interface LiScraped {
   urn?: string | { activity_urn?: string | null; share_urn?: string | null; ugcPost_urn?: string | null } | null; url?: string; text?: string; post_type?: string;
   posted_at?: { date?: string; timestamp?: number } | string | null;
   reshared_post?: unknown; media?: unknown;
+  // Números públicos. O formato muda entre versões do scraper: liStats aceita os conhecidos.
+  stats?: Record<string, unknown> | null;
+  [k: string]: unknown;
 }
 
 // Perfil: aceita URL completa ou só o usuário.
@@ -64,4 +68,20 @@ export function liMatchPlatform(p: { text: string; posted_at: string | null }, p
     if (c.includes(t.slice(0, 80)) || t.includes(c.slice(0, 80))) return x.id;
   }
   return null;
+}
+
+// Métricas públicas do post (post_metrics, source 'linkedin_apify'). null = o scraper não trouxe números.
+//   likes    = total de reações (curtir, parabenizar, amei…);
+//   comments = comentários; shares = compartilhamentos (reposts).
+export function liStats(p: LiScraped): { likes: number | null; comments: number | null; shares: number | null; raw: Record<string, unknown> } | null {
+  const st = (p.stats && typeof p.stats === 'object' ? p.stats : {}) as Record<string, unknown>;
+  const num = (...vs: unknown[]): number | null => {
+    for (const v of vs) { const n = typeof v === 'string' ? Number(v.replace(/\D/g, '')) : v; if (typeof n === 'number' && Number.isFinite(n) && n >= 0) return Math.round(n); }
+    return null;
+  };
+  const likes = num(st.total_reactions, st.reactions, st.totalReactionCount, st.likes, p.numLikes, p.totalReactionCount, p.likes_count);
+  const comments = num(st.comments, st.comment_count, st.numComments, p.numComments, p.comments_count);
+  const shares = num(st.reposts, st.shares, st.repost_count, st.numShares, p.numShares, p.reposts_count);
+  if (likes === null && comments === null && shares === null) return null;
+  return { likes, comments, shares, raw: Object.keys(st).length ? st : { numLikes: p.numLikes, numComments: p.numComments, numShares: p.numShares } };
 }
