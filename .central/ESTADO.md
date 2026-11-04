@@ -12,7 +12,7 @@ Devolver ao Marcos uma Hive que ele entende e usa: menos telas, um caminho por t
 - Plano: `docs/plano/PLANO.md` (10 blocos, todas as issues planejadas). Diagnóstico: `.central/RELATORIO-ENXUGAMENTO.md`.
 - **Bloco 01 · Base do resgate** aberto: branch `bloco/01-base-resgate`, issues #1–#5.
   - #1 (faixa de versão de teste) e #2 (README) estão com o ChatGPT (`exec:gpt`).
-  - #3 (site Netlify de teste), #4 (medir uso no banco) e #5 (medir fluxos) ficam com o Claude.
+  - #3 feita: site de teste em https://hive-resgate.netlify.app (só a `main`). #4 feita (medição no relatório §11). #5 (medir fluxos) falta.
 - Painel: https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k
 
 ## Próximos passos
