@@ -9,33 +9,24 @@ Devolver ao Marcos uma Hive que ele entende e usa: menos telas, um caminho por t
 
 ## Agora
 - O trabalho é no repo privado `raulmf12/hive-resgate` (`origin`). O `bee-platform` (produção) é o remoto `producao`, com o push desligado.
-- Plano: `docs/plano/PLANO.md`. Diagnóstico: `.central/RELATORIO-ENXUGAMENTO.md` (medição real no §11).
-- **Bloco 01 · Base do resgate** (branch `bloco/01-base-resgate`; 16 commits locais, **sem push**): as 5 issues estão fechadas.
-  - #1 faixa e #2 README (ChatGPT) conferidas; #3 site de teste https://hive-resgate.netlify.app; #4 medição no banco.
-  - #5 feita: `docs/plano/FLUXOS.md` traz F1–F6 medidos no desktop e em 375 px, o critique (14/40) e 15 "pontos sem nexo", que são a base do bloco 09.
-  - `PRODUCT.md` criado (`/impeccable init`). O snapshot do critique fica em `.impeccable/critique/`, fora do git.
-- Achados graves da #5:
-  - A tela de produção diz "Primeira peça aprovada", mas a peça fica `pending_approval` e não chega à Agenda.
-  - Sem conta conectada, não dá para ativar a campanha, e voltar perde o assistente.
-  - O vídeo grava aprovado/agendado por fora do `approve_piece`/`schedule-piece`.
-  - A Agenda mostra duas sugestões de horário que se contradizem.
-- Usuário de teste em produção agora tem 2 contas falsas (`seedAccounts`), 2 campanhas, 3 peças e 1 lição. Nada agendado nem publicado.
-- Painel: https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k (ainda sem #3, #4 e #5).
+- **Bloco 01 integrado** (PR #6, merge na `main`): o site de teste https://hive-resgate.netlify.app já mostra a faixa "Versão de teste". As issues #1–#5 estão validadas e o milestone, fechado.
+  - Regressão 198/200; as 2 falhas foram corrigidas: teste do bundle com CRLF no Windows, e os 5 posts importados do LinkedIn marcados como histórico (ok do Raul).
+  - `docs/plano/FLUXOS.md`: F1–F6 medidos (o F3 de ponta a ponta), critique 14/40 e 15 pontos sem nexo.
+- **Bloco atual: 01b · Métricas do LinkedIn** (branch `bloco/01b-metricas-linkedin`, milestone 2). Traz para o repo o patch de 03–04/11 (16 arquivos), que hoje só existe no zip.
+  - #7 aplicar o patch (pronta); #8 conferir produção por leitura (aguarda #7); #9 regressão (aguarda #7 e #8). Todas `exec:claude`.
+  - O patch entra limpo na `main` (base `8350a79`).
+- O relatório preliminar para o Marcos, em linguagem simples, está no Claude Docs: https://claude.ai/artifact/EbE9cZXaJyQoEc1UCifNd7
+- Painel: https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k (bloco 01 integrado; 01b aberto).
 
 ## Próximos passos
-1. `/integrar` do bloco 01:
-   - `/ponytail-review` em `main...bloco/01-base-resgate`;
-   - faixa conferida em 375 px e no desktop;
-   - push, PR e merge (**só com ordem do Raul**).
-2. Bloco 09 começa pelos 2 P0 do critique: aprovação real e agendamento com hora, depois o beco das contas no assistente de campanha.
-3. Decidir onde entra o patch não enviado (`Hive-transferencia/trabalho-nao-enviado.patch`, métricas do LinkedIn).
-4. Mandar ao Marcos as perguntas 1 (Pipeline) e 6 (vídeo) do §9.
+1. Fazer a #7: extrair só o `.patch` do zip, `git apply`, build e unitários.
+2. Fazer a #8 (conferir as migrations 05/06/07 e a `linkedin-import` em produção, só leitura) e a #9 (regressão completa).
+3. `/integrar` do 01b, depois as issues do bloco 02 (Fora o morto).
+4. O Raul mostra o relatório ao Marcos e traz as 5 respostas (Pipeline, vídeo, IA distribui, Simular público, jornada ACJ).
 
 ## Bloqueios / aguardando
-- Ordem do Raul para push e merge do bloco 01.
-- Decisão do Raul sobre o patch do LinkedIn (funções e migrations já em produção, código fora de repo).
-- F3 (vídeo) medido só até o link do YouTube. Raul decide se mede completo com um corte de teste.
-- `npm run lint` quebrado desde antes do bloco (sem `eslint.config.js`).
+- Respostas do Marcos às perguntas do relatório: elas confirmam os cortes dos blocos 03, 06 e 07.
+- `npm run lint` quebrado desde antes do bloco 01 (sem `eslint.config.js`).
 
 ## Última sessão
-2026-11-04: #5 feita. F1–F6 percorridos no app local com o usuário de teste, critique duplo (design + detector) e FLUXOS.md gravado; issue fechada.
+2026-11-04: #5 feita (F1–F6 + critique) e F3 completo. Bloco 01 integrado e site de teste no ar. Relatório para o Marcos publicado. Bloco 01b criado (#7–#9).
