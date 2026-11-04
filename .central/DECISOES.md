@@ -8,3 +8,8 @@ Formato: `- AAAA-MM-DD: decisão. Motivo: ...`. Só acrescentar no fim.
 - 2026-11-04: uso real medido no banco de produção só com SELECT de números agregados. Motivo: separar função esquecida de função usada, sem tirar dado do Marcos da máquina.
 - 2026-11-04: corte em duas fases, primeiro esconder (menu, rota, cron) e depois apagar (código, função, tabela, com rollback). Motivo: o Marcos usa em produção e pode depender do que parece morto.
 - 2026-11-04: execução pelo modelo orquestra (micro-issues, agentes externos executam; Claude valida e integra). Motivo: escolha do Raul.
+- 2026-11-04: operação resgate em repositório novo e privado `raulmf12/hive-resgate`; o `bee-platform` (público, ligado ao Netlify de produção) virou o remoto `producao`, com o push desligado nesta pasta. Motivo: trabalhar sem risco de publicar no site do Marcos.
+- 2026-11-04: o repositório novo usa o mesmo Supabase de produção; o Marcos valida num site Netlify de teste com a faixa "versão de teste". Motivo: rapidez, sem banco divergente; a faixa evita confundir teste com produção, porque as ações valem de verdade.
+- 2026-11-04: nesta operação, nada de apagar Edge Function ou tabela; o front só para de chamar. Apagar fica para depois da virada, com uso medido e rollback. Motivo: o banco e as funções são os da produção.
+- 2026-11-04: o problema do Marcos é de fluxo (confuso, longo, sem nexo), não de erro técnico; o plano junta enxugamento (blocos 02–08) com simplificação de fluxo medida (blocos 01-E e 09).
+- 2026-11-04: todas as issues ficam planejadas no PLANO.md; só as do bloco atual são criadas no GitHub, e as próximas no /integrar do bloco anterior. Motivo: as especificações batem com o código já integrado.
