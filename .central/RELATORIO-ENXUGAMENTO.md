@@ -64,7 +64,7 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 | Fotografia do Marcos | `/hive/fotografia` | **J** com `/hive/marcos`: uma tela de fotos do Marcos · T |
 | Templates | `/templates` | **M** |
 | Biblioteca | `/biblioteca` | **M**, absorve a lista de Vídeos |
-| Vídeos | `/podcasts`, `/podcasts/novo` | **J**: a lista vai para a Biblioteca e "novo corte" entra pelo Criar |
+| Vídeos | `/podcasts`, `/podcasts/novo` | **J**: a lista vai para a Biblioteca e "novo corte" entra pelo Criar. ✎ Medição: 1 vídeo (junho), 0 cortes; se o Marcos não usa (§9, pergunta 6), candidata a **S** |
 
 ### "Inteligência" (9 itens)
 | Tela | Rota | Veredito |
@@ -72,12 +72,12 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 | Aprendizado | `/aprendizado` | **J**: a lista de lições vai para "Ensinar a Hive"; o painel do portão sai (§3.4) |
 | Jornada relacional (ACJ) | `/jornada` | **J**: vira uma aba de "Resultados" · T |
 | Curadoria | `/curadoria` | **M** (regra 9: nada entra na voz sem humano) |
-| Feedback contínuo | `/feedback` | **J** com o Coach |
+| Feedback contínuo | `/feedback` | **J** com o Coach. ✔ Medição: nunca gerou lição |
 | Coach de voz | `/coach` | **M**, vira "Ensinar a Hive" |
 | Olhar Bee · calibração | `/olhar/calibracao` | **A** · T |
-| Simular público | `/personas` | **S** (isolada do fluxo; confirmar com o Marcos) |
+| Simular público | `/personas` | **S** (isolada do fluxo; confirmar com o Marcos). ✔ Medição: parada desde 20/07 |
 | Custos de API | `/custos` | **A** |
-| Teste de imagem | `/labs/imagens` | **S** depois de registrar qual modelo de imagem venceu |
+| Teste de imagem | `/labs/imagens` | ✎ **S** direto: `image_model_trials` tem 0 linhas, não há modelo vencedor para registrar |
 
 ### Fora do menu
 | Tela | Rota | Veredito |
@@ -178,6 +178,8 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 
 ## 4. Morto no código (lista verificada)
 
+> **Medição de 04/11 (§11):** ✔ = confirmado no banco · ✎ = corrigido. Os itens 4.1, 4.4 e 4.5 são só de código: o banco não muda o veredito.
+
 ### 4.1 Telas e componentes
 - `pages/linhas/LinhasEditoriais.tsx` (423 linhas): sem import.
 - `pages/hive/HiveTesteM01.tsx` e `HiveTesteM02.tsx` (525 linhas): marcadas como TEMP.
@@ -185,21 +187,21 @@ Legenda: **M** manter · **J** juntar com outra · **A** levar para Admin · **S
 - Lógica de item "travado" no `Sidebar.tsx` (`unlocked = true` fixo).
 
 ### 4.2 Edge Functions sem chamador
-- `editorial-line-tick` (444 linhas; o cron foi desligado no cutover).
-- `hybrid-image-search` (`edge.searchImages` sem uso).
-- `search-knowledge` (`edge.searchKnowledge` sem uso; o RAG da geração usa a RPC `match_knowledge` direto).
-- `download-proxy` (nenhuma referência).
+- ✔ `editorial-line-tick` (444 linhas; o cron foi desligado no cutover). Sem cron e sem chamada em 30 dias.
+- ✔ `hybrid-image-search` (`edge.searchImages` sem uso). Sem chamada em 30 dias.
+- ✔ `search-knowledge` (`edge.searchKnowledge` sem uso; o RAG da geração usa a RPC `match_knowledge` direto). Sem chamada em 30 dias.
+- ✔ `download-proxy` (nenhuma referência). Sem chamada em 30 dias.
 
 ### 4.3 Tabelas sem leitor
-| Tabela | Situação |
-|---|---|
-| `alma_crencas`, `alma_dimensoes`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra` | Trocadas pelo Genesis; nada lê |
-| `alma_eventos` | **Só escrita**: `generate-content` e `almaApi.emitEvento` gravam, ninguém lê |
-| `genesis_dimensoes`, `genesis_paradigmas` | Trocadas por `genesis_tensoes`; nada lê |
-| `acj_definitions` | Semeada, mas a biblioteca ACJ vem de `lib/acj/library.generated.ts` e `_shared/acj-library.ts` |
-| `editorial_lines`, `editorial_line_runs` | Só a tela e a função mortas usam |
-| `kanban_columns` | `kanbanApi` não é usada, mas o login roda `kanbanApi.ensureDefaults()` **a cada entrada** (escrita inútil) |
-| `bee_themes`, `bee_logics` | Só contadas na aba Voz Bee; nenhuma geração lê |
+| Tabela | Situação | Medição (§11) |
+|---|---|---|
+| `alma_crencas`, `alma_dimensoes`, `alma_estado`, `alma_objetivo`, `alma_pulsoes`, `alma_sombra` | Trocadas pelo Genesis; nada lê | ✔ Última mudança em 01/07. Só FKs entre elas |
+| `alma_eventos` | **Só escrita**: `generate-content` e `almaApi.emitEvento` gravam, ninguém lê | ✎ Também a função SQL `ai_gate_recompute` grava (trigger em `ai_reviews`). Continua sem leitor, mas tirar o insert da função antes de apagar a tabela |
+| ~~`genesis_dimensoes`, `genesis_paradigmas`~~ | Trocadas por `genesis_tensoes`; nada lê | ✎ **Já não existem** no banco: sair da lista |
+| `acj_definitions` | Semeada, mas a biblioteca ACJ vem de `lib/acj/library.generated.ts` e `_shared/acj-library.ts` | ✔ 5 linhas, sem dependência SQL |
+| `editorial_lines`, `editorial_line_runs` | Só a tela e a função mortas usam | ✎ `user_posts.editorial_line_id` tem FK para ela (0 posts preenchidos): soltar a FK antes |
+| `kanban_columns` | `kanbanApi` não é usada, mas o login roda `kanbanApi.ensureDefaults()` **a cada entrada** (escrita inútil) | ✎ A função de cadastro `handle_new_user` também cria as colunas: tirar dali antes |
+| `bee_themes`, `bee_logics` | Só contadas na aba Voz Bee; nenhuma geração lê | ✔ Sem dependência SQL |
 
 Colunas sem leitor em `user_settings`: `persona`, `tone_of_voice`, `content_structure`, `brand_colors`, `brand_logo_url`.
 
@@ -214,23 +216,25 @@ Colunas sem leitor em `user_settings`: `persona`, `tone_of_voice`, `content_stru
 
 ---
 
-## 5. Edge Functions: 46 → cerca de 33
+## 5. Edge Functions: 48 → cerca de 36
 
-| Situação | Funções |
-|---|---|
-| **Saem (mortas)** | `editorial-line-tick`, `hybrid-image-search`, `search-knowledge`, `download-proxy` |
-| **Saem com o wizard** | `generate-script`, `regenerate-snippet`, `nano-scene` |
-| **Saem com Feedback → Coach** | `learn-from-feedback` |
-| **Saem com Simular público** | `generate-persona`, `persona-chat` |
-| **Sai com um só sugeridor na Agenda** | `distribute-schedule` |
-| **Sai com o público unificado** | `suggest-audience` |
-| **Ficam: produção** | `campaign-moment`, `campaign-strategy`, `campaign-tick`, `cycle-pauta`, `content-develop`, `generate-content`, `qa-check`, `edit-text`, `content-memory`, `sequence-script`, `acj-orchestrator` |
-| **Ficam: visual** | `hive-decide`, `generate-image-ai`, `marcos-photo` |
-| **Ficam: agenda e publicação** | `schedule-piece`, `publish-post`, `publish-scheduler` |
-| **Ficam: contas e métricas** | `instagram-connect`, `instagram-import`, `instagram-refresh`, `linkedin-import`, `test-linkedin`, `metrics-ingest`, `meta-ads-sync`, `meta-ads-attribution` |
-| **Ficam: voz** | `voice-coach`, `commit-learning`, `learn-from-correction`, `post-chat`, `mine-content`, `ingest-document`, `identity-setup` |
-| **Ficam: vídeo** | `process-video`, `generate-caption-from-video`, `youtube-meta` |
-| **Fica: agente público da LP** | `olhar-bee` |
+✎ A medição (§11.3) achou **48** funções publicadas, as mesmas 48 do repositório (aqui dizia 46). Saem 12 → ficam cerca de 36.
+
+| Situação | Funções | Medição: chamadas em 30 dias (§11.3) |
+|---|---|---|
+| **Saem (mortas)** | `editorial-line-tick`, `hybrid-image-search`, `search-knowledge`, `download-proxy` | ✔ nenhuma |
+| **Saem com o wizard** | `generate-script`, `regenerate-snippet`, `nano-scene` | ✔ nenhuma (`regenerate-snippet` registrou uso de IA pela última vez em 15/09) |
+| **Saem com Feedback → Coach** | `learn-from-feedback` | ✔ nenhuma; 0 lições de origem feedback |
+| **Saem com Simular público** | `generate-persona`, `persona-chat` | ✔ nenhuma; personas paradas desde 20/07 |
+| **Sai com um só sugeridor na Agenda** | `distribute-schedule` | ✎ **2 chamadas de usuário** (19/10): é usada, pouco. Confirmar com o Marcos (§9, pergunta 2) |
+| **Sai com o público unificado** | `suggest-audience` | ✔ nenhuma |
+| **Ficam: produção** | `campaign-moment`, `campaign-strategy`, `campaign-tick`, `cycle-pauta`, `content-develop`, `generate-content`, `qa-check`, `edit-text`, `content-memory`, `sequence-script`, `acj-orchestrator` | ✔ todas com uso |
+| **Ficam: visual** | `hive-decide`, `generate-image-ai`, `marcos-photo` | ✔ `generate-image-ai` sem chamada em 30 dias (último uso de IA em 25/09) |
+| **Ficam: agenda e publicação** | `schedule-piece`, `publish-post`, `publish-scheduler` | ✔ uso alto |
+| **Ficam: contas e métricas** | `instagram-connect`, `instagram-import`, `instagram-refresh`, `linkedin-import`, `test-linkedin`, `metrics-ingest`, `meta-ads-sync`, `meta-ads-attribution` | ✔ conexão, importação e teste sem chamada em 30 dias: são de uso pontual. O `linkedin-import` publicado é mais novo que o do repo |
+| **Ficam: voz** | `voice-coach`, `commit-learning`, `learn-from-correction`, `post-chat`, `mine-content`, `ingest-document`, `identity-setup` | ✔ `mine-content` e `ingest-document` sem chamada em 30 dias (conhecimento parado desde 10/07) |
+| **Ficam: vídeo** | `process-video`, `generate-caption-from-video`, `youtube-meta` | ✎ **nenhuma chamada**; 1 vídeo (10/06) e 0 cortes. A área de vídeo não é usada: perguntar ao Marcos (§9, pergunta 6) |
+| **Fica: agente público da LP** | `olhar-bee` | ✔ em uso desde 03/11 |
 
 ---
 
@@ -317,6 +321,14 @@ Cada onda passa pela regressão completa (cerca de 40 min) antes do push. Com me
 3. Usa Simular público?
 4. Usa Feedback contínuo e Coach, ou só o Coach dentro do post?
 5. Ainda cria algo por "Gerar post individual" (wizard antigo)? Usa "regenerar trecho" ou "roteiro de vídeo"?
+6. Pretende usar os cortes de vídeo? (Medição de 04/11: 1 vídeo em junho e nenhum corte; as três funções de vídeo sem chamada em 30 dias.)
+
+**O que a medição de 04/11 (§11) já respondeu:**
+- Pergunta 2: "IA distribui" (`distribute-schedule`) teve 2 chamadas em 30 dias, a última em 19/10. É usado, raramente.
+- Pergunta 3: Simular público está parado desde 20/07 (2 personas, nenhuma chamada em 30 dias).
+- Pergunta 4: o Feedback contínuo nunca gerou lição (0). As 29 lições vêm da correção de texto (24) e da conversa (5).
+- Pergunta 5: nenhum post com texto pendente do wizard. `generate-script`, `regenerate-snippet` e `nano-scene` sem chamada em 30 dias.
+- Pergunta 1 (Pipeline) não dá para medir no banco: o app não registra a tela aberta.
 
 ---
 
