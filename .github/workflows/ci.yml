@@ -1,0 +1,21 @@
+# Roda só no PR do bloco para a main (uma vez por bloco) ou manualmente.
+# Os agentes não esperam CI: quem deixa tudo verde é o orquestrador, no /integrar, testando na máquina.
+# E2E e regressão NÃO rodam aqui: usam o banco de produção (ver regressao.yml, só manual).
+name: ci
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright test -c playwright.unit.config.ts

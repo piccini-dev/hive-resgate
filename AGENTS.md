@@ -3,6 +3,91 @@
 > Lido por qualquer agente de IA (Claude Code, Codex, Cursor, Gemini, Copilot…) **antes de mexer em qualquer coisa**.
 > Este arquivo é o resumo obrigatório. O detalhe está em [`docs/agentes/`](docs/agentes/README.md) — leia só a parte de que a tarefa precisa.
 
+## 0. Operação resgate: orquestração por micro-tarefas
+
+Este repositório (`raulmf12/hive-resgate`) é a **operação resgate** da Hive, com plano em [`docs/plano/PLANO.md`](docs/plano/PLANO.md). Ele é desenvolvido por agentes de IA a partir de micro-tarefas (issues do GitHub) criadas por um orquestrador. Qualquer agente que pegar uma issue segue este protocolo **e** as regras das seções 1 a 6 abaixo. Se algo aqui conflitar com um hábito seu, vale este arquivo.
+
+**Diferenças deste repositório:**
+- O banco e as Edge Functions são os **de produção**, compartilhados com o site atual do Marcos.
+  - Nunca apague, altere ou publique Edge Function ou migration. Nesta operação, o front só deixa de chamar.
+  - O push na `main` deste repositório publica o **site de teste** (não o do Marcos), e só o orquestrador faz.
+- Os agentes externos **não** rodam E2E nem regressão (não há token, e eles rodam contra produção). A regra 2 da seção 2 é cumprida pelo orquestrador no fechamento do bloco.
+- Commits de agente vão **só** para a branch do bloco, no formato abaixo. Isso vale como a autorização da regra 11.
+
+### Estrutura do trabalho
+- **Bloco** = um milestone do GitHub, com uma branch própria `bloco/NN-nome`. Todo o trabalho do bloco acontece nessa branch.
+- **Tarefa** = uma issue com a etiqueta `orquestra`, feita para levar 15 a 30 minutos.
+- **Passo** = um item da seção "Passos" da issue.
+- A `main` só recebe código pelo orquestrador, no fim de cada bloco. **Nunca faça commit, push ou PR na `main`.**
+
+### Etiquetas de status
+| Etiqueta | Quem coloca | Significa |
+| --- | --- | --- |
+| `status:bloqueada` | orquestrador | Alguma dependência ainda está aberta. Não comece. |
+| `status:pronta` | orquestrador | Pode começar. |
+| `status:em-andamento` | agente, ao começar | Alguém está trabalhando nela. |
+| `status:entregue` | agente, ao terminar | Concluída pelo agente; aguarda validação. |
+| `status:validada` | orquestrador | Testada na máquina e integrada. |
+| `status:devolvida` | orquestrador | Voltou com correções pedidas num comentário. |
+
+Etiqueta `exec:claude` = a tarefa precisa da máquina local e fica para o orquestrador. Não pegue.
+
+### Protocolo de uma tarefa
+1. **Ler**: a issue inteira, os comentários e os arquivos listados em "Leia antes" e "Escopo de arquivos", na branch do bloco.
+2. **Conferir dependências**: todas as issues em "Depende de" precisam estar fechadas. Se alguma estiver aberta, comente `⏸ Bloqueada: aguardando #N` e pare.
+3. **Retomar, se for o caso**: se já houver passos marcados ou um comentário `⏸ Parou em`, continue do primeiro passo não marcado. Não refaça o que está marcado.
+4. **Começar**: troque `status:pronta` (ou `status:devolvida`) por `status:em-andamento` e comente `▶ Início: <plano em uma linha>`.
+5. **Para cada passo**:
+   - faça o passo;
+   - faça um commit na branch do bloco com a mensagem `<tipo>(#N): Pk <descrição curta>` (ex.: `feat(#14): P2 valida telefone`);
+   - edite o corpo da issue marcando `[x]` nesse passo.
+6. **Testes**: escreva os testes pedidos, com cuidado para que façam sentido e cubram os casos da issue. **Não espere nem confira CI**: os testes rodam na máquina do orquestrador, no fechamento do bloco, e ele corrige o que falhar.
+7. **Fechar**:
+   - marque a "Checklist do agente" e os "Critérios de aceite", só o que for verdade;
+   - comente o relatório final (formato abaixo);
+   - se a tarefa estiver concluída, troque para `status:entregue` e feche a issue;
+   - libere as dependentes: issues abertas com `status:bloqueada` que citam esta em "Depende de" e cujas dependências estão todas fechadas passam para `status:pronta` (sem começá-las);
+   - se ficar parcial ou bloqueada, deixe aberta com o comentário de onde parou.
+
+Se precisar parar no meio (limite de resposta, erro, dúvida), comente antes:
+```
+⏸ Parou em: Pk
+Falta: <o que falta>
+Próximo passo exato: <ação concreta>
+```
+
+### Regras inegociáveis
+- **Não invente.** Use só o que existe no repositório ou está escrito na issue: funções, arquivos, bibliotecas, versões, endpoints, variáveis de ambiente. Se faltar algo, pergunte num comentário e pare.
+- **Escopo fechado.** Altere apenas os arquivos listados em "Escopo de arquivos". Nada de refatorar, renomear, formatar ou "melhorar" outros arquivos.
+- **Sem dependências novas**, a não ser que a issue mande.
+- **Arquivos completos.** Ao gravar um arquivo, grave o conteúdo inteiro. Nunca deixe trechos como `...` ou "resto igual".
+- **Especificação é contrato.** Siga exatamente as assinaturas, os nomes e os exemplos de entrada e saída da issue.
+- **Verdade nos registros.** Não marque como feito o que não fez. O que não deu para verificar, escreva "não verificado" e o motivo.
+- **Segredos nunca** em código, commits, issues ou comentários. Use as variáveis de ambiente já previstas.
+- **Uma tarefa por vez.** Não adiante trabalho de outras issues.
+
+### Formato do relatório final (comentário na issue)
+```
+✅ RELATÓRIO #N
+Status: CONCLUÍDA | PARCIAL | BLOQUEADA
+Feito:
+- ...
+Arquivos: criados ... | alterados ...
+Testes: <arquivos e casos> — escritos, não executados
+Onde parou / pendências: ...
+Dúvidas para o orquestrador: ...
+```
+
+### Comandos do projeto
+| Para | Comando | Quem roda |
+| --- | --- | --- |
+| Instalar | `npm ci` | todos |
+| Rodar o app | `npm run dev` | todos (precisa de `.env.local`) |
+| Typecheck + build (portão) | `npm run build` | todos |
+| Lint | `npm run lint` | todos |
+| Testes unitários (funções puras, sem banco) | `npx playwright test -c playwright.unit.config.ts` | todos |
+| E2E de um spec / regressão completa | `npm run regressao -- e2e/<spec>` / `npm run regressao` | **só o orquestrador** (roda contra produção) |
+
 ## 1. O que é isto, em 30 segundos
 
 A **Hive** é a plataforma interna de conteúdo da **Bee Consulting**. O usuário principal é o **Marcos Piccini**, especialista e produtor de conteúdo. O dono técnico e quem pede as mudanças é o **Raul**.

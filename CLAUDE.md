@@ -35,6 +35,7 @@ Escritas para este projeto a partir dos módulos de `C:\central\modelos\modulos`
 - Toda entrega passa pelo `/entrega`; o resumo final vai para o Marcos.
 
 ### Específicas deste projeto
+- **Repositórios:** `origin` = `raulmf12/hive-resgate` (privado, operação resgate; a `main` publica o site de teste). `producao` = `raulmf12/bee-platform` (público, site do Marcos), com o push desligado nesta pasta. O plano está em `docs/plano/PLANO.md`; a execução segue o módulo orquestra (`AGENTS.md` §0).
 - **Push em `main` publica no Netlify.** Push, PR, merge e deploy de banco ou Edge Function só com ordem explícita do Raul, mesmo onde o ciclo do `AGENTS.md` manda "commit + push".
 - Os testes E2E e o `npm run sql` rodam contra o **banco de produção**: só leitura sem pedido explícito; nunca rodar a regressão sem o Raul saber.
 - Enxugar antes de crescer: ao mexer numa área, preferir juntar ou remover função redundante a criar nova. O que sair precisa da confirmação do Raul (o Marcos pode depender dela).

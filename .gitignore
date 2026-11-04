@@ -46,3 +46,6 @@ blob-report/
 
 # Central
 dados-cliente/
+
+# Orquestração: prompts locais do painel
+.orquestra/prompts/

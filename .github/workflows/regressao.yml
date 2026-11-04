@@ -9,10 +9,9 @@
 
 name: Regressão completa
 
+# hive-resgate: só manual. Roda contra o banco de PRODUÇÃO; o orquestrador dispara
+# com o Raul sabendo. O PR do bloco roda só o ci.yml (build + unitários).
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       specs:
