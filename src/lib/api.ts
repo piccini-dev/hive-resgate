@@ -123,57 +123,6 @@ export const templateApi = {
     return db.selectOne<PostTemplate>('post_templates', { slug: `eq.${slug}` });
   },
 
-  async upsertSystem(input: {
-    name: string;
-    description?: string;
-    category?: string;
-    platform: string;
-    format: string;
-    slides_count: number;
-    template_config: TemplateConfig;
-    thumbnail_url?: string;
-  }): Promise<PostTemplate> {
-    // Identidade pelo nome + is_system=true
-    const existing = await db.selectOne<PostTemplate>('post_templates', {
-      is_system: 'eq.true',
-      name: `eq.${input.name}`,
-    });
-
-    if (existing) {
-      const rows = await db.update<PostTemplate>(
-        'post_templates',
-        { id: `eq.${existing.id}` },
-        {
-          description: input.description,
-          category: input.category,
-          platform: input.platform,
-          format: input.format,
-          slides_count: input.slides_count,
-          template_config: input.template_config,
-          thumbnail_url: input.thumbnail_url,
-        },
-      );
-      if (!rows[0]) throw new Error('Erro ao atualizar template');
-      return rows[0];
-    }
-
-    const rows = await db.insert<PostTemplate>('post_templates', {
-      user_id: null,
-      is_system: true,
-      is_public: true,
-      name: input.name,
-      description: input.description,
-      category: input.category,
-      platform: input.platform,
-      format: input.format,
-      slides_count: input.slides_count,
-      template_config: input.template_config,
-      thumbnail_url: input.thumbnail_url,
-    });
-    if (!rows[0]) throw new Error('Erro ao criar template');
-    return rows[0];
-  },
-
   // ------ templates do usuario (editor de templates) ------
 
   async createUser(input: {
@@ -372,26 +321,8 @@ export const beeApi = {
     return rows[0];
   },
 
-  async updateExample(id: string, patch: Partial<BeeExamplePost>): Promise<void> {
-    const { id: _id, ...safe } = patch;
-    await db.update('bee_example_posts', { id: `eq.${id}` }, safe);
-  },
-
   async deleteExample(id: string): Promise<void> {
     return db.delete('bee_example_posts', { id: `eq.${id}` });
-  },
-
-  async arsenalForEditorial(editorial_slug: string): Promise<BeeArsenalItem[]> {
-    return db.select<BeeArsenalItem>('bee_arsenal', {
-      editorial_slug: `eq.${editorial_slug}`,
-      order: 'position.asc',
-    });
-  },
-
-  async styleRules(category?: 'do' | 'dont' | 'general'): Promise<BeeStyleRule[]> {
-    const params: Record<string, string> = { order: 'position.asc' };
-    if (category) params.category = `eq.${category}`;
-    return db.select<BeeStyleRule>('bee_style_rules', params);
   },
 
   async avatars(): Promise<BeeAvatar[]> {
@@ -405,9 +336,6 @@ export const beeApi = {
 export const productApi = {
   async list(): Promise<BeeProduct[]> {
     return db.select<BeeProduct>('bee_products', { order: 'is_system.desc,name.asc' });
-  },
-  async get(id: string): Promise<BeeProduct | null> {
-    return db.selectOne<BeeProduct>('bee_products', { id: `eq.${id}` });
   },
   async create(input: Partial<BeeProduct>): Promise<BeeProduct> {
     const userId = requireUserId();
@@ -435,31 +363,6 @@ export const knowledgeApi = {
 
   async delete(id: string): Promise<void> {
     return db.delete('knowledge_documents', { id: `eq.${id}` });
-  },
-};
-
-// ----------------------------------------------------------------------------
-// POST DRAFTS
-// ----------------------------------------------------------------------------
-export const draftApi = {
-  async loadFor(postId: string): Promise<PostDraft | null> {
-    return db.selectOne<PostDraft>('post_drafts', { post_id: `eq.${postId}` });
-  },
-
-  async save(input: { post_id?: string; draft_data: object }): Promise<PostDraft> {
-    const userId = requireUserId();
-    const rows = await db.upsert<PostDraft>(
-      'post_drafts',
-      {
-        post_id: input.post_id,
-        user_id: userId,
-        draft_data: input.draft_data,
-        updated_at: new Date().toISOString(),
-      },
-      'post_id',
-    );
-    if (!rows[0]) throw new Error('Falha ao salvar draft');
-    return rows[0];
   },
 };
 
