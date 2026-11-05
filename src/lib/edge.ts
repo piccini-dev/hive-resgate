@@ -569,21 +569,6 @@ export const edge = {
     return JSON.parse(text);
   },
 
-  async searchImages(input: {
-    query: string;
-    count?: number;
-  }): Promise<{ success: boolean; images: Array<{ url: string; thumbnail: string; title: string }> }> {
-    const headers = await authHeader();
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/hybrid-image-search`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(input),
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`search HTTP ${res.status}: ${text.slice(0, 300)}`);
-    return JSON.parse(text);
-  },
-
   async ingestDocument(input: {
     title: string;
     text: string;
@@ -663,31 +648,6 @@ export const edge = {
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`generate-script HTTP ${res.status}: ${text.slice(0, 400)}`);
-    return JSON.parse(text);
-  },
-
-  async searchKnowledge(input: {
-    query: string;
-    match_count?: number;
-    match_threshold?: number;
-  }): Promise<{
-    success: boolean;
-    results: Array<{
-      id: string;
-      document_id: string;
-      document_title: string;
-      content: string;
-      similarity: number;
-    }>;
-  }> {
-    const headers = await authHeader();
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/search-knowledge`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(input),
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`search-knowledge HTTP ${res.status}: ${text.slice(0, 300)}`);
     return JSON.parse(text);
   },
 
