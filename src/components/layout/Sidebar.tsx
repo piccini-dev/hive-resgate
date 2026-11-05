@@ -48,10 +48,10 @@ type NavGroup = {
   items?: SubItem[];
 };
 
-// Menu da estrutura de campanhas: o fluxo principal solto no topo (Início →
-// Campanhas → Produção → Pipeline → Agenda); a base de conhecimento e a
-// inteligência em grupos. Saíram "Campanha de conteúdo" (linhas) e "Post
-// individual" — "Um conteúdo" agora nasce em Criar.
+// Menu do resgate (relatório §6.1): o fluxo principal solto no topo; a voz, o
+// ensino da IA e o visual em grupos; ferramentas internas recolhidas no fim.
+// Itens que os blocos 04–07 vão juntar (Pipeline, Diretrizes, Arsenal, Produtos,
+// Feedback, Aprendizado, Jornada, Vídeos) ficam aqui até lá.
 const NAV_GROUPS: NavGroup[] = [
   { label: 'Início', to: '/', icon: LayoutDashboard },
   { label: 'Campanhas', to: '/campanhas', icon: CalendarClock },
@@ -59,9 +59,10 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'Pipeline', to: '/pipeline', icon: Workflow },
   { label: 'Agenda', to: '/agenda', icon: CalendarDays },
   { label: 'Desempenho', to: '/desempenho', icon: BarChart3 },
+  { label: 'Jornada relacional (ACJ)', to: '/jornada', icon: RouteIcon },
   {
-    label: 'Base Hive',
-    icon: Library,
+    label: 'Voz da Hive',
+    icon: Fingerprint,
     items: [
       { to: '/identidade', label: 'Minha identidade', icon: Fingerprint },
       { to: '/genesis', label: 'Genesis', icon: BrainCircuit },
@@ -70,28 +71,39 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/arsenal', label: 'Arsenal', icon: Boxes },
       { to: '/produtos', label: 'Produtos', icon: Package },
       { to: '/conhecimento', label: 'Conhecimento', icon: Database },
-      { to: '/hive/fotografia', label: 'Fotografia do Marcos', icon: Camera },
-      { to: '/templates', label: 'Templates', icon: Paintbrush },
-      { to: '/biblioteca', label: 'Biblioteca', icon: ImageIcon },
-      { to: '/podcasts', label: 'Vídeos', icon: Mic },
-    ]
+    ],
   },
   {
-    label: 'Inteligência',
+    label: 'Ensinar a Hive',
     icon: Brain,
     items: [
-      { to: '/aprendizado', label: 'Aprendizado', icon: Brain },
-      { to: '/jornada', label: 'Jornada relacional (ACJ)', icon: RouteIcon },
-      { to: '/curadoria', label: 'Curadoria', icon: Sparkles },
-      { to: '/feedback', label: 'Feedback contínuo', icon: MessageSquarePlus },
       { to: '/coach', label: 'Coach de voz', icon: MessagesSquare },
-      { to: '/olhar/calibracao', label: 'Olhar Bee · calibração', icon: ScanEye },
-      { to: '/personas', label: 'Simular público', icon: Users },
-      { to: '/custos', label: 'Custos de API', icon: DollarSign },
-      { to: '/labs/imagens', label: 'Teste de imagem', icon: ImageIcon },
-    ]
+      { to: '/feedback', label: 'Feedback contínuo', icon: MessageSquarePlus },
+      { to: '/aprendizado', label: 'Aprendizado', icon: Brain },
+      { to: '/curadoria', label: 'Curadoria', icon: Sparkles },
+    ],
+  },
+  {
+    label: 'Visual',
+    icon: Paintbrush,
+    items: [
+      { to: '/templates', label: 'Templates', icon: Paintbrush },
+      { to: '/hive/fotografia', label: 'Fotografia do Marcos', icon: Camera },
+      { to: '/biblioteca', label: 'Biblioteca', icon: Library },
+      { to: '/podcasts', label: 'Vídeos', icon: Mic },
+    ],
   },
   { label: 'Configurações', to: '/configuracoes', icon: Settings },
+  {
+    label: 'Ferramentas internas',
+    icon: Wrench,
+    items: [
+      { to: '/custos', label: 'Custos de API', icon: DollarSign },
+      { to: '/olhar/calibracao', label: 'Olhar Bee · calibração', icon: ScanEye },
+      { to: '/hive/preview', label: 'Prévia do Hive', icon: Eye },
+      { to: '/hive/assets', label: 'Assets do Hive', icon: ImageIcon },
+    ],
+  },
 ];
 
 // Barra lateral (telas largas). O MESMO menu aparece em gaveta no Topbar em telas estreitas (doc 04 §14).
