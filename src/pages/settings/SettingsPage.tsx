@@ -3,21 +3,16 @@
 
 import { useEffect, useState } from 'react';
 import {
-  ArrowRight, BookOpen, Brain, CheckCircle2, Image as ImgIcon, Library, Loader2, Megaphone,
-  Save, Sparkles, Tag, User as UserIcon,
+  CheckCircle2, Loader2, Save, Sparkles, User as UserIcon,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/store/authStore';
-import { beeApi, knowledgeApi } from '@/lib/api';
 import { edge } from '@/lib/edge';
-import { db } from '@/lib/db';
 import { toast } from 'sonner';
 import { AccountsPanel, IG_ACCOUNT_STATE_KEY } from '@/components/settings/AccountsPanel';
 
