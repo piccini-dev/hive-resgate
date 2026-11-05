@@ -20,7 +20,6 @@ import {
   Users,
   ChevronDown,
   ChevronRight,
-  Lock,
   Library,
   Database,
   ScrollText,
