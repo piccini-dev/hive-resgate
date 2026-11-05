@@ -20,7 +20,6 @@ import {
   Users,
   ChevronDown,
   ChevronRight,
-  Lock,
   Library,
   Database,
   ScrollText,
@@ -40,9 +39,6 @@ type SubItem = {
   to: string;
   label: string;
   icon: any;
-  // Mostra cadeado enquanto a IA nao provar que escreve na voz da casa.
-  // A trava de verdade e na pagina e no cron — aqui e so o aviso.
-  gated?: boolean;
 };
 
 type NavGroup = {
@@ -114,8 +110,6 @@ export function Sidebar() {
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  // Cadeado de itens `gated` (nenhum no menu atual — a antiga "Campanha de conteúdo" saiu).
-  const unlocked = true;
 
   // Abre automaticamente o grupo que contém a rota ativa
   useEffect(() => {
@@ -222,9 +216,6 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                       >
                         {ItemIcon && <ItemIcon className="h-4 w-4" />}
                         <span className="flex-1">{item.label}</span>
-                        {item.gated && !unlocked && (
-                          <Lock className="h-3 w-3 opacity-50" aria-label="Travado" />
-                        )}
                       </NavLink>
                     );
                   })}

@@ -8,7 +8,6 @@ import type {
   AiLearning,
   AiReview,
   AiChatMessage,
-  AiSegment,
   AiSeveridade,
   AiVariation,
   BeeAnalogy,
@@ -18,18 +17,13 @@ import type {
   BeeExamplePost,
   BeePersona,
   BeeProduct,
-  BeeStyleRule,
   BeeSuggestion,
   BeeDirective,
   DirectiveScope,
   DirectiveTipo,
-  EditorialLine,
-  EditorialLineRun,
-  KanbanColumn,
   KnowledgeDocument,
   Podcast,
   PodcastClip,
-  PostDraft,
   PostStatus,
   PostTemplate,
   Profile,
@@ -124,57 +118,6 @@ export const templateApi = {
   // A geracao busca por aqui em vez de adivinhar por nome/plataforma.
   async getBySlug(slug: string): Promise<PostTemplate | null> {
     return db.selectOne<PostTemplate>('post_templates', { slug: `eq.${slug}` });
-  },
-
-  async upsertSystem(input: {
-    name: string;
-    description?: string;
-    category?: string;
-    platform: string;
-    format: string;
-    slides_count: number;
-    template_config: TemplateConfig;
-    thumbnail_url?: string;
-  }): Promise<PostTemplate> {
-    // Identidade pelo nome + is_system=true
-    const existing = await db.selectOne<PostTemplate>('post_templates', {
-      is_system: 'eq.true',
-      name: `eq.${input.name}`,
-    });
-
-    if (existing) {
-      const rows = await db.update<PostTemplate>(
-        'post_templates',
-        { id: `eq.${existing.id}` },
-        {
-          description: input.description,
-          category: input.category,
-          platform: input.platform,
-          format: input.format,
-          slides_count: input.slides_count,
-          template_config: input.template_config,
-          thumbnail_url: input.thumbnail_url,
-        },
-      );
-      if (!rows[0]) throw new Error('Erro ao atualizar template');
-      return rows[0];
-    }
-
-    const rows = await db.insert<PostTemplate>('post_templates', {
-      user_id: null,
-      is_system: true,
-      is_public: true,
-      name: input.name,
-      description: input.description,
-      category: input.category,
-      platform: input.platform,
-      format: input.format,
-      slides_count: input.slides_count,
-      template_config: input.template_config,
-      thumbnail_url: input.thumbnail_url,
-    });
-    if (!rows[0]) throw new Error('Erro ao criar template');
-    return rows[0];
   },
 
   // ------ templates do usuario (editor de templates) ------
@@ -304,46 +247,6 @@ export const postApi = {
 };
 
 // ----------------------------------------------------------------------------
-// KANBAN COLUMNS
-// ----------------------------------------------------------------------------
-export const kanbanApi = {
-  async list(): Promise<KanbanColumn[]> {
-    return db.select<KanbanColumn>('kanban_columns', { order: 'position.asc' });
-  },
-
-  async ensureDefaults(): Promise<void> {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-    const existing = await db.select<KanbanColumn>('kanban_columns', { user_id: `eq.${userId}` });
-    if (existing.length > 0) return;
-    await db.insert<KanbanColumn>('kanban_columns', [
-      { user_id: userId, name: 'Ideia', color: '#94A3B8', position: 0, is_default: true },
-      { user_id: userId, name: 'Rascunho', color: '#E8A04C', position: 1, is_default: true },
-      { user_id: userId, name: 'Aprovado', color: '#10B981', position: 2, is_default: true },
-      { user_id: userId, name: 'Agendado', color: '#3B82F6', position: 3, is_default: true },
-      { user_id: userId, name: 'Publicado', color: '#2D4A5C', position: 4, is_default: true },
-    ]);
-  },
-
-  async create(input: { name: string; color?: string; position: number }): Promise<KanbanColumn> {
-    const userId = requireUserId();
-    const rows = await db.insert<KanbanColumn>('kanban_columns', { ...input, user_id: userId });
-    if (!rows[0]) throw new Error('Falha ao criar coluna');
-    return rows[0];
-  },
-
-  async update(id: string, patch: Partial<KanbanColumn>): Promise<KanbanColumn> {
-    const rows = await db.update<KanbanColumn>('kanban_columns', { id: `eq.${id}` }, patch);
-    if (!rows[0]) throw new Error('Coluna nao encontrada');
-    return rows[0];
-  },
-
-  async delete(id: string): Promise<void> {
-    return db.delete('kanban_columns', { id: `eq.${id}` });
-  },
-};
-
-// ----------------------------------------------------------------------------
 // BEE EDITORIAL ARCHITECTURE
 // ----------------------------------------------------------------------------
 // Editorias da marca padrão do usuário (as de outra marca do workspace não aparecem aqui).
@@ -415,26 +318,8 @@ export const beeApi = {
     return rows[0];
   },
 
-  async updateExample(id: string, patch: Partial<BeeExamplePost>): Promise<void> {
-    const { id: _id, ...safe } = patch;
-    await db.update('bee_example_posts', { id: `eq.${id}` }, safe);
-  },
-
   async deleteExample(id: string): Promise<void> {
     return db.delete('bee_example_posts', { id: `eq.${id}` });
-  },
-
-  async arsenalForEditorial(editorial_slug: string): Promise<BeeArsenalItem[]> {
-    return db.select<BeeArsenalItem>('bee_arsenal', {
-      editorial_slug: `eq.${editorial_slug}`,
-      order: 'position.asc',
-    });
-  },
-
-  async styleRules(category?: 'do' | 'dont' | 'general'): Promise<BeeStyleRule[]> {
-    const params: Record<string, string> = { order: 'position.asc' };
-    if (category) params.category = `eq.${category}`;
-    return db.select<BeeStyleRule>('bee_style_rules', params);
   },
 
   async avatars(): Promise<BeeAvatar[]> {
@@ -448,9 +333,6 @@ export const beeApi = {
 export const productApi = {
   async list(): Promise<BeeProduct[]> {
     return db.select<BeeProduct>('bee_products', { order: 'is_system.desc,name.asc' });
-  },
-  async get(id: string): Promise<BeeProduct | null> {
-    return db.selectOne<BeeProduct>('bee_products', { id: `eq.${id}` });
   },
   async create(input: Partial<BeeProduct>): Promise<BeeProduct> {
     const userId = requireUserId();
@@ -469,39 +351,6 @@ export const productApi = {
 };
 
 // ----------------------------------------------------------------------------
-// EDITORIAL LINES
-// ----------------------------------------------------------------------------
-export const editorialLinesApi = {
-  async list(): Promise<EditorialLine[]> {
-    return db.select<EditorialLine>('editorial_lines', { order: 'created_at.desc' });
-  },
-  async get(id: string): Promise<EditorialLine | null> {
-    return db.selectOne<EditorialLine>('editorial_lines', { id: `eq.${id}` });
-  },
-  async create(input: Partial<EditorialLine>): Promise<EditorialLine> {
-    const userId = requireUserId();
-    const rows = await db.insert<EditorialLine>('editorial_lines', { ...input, user_id: userId });
-    if (!rows[0]) throw new Error('Falha ao criar linha');
-    return rows[0];
-  },
-  async update(id: string, patch: Partial<EditorialLine>): Promise<EditorialLine> {
-    const rows = await db.update<EditorialLine>('editorial_lines', { id: `eq.${id}` }, patch);
-    if (!rows[0]) throw new Error('Linha nao encontrada');
-    return rows[0];
-  },
-  async delete(id: string): Promise<void> {
-    return db.delete('editorial_lines', { id: `eq.${id}` });
-  },
-  async runs(lineId: string, limit = 20): Promise<EditorialLineRun[]> {
-    return db.select<EditorialLineRun>('editorial_line_runs', {
-      line_id: `eq.${lineId}`,
-      order: 'run_at.desc',
-      limit: String(limit),
-    });
-  },
-};
-
-// ----------------------------------------------------------------------------
 // KNOWLEDGE DOCUMENTS (RAG)
 // ----------------------------------------------------------------------------
 export const knowledgeApi = {
@@ -515,40 +364,11 @@ export const knowledgeApi = {
 };
 
 // ----------------------------------------------------------------------------
-// POST DRAFTS
-// ----------------------------------------------------------------------------
-export const draftApi = {
-  async loadFor(postId: string): Promise<PostDraft | null> {
-    return db.selectOne<PostDraft>('post_drafts', { post_id: `eq.${postId}` });
-  },
-
-  async save(input: { post_id?: string; draft_data: object }): Promise<PostDraft> {
-    const userId = requireUserId();
-    const rows = await db.upsert<PostDraft>(
-      'post_drafts',
-      {
-        post_id: input.post_id,
-        user_id: userId,
-        draft_data: input.draft_data,
-        updated_at: new Date().toISOString(),
-      },
-      'post_id',
-    );
-    if (!rows[0]) throw new Error('Falha ao salvar draft');
-    return rows[0];
-  },
-};
-
-// ----------------------------------------------------------------------------
 // PODCASTS (episodios do YouTube) + CORTES
 // ----------------------------------------------------------------------------
 export const podcastApi = {
   async list(): Promise<Podcast[]> {
     return db.select<Podcast>('podcasts', { order: 'created_at.desc' });
-  },
-
-  async get(id: string): Promise<Podcast | null> {
-    return db.selectOne<Podcast>('podcasts', { id: `eq.${id}` });
   },
 
   async findByVideoId(videoId: string): Promise<Podcast | null> {
@@ -606,17 +426,6 @@ export const podcastClipApi = {
     return db.select<PodcastClip>('podcast_clips', { order: 'created_at.desc' });
   },
 
-  async listByPodcast(podcastId: string): Promise<PodcastClip[]> {
-    return db.select<PodcastClip>('podcast_clips', {
-      podcast_id: `eq.${podcastId}`,
-      order: 'created_at.desc',
-    });
-  },
-
-  async get(id: string): Promise<PodcastClip | null> {
-    return db.selectOne<PodcastClip>('podcast_clips', { id: `eq.${id}` });
-  },
-
   async create(input: Partial<PodcastClip>): Promise<PodcastClip> {
     const userId = requireUserId();
     const rows = await db.insert<PodcastClip>('podcast_clips', { ...input, user_id: userId });
@@ -631,9 +440,6 @@ export const podcastClipApi = {
     return rows[0];
   },
 
-  async delete(id: string): Promise<void> {
-    return db.delete('podcast_clips', { id: `eq.${id}` });
-  },
 };
 
 // ----------------------------------------------------------------------------
@@ -695,14 +501,6 @@ export const suggestionApi = {
       status: 'eq.pending',
       order: 'created_at.desc',
     });
-  },
-
-  async countPending(): Promise<number> {
-    const rows = await db.select<{ id: string }>('bee_suggestions', {
-      status: 'eq.pending',
-      select: 'id',
-    });
-    return rows.length;
   },
 
   async create(input: Partial<BeeSuggestion>): Promise<BeeSuggestion> {
@@ -806,55 +604,6 @@ export const suggestionApi = {
 };
 
 // ----------------------------------------------------------------------------
-// BARRAMENTO DE EVENTOS (legado alma_eventos) — o Genesis substituiu a psique,
-// mas o barramento continua sendo a memória viva do sistema. emitEvento move a
-// oitava das lentes (genesis_lentes) quando vem dimensão+delta.
-// ----------------------------------------------------------------------------
-export const almaApi = {
-  // Barramento: qualquer ação do sistema alimenta o Genesis. Se vier dimensão+delta,
-  // move a oitava (clamp 0..100). Fire-and-forget: nunca quebra o fluxo chamador.
-  async emitEvento(evt: {
-    tipo: string;
-    descricao: string;
-    source?: string;
-    dimensao_slug?: string | null;
-    delta?: number | null;
-  }): Promise<void> {
-    try {
-      const userId = getCurrentUserId();
-      await db.insert(
-        'alma_eventos',
-        {
-          tipo: evt.tipo,
-          descricao: evt.descricao,
-          source: evt.source ?? 'app',
-          dimensao_slug: evt.dimensao_slug ?? null,
-          delta: evt.delta ?? null,
-          user_id: userId,
-        },
-        { returning: false },
-      );
-      if (evt.dimensao_slug && evt.delta) {
-        const dim = await db.selectOne<import('@/types').GenesisLente>('genesis_lentes', {
-          slug: `eq.${evt.dimensao_slug}`,
-          select: 'slug,oitava',
-        });
-        if (dim) {
-          const nova = Math.max(0, Math.min(100, dim.oitava + evt.delta));
-          await db.update(
-            'genesis_lentes',
-            { slug: `eq.${evt.dimensao_slug}` },
-            { oitava: nova, updated_at: new Date().toISOString() },
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('[barramento.emitEvento]', e);
-    }
-  },
-};
-
-// ----------------------------------------------------------------------------
 // GENESIS — a Constituicao Cognitiva (substitui o modelo da Alma).
 // Leitura completa + edição do núcleo (persona/voz/missão) e dos princípios.
 // ----------------------------------------------------------------------------
@@ -916,9 +665,6 @@ export const genesisApi = {
     return rows[0];
   },
 
-  async removePrincipio(id: string): Promise<void> {
-    return db.delete('genesis_principios', { id: `eq.${id}` });
-  },
 };
 
 // ----------------------------------------------------------------------------
@@ -1160,11 +906,6 @@ export const aiApi = {
     );
     if (!rows[0]) throw new Error('Erro ao registrar a revisão');
     return rows[0];
-  },
-
-  // Detalhe por segmento (editoria × plataforma × alvo) com facetas.
-  async segments(): Promise<AiSegment[]> {
-    return db.rpc<AiSegment[]>('ai_segment_status', {});
   },
 
   async listReviews(limit = 30): Promise<AiReview[]> {

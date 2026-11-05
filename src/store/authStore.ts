@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { setAuthCache } from '@/lib/db';
-import { kanbanApi, profileApi, settingsApi } from '@/lib/api';
+import { profileApi, settingsApi } from '@/lib/api';
 import { setScheduleTimeZone } from '@/lib/schedule';
 import type { Profile, UserSettings } from '@/types';
 
@@ -44,11 +44,6 @@ async function bootstrapUser(): Promise<{
     setScheduleTimeZone(settings?.timezone);     // agenda/editor no fuso do produtor
   } catch (e) {
     console.warn('[auth] bootstrap settings', e);
-  }
-  try {
-    await kanbanApi.ensureDefaults();
-  } catch (e) {
-    console.warn('[auth] bootstrap kanban', e);
   }
 
   return { profile, settings };
