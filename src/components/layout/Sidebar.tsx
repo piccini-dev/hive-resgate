@@ -17,7 +17,6 @@ import {
   Brain,
   MessagesSquare,
   MessageSquarePlus,
-  Users,
   ChevronDown,
   ChevronRight,
   Library,
@@ -31,6 +30,8 @@ import {
   Camera,
   Route as RouteIcon,
   Fingerprint,
+  Wrench,
+  Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BeeLogo } from '@/components/shared/BeeLogo';
