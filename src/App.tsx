@@ -29,7 +29,6 @@ import { Aprendizado } from '@/pages/aprendizado/Aprendizado';
 import { RegistroVivo } from '@/pages/aprendizado/RegistroVivo';
 import { Coach } from '@/pages/coach/Coach';
 import { Feedback } from '@/pages/feedback/Feedback';
-import { Personas } from '@/pages/personas/Personas';
 import { Agenda } from '@/pages/agenda/Agenda';
 import { HivePreview } from '@/pages/hive/HivePreview';
 import { HiveAssets } from '@/pages/hive/HiveAssets';
@@ -37,7 +36,6 @@ import { HiveMarcos } from '@/pages/hive/HiveMarcos';
 import { HiveConvite } from '@/pages/hive/HiveConvite';
 import { Custos } from '@/pages/custos/Custos';
 import { OlharCalibracao } from '@/pages/olhar/Calibracao';
-import { ImageLab } from '@/pages/labs/ImageLab';
 import { Pipeline } from '@/pages/pipeline/Pipeline';
 import { PhotoEngine } from '@/pages/hive/PhotoEngine';
 import { Performance } from '@/pages/desempenho/Performance';
@@ -128,7 +126,7 @@ export default function App() {
           <Route path="jornada" element={<RegistroVivo />} />
           <Route path="coach" element={<Coach />} />
           <Route path="feedback" element={<Feedback />} />
-          <Route path="personas" element={<Personas />} />
+          <Route path="personas" element={<Navigate to="/" replace />} />
           {/* O kanban virou o Dashboard — links antigos pra /posts caem la. */}
           <Route path="posts" element={<Navigate to="/" replace />} />
           <Route path="posts/novo" element={<NewPost />} />
@@ -145,7 +143,7 @@ export default function App() {
           <Route path="hive/teste-m01" element={<Navigate to="/" replace />} />
           <Route path="custos" element={<Custos />} />
           <Route path="olhar/calibracao" element={<OlharCalibracao />} />
-          <Route path="labs/imagens" element={<ImageLab />} />
+          <Route path="labs/imagens" element={<Navigate to="/" replace />} />
           <Route path="criar" element={<CreateHub />} />
           <Route path="criar/conteudo" element={<OneContent />} />
           <Route path="campanhas" element={<Campaigns />} />
