@@ -2,14 +2,12 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Check, Key, Sparkles } from 'lucide-react';
+import { ArrowRight, Key, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useAuthStore } from '@/store/authStore';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { takeNext } from '@/lib/navigation';
 
