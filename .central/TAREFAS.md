@@ -1,14 +1,16 @@
 # Tarefas — bee-platform
 
 ## Abertas
-- [ ] Bloco 01b · Métricas do LinkedIn: #7 aplicar patch, #8 conferir produção, #9 regressão, depois /integrar
+- [ ] Raul entrar uma vez com piccini@beeconsulting.com (mesma senha) para confirmar o login e passar a senha ao Marcos, ou trocar por uma nova
 - [ ] Raul mostrar ao Marcos o relatório preliminar e trazer as 5 respostas
 - [ ] Bloco 09: começar pelos 2 P0 do critique (aprovação real + agendar com hora; beco das contas no assistente de campanha)
 - [ ] Investigar "Post nao encontrado" intermitente ao abrir `/posts/:id` direto
 - [ ] Apagar o zip `Downloads/Hive-transferencia.zip` e a cópia extraída (contém senha do usuário de teste), quando o Raul mandar
 - [ ] Copiar a memória antiga (`Hive-transferencia/memoria-do-claude/`) para a memória deste projeto, se o Raul quiser
 - [ ] Consertar ou remover o `npm run lint` (sem configuração do ESLint 9)
-- [ ] Blocos 02–10 (ver docs/plano/PLANO.md §10)
+- [ ] Blocos 03–10 (ver docs/plano/PLANO.md §10)
+- [ ] Decidir se saem também `edge.acjAssign`, `edge.acjValidate` e `edge.campaignTick` (sem uso no front, fora do plano)
+- [ ] Corrida possível entre importação manual do LinkedIn e o cron `linkedin-metrics` no mesmo run (pode duplicar posts importados); corrigir num bloco futuro, exige deploy da função
 
 ## Concluídas
 - [x] Definir escopo e stack (plano da operação resgate)
@@ -21,3 +23,6 @@
 - [x] Bloco 01 integrado (PR #6), site de teste com a faixa no ar
 - [x] Relatório preliminar para o Marcos (Claude Docs)
 - [x] Decidir o patch do LinkedIn (bloco 01b) e marcar os 5 posts importados como histórico
+- [x] Bloco 01b integrado (PR #10): patch aplicado (#7), produção conferida (#8), regressão 202/202 (#9)
+- [x] Bloco 02 aberto: milestone 3, issues #11–#16, prompts e painel
+- [x] Conta principal trocada para o Marcos: login piccini@beeconsulting.com, nome "Marcos Piccini"
