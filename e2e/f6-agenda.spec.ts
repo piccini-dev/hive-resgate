@@ -140,35 +140,77 @@ test.describe('F6 · agenda orquestradora', () => {
     }
   });
 
-  test('IA distribuir envia prioridade/janela/campanha e aplica o plano', async ({ page }) => {
-    const { camp, ids } = await setup();
+  for (const table of ['campaigns', 'campaign_cycles']) {
+    test(`IA distribuir aguarda ${table}, envia prioridade/janela/campanha e aplica o plano`, async ({ page }) => {
+      const { camp, ids } = await setup();
+      // A fila fica disponível antes do contexto: reproduz a corrida sem depender da rede.
+      let releaseContext!: () => void;
+      const pendingContext = new Promise<void>((resolve) => { releaseContext = resolve; });
+      await page.route(`**/rest/v1/${table}?*`, async (route) => {
+        if (route.request().method() === 'GET') await pendingContext;
+        await route.continue();
+      });
+      const calls: Array<Record<string, unknown>> = [];
+      await mockEdge(page, 'distribute-schedule', (body) => {
+        const standby = body.standby as Array<{ id: string; window_start: string }>;
+        return {
+          success: true, summary: 'Plano por prioridade.',
+          plan: standby.map((s) => ({ post_id: s.id, date: s.window_start > tomorrowKey ? s.window_start : tomorrowKey, time: '12:00', reason: 'Dentro da janela sugerida' })),
+        };
+      }, calls);
+      await page.goto(`/agenda?campaign=${camp.id}`);
+      const distribute = page.getByRole('button', { name: 'IA distribuir', exact: true });
+      try {
+        await expect(page.getByTestId('queue-count')).toHaveText('4');
+        await expect(distribute).toBeDisabled();
+        expect(calls).toHaveLength(0);
+      } finally {
+        releaseContext();
+      }
+      await expect(distribute).toBeEnabled();
+      await distribute.click();
+      await expect(page.getByRole('button', { name: 'Aplicar (4)' })).toBeVisible();
+
+      expect(calls).toHaveLength(1);
+      const standby = calls[0].standby as Array<Record<string, unknown>>;
+      expect(standby).toHaveLength(4); // a lente limita à campanha
+      const v = standby.find((s) => s.id === ids.validation)!;
+      expect(v).toMatchObject({ campaign_name: 'Presença Marcos', priority: 1, priority_label: 'Alta' });
+      expect(v.window_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(v.window_end).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(standby.find((s) => s.id === ids.unfoldC)).toMatchObject({ priority_label: 'Menor' });
+
+      await page.getByRole('button', { name: 'Aplicar (4)' }).click();
+      await expect(page.getByTestId('queue-count')).toHaveText('0');
+      const rows = await sql<{ n: number }>(`select count(*)::int as n from user_posts where campaign_id='${camp.id}' and status='scheduled'`);
+      expect(rows[0].n).toBe(5); // 4 da fila + a já agendada
+      const [loose] = await sql<{ status: string }>(`select status from user_posts where id='${ids.loose}'`);
+      expect(loose.status).toBe('approved'); // fora da lente, intocada
+    });
+  }
+
+  test('falha ao carregar ciclos bloqueia a IA e permite tentar novamente', async ({ page }) => {
+    const { camp } = await setup();
+    let failCycles = true;
+    await page.route('**/rest/v1/campaign_cycles?*', async (route) => {
+      if (route.request().method() === 'GET' && failCycles) {
+        await route.fulfill({ status: 503, headers: { 'Access-Control-Allow-Origin': '*' }, json: { message: 'Ciclos indisponíveis no teste' } });
+      } else await route.continue();
+    });
     const calls: Array<Record<string, unknown>> = [];
-    await mockEdge(page, 'distribute-schedule', (body) => {
-      const standby = body.standby as Array<{ id: string; window_start: string }>;
-      return {
-        success: true, summary: 'Plano por prioridade.',
-        plan: standby.map((s) => ({ post_id: s.id, date: s.window_start > tomorrowKey ? s.window_start : tomorrowKey, time: '12:00', reason: 'Dentro da janela sugerida' })),
-      };
-    }, calls);
+    await mockEdge(page, 'distribute-schedule', () => ({ success: true, plan: [] }), calls);
     await page.goto(`/agenda?campaign=${camp.id}`);
     await expect(page.getByTestId('queue-count')).toHaveText('4');
-    await page.getByRole('button', { name: 'IA distribuir' }).click();
-    await expect(page.getByRole('button', { name: 'Aplicar (4)' })).toBeVisible();
+    const loadError = page.getByTestId('load-error').filter({ hasText: 'as campanhas e os ciclos da agenda' });
+    await expect(loadError).toBeVisible();
+    await expect(page.getByRole('button', { name: 'IA distribuir', exact: true })).toBeDisabled();
+    expect(calls).toHaveLength(0);
 
-    expect(calls).toHaveLength(1);
-    const standby = calls[0].standby as Array<Record<string, unknown>>;
-    expect(standby).toHaveLength(4); // a lente limita à campanha
-    const v = standby.find((s) => s.id === ids.validation)!;
-    expect(v).toMatchObject({ campaign_name: 'Presença Marcos', priority: 1, priority_label: 'Alta' });
-    expect(v.window_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(v.window_end).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(standby.find((s) => s.id === ids.unfoldC)).toMatchObject({ priority_label: 'Menor' });
-
-    await page.getByRole('button', { name: 'Aplicar (4)' }).click();
-    await expect(page.getByTestId('queue-count')).toHaveText('0');
-    const rows = await sql<{ n: number }>(`select count(*)::int as n from user_posts where campaign_id='${camp.id}' and status='scheduled'`);
-    expect(rows[0].n).toBe(5); // 4 da fila + a já agendada
-    const [loose] = await sql<{ status: string }>(`select status from user_posts where id='${ids.loose}'`);
-    expect(loose.status).toBe('approved'); // fora da lente, intocada
+    failCycles = false;
+    await loadError.getByRole('button', { name: 'Tentar novamente', exact: true }).click();
+    await expect(loadError).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'IA distribuir', exact: true })).toBeEnabled();
+    await expect(page.getByTestId('lens-name')).toHaveText('Presença Marcos');
+    expect(calls).toHaveLength(0);
   });
 });
