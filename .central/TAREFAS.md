@@ -1,7 +1,7 @@
 # Tarefas — bee-platform
 
 ## Abertas
-- [ ] Bloco 01b · Métricas do LinkedIn: #7 aplicar patch, #8 conferir produção, #9 regressão, depois /integrar
+- [ ] Raul entrar uma vez com piccini@beeconsulting.com (mesma senha) para confirmar o login e passar a senha ao Marcos, ou trocar por uma nova
 - [ ] Raul mostrar ao Marcos o relatório preliminar e trazer as 5 respostas
 - [ ] Bloco 09: começar pelos 2 P0 do critique (aprovação real + agendar com hora; beco das contas no assistente de campanha)
 - [ ] Investigar "Post nao encontrado" intermitente ao abrir `/posts/:id` direto
@@ -25,3 +25,4 @@
 - [x] Decidir o patch do LinkedIn (bloco 01b) e marcar os 5 posts importados como histórico
 - [x] Bloco 01b integrado (PR #10): patch aplicado (#7), produção conferida (#8), regressão 202/202 (#9)
 - [x] Bloco 02 aberto: milestone 3, issues #11–#16, prompts e painel
+- [x] Conta principal trocada para o Marcos: login piccini@beeconsulting.com, nome "Marcos Piccini"
