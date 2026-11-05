@@ -23,7 +23,6 @@ import type {
   BeeDirective,
   DirectiveScope,
   DirectiveTipo,
-  KanbanColumn,
   KnowledgeDocument,
   Podcast,
   PodcastClip,
@@ -298,46 +297,6 @@ export const postApi = {
 
   async delete(id: string): Promise<void> {
     return db.delete('user_posts', { id: `eq.${id}` });
-  },
-};
-
-// ----------------------------------------------------------------------------
-// KANBAN COLUMNS
-// ----------------------------------------------------------------------------
-export const kanbanApi = {
-  async list(): Promise<KanbanColumn[]> {
-    return db.select<KanbanColumn>('kanban_columns', { order: 'position.asc' });
-  },
-
-  async ensureDefaults(): Promise<void> {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-    const existing = await db.select<KanbanColumn>('kanban_columns', { user_id: `eq.${userId}` });
-    if (existing.length > 0) return;
-    await db.insert<KanbanColumn>('kanban_columns', [
-      { user_id: userId, name: 'Ideia', color: '#94A3B8', position: 0, is_default: true },
-      { user_id: userId, name: 'Rascunho', color: '#E8A04C', position: 1, is_default: true },
-      { user_id: userId, name: 'Aprovado', color: '#10B981', position: 2, is_default: true },
-      { user_id: userId, name: 'Agendado', color: '#3B82F6', position: 3, is_default: true },
-      { user_id: userId, name: 'Publicado', color: '#2D4A5C', position: 4, is_default: true },
-    ]);
-  },
-
-  async create(input: { name: string; color?: string; position: number }): Promise<KanbanColumn> {
-    const userId = requireUserId();
-    const rows = await db.insert<KanbanColumn>('kanban_columns', { ...input, user_id: userId });
-    if (!rows[0]) throw new Error('Falha ao criar coluna');
-    return rows[0];
-  },
-
-  async update(id: string, patch: Partial<KanbanColumn>): Promise<KanbanColumn> {
-    const rows = await db.update<KanbanColumn>('kanban_columns', { id: `eq.${id}` }, patch);
-    if (!rows[0]) throw new Error('Coluna nao encontrada');
-    return rows[0];
-  },
-
-  async delete(id: string): Promise<void> {
-    return db.delete('kanban_columns', { id: `eq.${id}` });
   },
 };
 
