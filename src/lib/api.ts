@@ -23,8 +23,6 @@ import type {
   BeeDirective,
   DirectiveScope,
   DirectiveTipo,
-  EditorialLine,
-  EditorialLineRun,
   KanbanColumn,
   KnowledgeDocument,
   Podcast,
@@ -465,39 +463,6 @@ export const productApi = {
   },
   async delete(id: string): Promise<void> {
     return db.delete('bee_products', { id: `eq.${id}` });
-  },
-};
-
-// ----------------------------------------------------------------------------
-// EDITORIAL LINES
-// ----------------------------------------------------------------------------
-export const editorialLinesApi = {
-  async list(): Promise<EditorialLine[]> {
-    return db.select<EditorialLine>('editorial_lines', { order: 'created_at.desc' });
-  },
-  async get(id: string): Promise<EditorialLine | null> {
-    return db.selectOne<EditorialLine>('editorial_lines', { id: `eq.${id}` });
-  },
-  async create(input: Partial<EditorialLine>): Promise<EditorialLine> {
-    const userId = requireUserId();
-    const rows = await db.insert<EditorialLine>('editorial_lines', { ...input, user_id: userId });
-    if (!rows[0]) throw new Error('Falha ao criar linha');
-    return rows[0];
-  },
-  async update(id: string, patch: Partial<EditorialLine>): Promise<EditorialLine> {
-    const rows = await db.update<EditorialLine>('editorial_lines', { id: `eq.${id}` }, patch);
-    if (!rows[0]) throw new Error('Linha nao encontrada');
-    return rows[0];
-  },
-  async delete(id: string): Promise<void> {
-    return db.delete('editorial_lines', { id: `eq.${id}` });
-  },
-  async runs(lineId: string, limit = 20): Promise<EditorialLineRun[]> {
-    return db.select<EditorialLineRun>('editorial_line_runs', {
-      line_id: `eq.${lineId}`,
-      order: 'run_at.desc',
-      limit: String(limit),
-    });
   },
 };
 
