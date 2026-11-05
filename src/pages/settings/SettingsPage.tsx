@@ -1,5 +1,5 @@
 // Configuracoes do user.
-// Aba Persona refeita: SEM arquetipos genericos. Mostra a arquitetura editorial Bee real.
+// Abas: Perfil, Contas e Integrações.
 
 import { useEffect, useState } from 'react';
 import {
@@ -21,29 +21,9 @@ import { db } from '@/lib/db';
 import { toast } from 'sonner';
 import { AccountsPanel, IG_ACCOUNT_STATE_KEY } from '@/components/settings/AccountsPanel';
 
-interface BeeStats {
-  editorials: number;
-  arsenal: number;
-  glossary: number;
-  glossary_must: number;
-  analogies_used: number;
-  analogies_new: number;
-  examples: number;
-  themes: number;
-  logics: number;
-  hashtags_required: number;
-  rag_docs: number;
-  rag_chunks: number;
-}
-
 export function SettingsPage() {
   const { currentUser, settings, updateProfile, updateSettings } = useAuthStore();
   const [name, setName] = useState(currentUser?.name ?? '');
-  const [persona, setPersona] = useState(settings?.persona ?? '');
-  const [tone, setTone] = useState(settings?.tone_of_voice ?? '');
-  const [structure, setStructure] = useState(settings?.content_structure ?? '');
-  const [brandColors, setBrandColors] = useState((settings?.brand_colors ?? []).join(', '));
-  const [logoUrl, setLogoUrl] = useState(settings?.brand_logo_url ?? '');
   const [geminiKey, setGeminiKey] = useState(settings?.gemini_api_key ?? '');
   const [openaiKey, setOpenaiKey] = useState(settings?.openai_api_key ?? '');
   const [serpKey, setSerpKey] = useState(settings?.serpapi_key ?? '');
@@ -55,7 +35,6 @@ export function SettingsPage() {
   const [testingLi, setTestingLi] = useState(false);
   const [testingIg, setTestingIg] = useState(false);
   const [connectingIg, setConnectingIg] = useState(false);
-  const [stats, setStats] = useState<BeeStats | null>(null);
   // Perfis IG vinculados + token pendente (quando há mais de um, o usuário escolhe).
   type IgAccount = { instagram_business_account_id: string; username: string; page_name: string };
   const [igAccounts, setIgAccounts] = useState<IgAccount[]>([]);
@@ -123,11 +102,6 @@ export function SettingsPage() {
 
   useEffect(() => {
     setName(currentUser?.name ?? '');
-    setPersona(settings?.persona ?? '');
-    setTone(settings?.tone_of_voice ?? '');
-    setStructure(settings?.content_structure ?? '');
-    setBrandColors((settings?.brand_colors ?? []).join(', '));
-    setLogoUrl(settings?.brand_logo_url ?? '');
     setGeminiKey(settings?.gemini_api_key ?? '');
     setOpenaiKey(settings?.openai_api_key ?? '');
     setSerpKey(settings?.serpapi_key ?? '');
@@ -138,44 +112,6 @@ export function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, settings?.user_id]);
 
-  useEffect(() => {
-    void loadBeeStats();
-  }, []);
-
-  async function loadBeeStats() {
-    try {
-      const [editorials, arsenal, glossary, glossaryMust, analogiesUsed, analogiesNew, examples, themes, logics, hashtagsReq, docs] = await Promise.all([
-        beeApi.editorials(),
-        db.select('bee_arsenal'),
-        db.select('bee_glossary'),
-        db.select('bee_glossary', { must_appear: 'eq.true' }),
-        db.select('bee_analogies', { used: 'eq.true' }),
-        db.select('bee_analogies', { used: 'eq.false' }),
-        db.select('bee_example_posts'),
-        db.select('bee_themes'),
-        db.select('bee_logics'),
-        db.select('bee_hashtags', { required: 'eq.true' }),
-        knowledgeApi.list(),
-      ]);
-      setStats({
-        editorials: editorials.length,
-        arsenal: arsenal.length,
-        glossary: glossary.length,
-        glossary_must: glossaryMust.length,
-        analogies_used: analogiesUsed.length,
-        analogies_new: analogiesNew.length,
-        examples: examples.length,
-        themes: themes.length,
-        logics: logics.length,
-        hashtags_required: hashtagsReq.length,
-        rag_docs: docs.length,
-        rag_chunks: docs.reduce((s, d) => s + (d.chunk_count ?? 0), 0),
-      });
-    } catch (e) {
-      console.error('[loadBeeStats]', e);
-    }
-  }
-
   if (!currentUser) return null;
 
   async function handleSaveProfile() {
@@ -184,29 +120,6 @@ export function SettingsPage() {
     try {
       await updateProfile({ name: name.trim() });
       toast.success('Perfil atualizado');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSavePersona() {
-    setSaving(true);
-    try {
-      await updateSettings({ persona, tone_of_voice: tone, content_structure: structure });
-      toast.success('Voz Bee salva');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveBranding() {
-    setSaving(true);
-    try {
-      await updateSettings({
-        brand_colors: brandColors.split(',').map((c) => c.trim()).filter(Boolean),
-        brand_logo_url: logoUrl,
-      });
-      toast.success('Branding salvo');
     } finally {
       setSaving(false);
     }
@@ -277,7 +190,7 @@ export function SettingsPage() {
     <div className="mx-auto max-w-4xl space-y-6 p-6 lg:p-8">
       <header>
         <h1 className="font-display text-3xl font-bold">Configuracoes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Perfil, voz Bee, branding e integracoes.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Perfil, contas e integrações.</p>
       </header>
 
       {/* Volta do OAuth de uma conta (Contas) abre direto na aba Contas. */}
@@ -467,21 +380,6 @@ export function SettingsPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function StatRow({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: number; hint?: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-md border border-border bg-card/40 p-3">
-      <div className="text-accent shrink-0">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-bold leading-none">{value}</span>
-          <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        </div>
-        {hint && <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{hint}</p>}
-      </div>
     </div>
   );
 }
