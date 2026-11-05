@@ -1,6 +1,4 @@
-// Onboarding Bee — 2 passos.
-// 1. Confirma persona Bee (pre-preenchida).
-// 2. Cola chave Gemini API.
+// Onboarding: um passo, a chave do Gemini (é o que libera o app; ver needsOnboarding).
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -23,35 +21,20 @@ export function OnboardingWizard() {
   const [saving, setSaving] = useState(false);
 
   async function saveAndNext() {
-    if (step === 'persona') {
-      setSaving(true);
-      try {
-        await updateSettings({ persona, tone_of_voice: tone });
-        setStep('gemini');
-      } catch (e) {
-        console.error(e);
-        toast.error('Falha ao salvar.');
-      } finally {
-        setSaving(false);
-      }
+    if (!geminiKey || geminiKey.length < 10) {
+      toast.error('Cola sua chave Gemini API.');
       return;
     }
-    if (step === 'gemini') {
-      if (!geminiKey || geminiKey.length < 10) {
-        toast.error('Cola sua chave Gemini API.');
-        return;
-      }
-      setSaving(true);
-      try {
-        await updateSettings({ gemini_api_key: geminiKey });
-        toast.success('Pronto. Vamos cocriar.');
-        navigate(takeNext() ?? '/');
-      } catch (e) {
-        console.error(e);
-        toast.error('Falha ao salvar.');
-      } finally {
-        setSaving(false);
-      }
+    setSaving(true);
+    try {
+      await updateSettings({ gemini_api_key: geminiKey });
+      toast.success('Pronto. Vamos cocriar.');
+      navigate(takeNext() ?? '/');
+    } catch (e) {
+      console.error(e);
+      toast.error('Falha ao salvar.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -63,7 +46,7 @@ export function OnboardingWizard() {
             Bem-vindo a Bee Consulting
           </h1>
           <p className="text-sm text-muted-foreground">
-            2 passos rápidos para a plataforma falar com a voz Bee.
+            Falta só a chave do Gemini para a Hive começar a escrever.
           </p>
         </header>
 
@@ -104,7 +87,7 @@ export function OnboardingWizard() {
                 onClick={saveAndNext}
                 disabled={saving}
               >
-                {step === 'gemini' ? 'Finalizar' : 'Próximo'}
+                Finalizar
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
