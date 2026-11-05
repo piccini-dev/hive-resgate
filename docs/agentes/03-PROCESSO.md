@@ -2,6 +2,8 @@
 
 Este é o método com que a Hive foi construída: Campanhas, ACJ, Identidade (6 fases) e Estabilização (E1–E5). Siga na ordem. Pular etapa é o que gera retrabalho.
 
+**Fluxo vigente do resgate (05/11/2026):** siga [AUTONOMIA-MARCOS](AUTONOMIA-MARCOS.md) e [REGRESSAO-GITHUB](REGRESSAO-GITHUB.md). Marcos decide e pode autorizar o agente a integrar; Raul não é revisor obrigatório. E2E/regressão rodam no GitHub, atualmente por acionamento manual. As receitas locais de testes abaixo são referência histórica, não instrução para executar E2E na máquina do Marcos ou do agente.
+
 ---
 
 ## 0. Ao começar (ou retomar) uma sessão
@@ -15,7 +17,7 @@ Este é o método com que a Hive foi construída: Campanhas, ACJ, Identidade (6 
 
    Há trabalho não commitado? É seu, de outra sessão, ou do Raul? **Não descarte nada** sem perguntar.
 3. Se a tarefa continua uma iniciativa, abra só a ficha dela (ex.: `docs/estabilizacao/ENTREGAS.md`, última seção) e o plano, se existir.
-4. Uma sessão interrompida no meio de uma regressão se retoma **rodando a regressão de novo**, não confiando no log parcial. O log fica em `/tmp/regressao-*.log`.
+4. Uma sessão interrompida retoma consultando o resultado da execução no GitHub e o SHA testado. Se a execução continua ativa, não inicie outra; se terminou com sucesso no código correto, aproveite a evidência completa. Um log parcial não comprova aprovação.
 
 ## 1. Entender
 
@@ -45,7 +47,7 @@ grep -l "_shared/package.ts" supabase/functions/*/index.ts                      
 |---|---|
 | Pequeno (1–3 arquivos, sem banco) | Mental: siga para implementar |
 | Médio (banco + função + tela) | Lista curta no relatório ou numa tarefa: migration → função → cliente → teste |
-| Grande (iniciativa com documentos) | `docs/<iniciativa>/PLANO-IMPLEMENTACAO.md` com: decisões necessárias (e a recomendação), contratos, entregas em ordem (E1, E2…) que valem sozinhas em produção, critérios por entrega, testes, riscos e rollback. Apresente ao Raul **antes** de implementar |
+| Grande (iniciativa com documentos) | `docs/<iniciativa>/PLANO-IMPLEMENTACAO.md` com: decisões necessárias (e a recomendação), contratos, entregas em ordem (E1, E2…) que valem sozinhas em produção, critérios por entrega, testes, riscos e rollback. Apresente ao Marcos **antes** de implementar, salvo escopo já autorizado |
 
 Para iniciativas grandes, faça um **inventário E0** primeiro: o estado real no banco que a mudança vai afetar. Exemplo da estabilização: "6 agendamentos legados sem pacote; 1 parado desde 09/09". Grave em `docs/<iniciativa>/inventarios/`. Ele decide a migração de dados e as notas para o Marcos.
 
@@ -71,8 +73,8 @@ Para iniciativas grandes, faça um **inventário E0** primeiro: o estado real no
 | Tipos + build | `npm run build` | A cada bloco |
 | Banco | `scripts/sql.sh "select …"` exercitando a função/trigger nova com dado do usuário de teste | Logo após aplicar a migration |
 | Função | `callEdgeAsService` num spec, ou curl com JWT de teste | Logo após o deploy |
-| Spec da área | `scripts/regressao.sh e2e/fNN-*.spec.ts` | Ao terminar a entrega |
-| **Regressão completa** | `scripts/regressao.sh` | **Antes do push. Sempre.** |
+| Spec E2E da área | Workflow no GitHub, com os specs pertinentes | Ao terminar a entrega |
+| **Regressão completa** | Workflow no GitHub, com specs vazios | **Antes do merge de código.** |
 
 Falhou? Leia o erro, o trace e o screenshot (`test-results/<teste>/`). Ache a causa, corrija e rode **só aquele spec** até passar. Depois, a regressão completa de novo.
 
@@ -82,8 +84,8 @@ Falhou? Leia o erro, o trace e o screenshot (`test-results/<teste>/`). Ache a ca
 1. Migration ADITIVA        scripts/sql.sh -f supabase/migrations/<arquivo>.sql   → verificar no banco
 2. Edge functions           npx supabase functions deploy <nome> --project-ref djlorvdehedcupeykyes
                             (mudou um _shared? redeploy de TODAS as funções que o importam)
-3. Regressão completa       scripts/regressao.sh   (roda contra o banco/funções novos + app local novo)
-4. App                      git commit + git push origin main   → Netlify publica (~2–3 min)
+3. Regressão completa       workflow no GitHub (app do código a integrar + banco/funções compatíveis)
+4. App                      merge do PR autorizado pelo Marcos → conferir deploy do Netlify
 5. Migration que ENDURECE   só depois do app novo no ar
 6. Conferência pós-deploy   crons respondendo 200; nenhuma peça real em estado estranho
 ```

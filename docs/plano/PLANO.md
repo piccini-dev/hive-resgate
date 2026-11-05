@@ -1,7 +1,11 @@
 # PLANO — Operação resgate da Hive
 
-Repositório: `raulmf12/hive-resgate` (privado) · Base: `bee-platform` em 407a6e5 · Data: 2026-11-04
+Repositório: `raulmf12/hive-resgate` (titularidade em transferência; consultar visibilidade no GitHub) · Base: `bee-platform` em 407a6e5 · Data: 2026-11-04
 Diagnóstico completo: [`.central/RELATORIO-ENXUGAMENTO.md`](../../.central/RELATORIO-ENXUGAMENTO.md)
+
+## Atualização operacional — 05/11/2026
+
+Marcos autorizou a autonomia de seus agentes: não há revisão obrigatória do Raul. [AUTONOMIA-MARCOS](../agentes/AUTONOMIA-MARCOS.md) e [REGRESSAO-GITHUB](../agentes/REGRESSAO-GITHUB.md) regem o fluxo e prevalecem sobre atribuições históricas dos blocos abaixo. Preserve escopo, sequência e dependências do resgate; não reatribua tarefas em execução sem coordenação. A transferência de titularidade, a proteção da `main`, os segredos e o acesso ao Netlify precisam de confirmação técnica separada.
 
 ## 1. Objetivo e critério de pronto
 
@@ -27,13 +31,13 @@ O problema não é erro técnico: são fluxos **confusos, longos e sem nexo**, r
 
 **Não entra nesta operação:**
 - **Apagar Edge Functions ou tabelas.** O banco e as funções são os mesmos da produção; o front apenas para de chamá-las. Apagar fica para uma fase posterior, depois da virada e de um prazo sem reclamação.
-- Deploy de Edge Function ou migration sem ordem explícita do Raul. Se um bloco precisar disso, a tarefa é `exec:claude` e só roda com ordem.
+- Deploy de Edge Function ou migration fora de um escopo explicitamente autorizado pelo Marcos, com acesso, verificação e rollback. A conexão administrativa não amplia o escopo comum do resgate.
 - Unificar "público" (relatório §3.7) e juntar Templates com as matrizes Hive (relatório §3.8). As duas mexem no prompt e na arte e ficam para depois.
 - Funcionalidade nova.
 
 ## 3. Usuários e fluxos
 
-**Marcos** (único usuário real; não técnico) usa todo dia. **Raul** é o dono técnico e usa as ferramentas internas.
+**Marcos** (único usuário real; não técnico) usa todo dia. **Raul** é parceiro técnico; Marcos decide prioridades e publicação e pode autorizar agentes sem revisão obrigatória do Raul.
 
 ### Fluxos-alvo depois do resgate
 1. **Campanha:**
@@ -64,7 +68,7 @@ Igual à de hoje (`docs/agentes/01-CONTEXTO.md` §3). O que muda é **onde o fro
 flowchart LR
   subgraph GitHub
     A[bee-platform<br/>público] -->|push main| N1[Netlify produção<br/>o que o Marcos usa hoje]
-    B[hive-resgate<br/>privado] -->|push main| N2[Netlify teste<br/>faixa 'versão de teste']
+    B[hive-resgate] -->|push main| N2[Netlify teste<br/>faixa 'versão de teste']
   end
   N1 --> S[(Supabase produção<br/>Postgres + RLS + Edge Functions + pg_cron)]
   N2 --> S
@@ -122,7 +126,7 @@ Sem mudança.
 - **Idioma:** UI, comentários e docs em português do Brasil. Commits no formato `<tipo>(#N): Pk …`.
 - **Testes:**
   - Agente externo: `npm run build` (portão) e `npx playwright test -c playwright.unit.config.ts` (funções puras, sem banco).
-  - E2E e regressão completa: só o orquestrador, na máquina, no `/integrar`, com o Raul sabendo (rodam contra produção com o usuário de teste).
+  - E2E e regressão completa: no GitHub, com usuário de teste isolado e sem concorrência com o repositório antigo; atualmente o workflow é manual. Marcos ou agente com acesso acompanha a evidência antes da integração de código.
 - **Ambiente** (nomes apenas): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_FACEBOOK_APP_ID`, `VITE_APP_ENV` (novo; `teste` no site de teste). Para medir e para o E2E: `SUPABASE_ACCESS_TOKEN` em `.env.e2e.local`.
 
 ## 9. Segurança e dados pessoais
@@ -130,7 +134,7 @@ Sem mudança.
 - Os dados reais são do Marcos (regra 5 do `AGENTS.md`): nada de `UPDATE` ou `DELETE` em produção sem mostrar o `SELECT` antes e sem confirmação.
 - A medição de uso traz só números agregados; nada sai da máquina.
 - Nunca publicar de verdade em teste (regra 1). O site de teste avisa que as ações valem de verdade.
-- Segredos só em `.env*.local` ou nos Secrets. O repositório é privado, mas a regra não muda.
+- Segredos só em configuração segura e nos Secrets. Conferir a visibilidade real do repositório; a regra vale tanto público quanto privado.
 - Remover tela não pode abrir caminho novo para dados: as remoções são só de front, e o RLS continua igual.
 - Não há mudança de autenticação, RLS ou dados pessoais nesta operação. Se surgir, faz-se auditoria de segurança.
 
@@ -222,10 +226,10 @@ Só as do bloco atual viram issue no GitHub (`/issues`). As dos blocos seguintes
 - `/impeccable polish` nas telas mexidas; conferência em 375 px e no desktop.
 
 **10 · Virada**
-- `exec:claude` Regressão completa verde (`npm run regressao`).
+- Regressão completa verde no GitHub, com evidência do código final a integrar.
 - `exec:claude` `/entrega` (review, segurança e interface).
 - `exec:claude` O Marcos valida no site de teste (roteiro curto de 5 tarefas).
-- `exec:claude` Trocar o domínio no Netlify para o site novo (com ordem do Raul) e arquivar o `bee-platform`.
+- `exec:claude` Trocar o domínio no Netlify para o site novo (com decisão explícita do Marcos e rollback) e arquivar o `bee-platform`.
 - `exec:gpt` Nota de versão para o Marcos (`docs/agentes/08-COMUNICACAO.md`).
 
 **Depois da operação (fora deste plano):** apagar as Edge Functions e tabelas que o front deixou de usar (relatório §4.2, §4.3 e §5), cada uma com rollback, depois de 30 dias sem uso medido.
@@ -236,8 +240,8 @@ Só as do bloco atual viram issue no GitHub (`/issues`). As dos blocos seguintes
 |---|---|
 | O site de teste usa dados reais: o Marcos pode agendar ou publicar achando que é teste | Faixa permanente (01-A) e aviso no roteiro de validação |
 | O Marcos depende de algo que parece morto | Medição (01-D) antes do bloco 02; cinco perguntas ao Marcos (relatório §9) antes dos blocos 04 a 08 |
-| Os agentes externos não rodam E2E (não há token) | Especificação fechada, build e testes unitários; o orquestrador roda E2E e regressão no `/integrar` |
-| O CI do GitHub roda a regressão contra produção | No repositório novo, a regressão vira só manual; o CI do PR roda build e testes unitários |
+| Os agentes externos não rodam E2E (não há token) | Especificação fechada, build e unitários; E2E e regressão rodam no GitHub e são conferidos antes do merge |
+| O CI do GitHub roda a regressão contra produção | Estado atual: regressão manual e CI do PR com build/unitários. Antes do merge de código, conferir a regressão completa no código integrado à base atual; automação e proteção são configuração separada |
 | Divergência entre os dois repositórios até a virada | Correção urgente no site atual entra nos dois (cherry-pick) |
 | O ChatGPT precisa ler o repositório privado | Dar acesso ao `hive-resgate` na integração GitHub do ChatGPT |
 

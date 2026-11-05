@@ -1,85 +1,65 @@
-# Como mudar a Hive pelo GitHub (Marcos + agente de IA)
+# Alterações, regressão e publicação pelo GitHub
 
-> **Para o agente de IA do Marcos** (ChatGPT/Codex ou outro). Leia inteiro antes da primeira mudança.
-> As regras do projeto continuam valendo: [`AGENTS.md`](../../AGENTS.md) é obrigatório.
+Decisão do Marcos em 05/11/2026: trabalhar com seus agentes sem revisão obrigatória do Raul. Leia o `AGENTS.md` e [AUTONOMIA-MARCOS](AUTONOMIA-MARCOS.md), que rege responsabilidades e limites. Preserve as dependências dos blocos do resgate e não assuma trabalho em execução.
 
-## A ideia em uma frase
+## 1. Preparar a mudança
 
-Você **não roda testes**, nem no seu ambiente nem no computador do Marcos. Cada Pull Request (PR) para a `main` dispara **a regressão completa no próprio GitHub** (~200 testes, ~45 min). O resultado aparece no PR como ✅ ou ❌, com a lista do que falhou.
+- Confira conta, remoto e titularidade atual: a transferência do repositório está em andamento; não presuma que terminou.
+- Atualize a base e use uma branch de trabalho. Micro-tarefas atribuídas continuam na branch do bloco; uma entrega independente autorizada pelo Marcos pode usar branch própria.
+- Faça um assunto por PR, com diff mínimo e os testes pertinentes. Não use `skip`, `only`, `retries` ou expectativas enfraquecidas para esconder falhas.
+- Não envie diretamente à `main`. Não abra PR duplicado sobre trabalho em execução.
 
-A `main` é protegida: **nada entra sem ✅**. Com ✅, **o próprio Marcos faz o merge**, e o app vai ao ar sozinho (Netlify, ~2 min).
+## 2. Abrir o PR
 
-## Passo a passo
+O agente pode enviar a branch e abrir o PR dentro da tarefa autorizada. Descreva:
+1. O que muda para o Marcos.
+2. Arquivos e motivo.
+3. Validações realizadas, com resultado real.
+4. Dependências de implantação, quando houver.
 
-### 1. Antes de mudar
+PRs prontos para `main` acionam o CI existente. Um rascunho não deve ser tratado como entrega pronta para integrar.
 
-- Leia o `AGENTS.md` e, se a mudança for numa área específica, a ficha dela (`docs/agentes/01-CONTEXTO.md` §11).
-- Crie uma branch a partir da `main` **atualizada**. Um assunto por PR.
+## 3. Executar a regressão no GitHub
 
-### 2. Faça a mudança
+**Estado observado em 05/11/2026:**
+- `ci.yml`: build e testes unitários nos PRs.
+- `regressao.yml`: regressão completa **manual**, via `workflow_dispatch`.
+- A `main` consultada estava sem proteção. As regras escritas não comprovam proteção técnica.
 
-- **Diff mínimo**, no estilo do arquivo, com comentários e textos em português.
-- **Mudou comportamento? Atualize ou crie o teste** no spec da área (`e2e/fNN-*.spec.ts`), citando a decisão. Exemplo: `// R1 (PR #2): cada peça conta (decisão do Raul, 03/11)`.
-- **Nunca** use `test.skip`, `test.only` ou `retries`, nem afrouxe um `expect` só para passar.
+Este ajuste documental não instala automação, configura segredos nem muda proteção de branch. O objetivo é ter regressão completa no GitHub e verificações obrigatórias antes do merge; até essa infraestrutura estar configurada, usar o workflow manual e conferir a evidência.
 
-### 3. Abra o PR para a `main`
+O Marcos, ou agente com ferramenta e permissão adequadas, seleciona no GitHub o workflow **Regressão completa**, a branch correta e executa com `specs` vazio para a suíte inteira. O botão fica disponível somente conforme as permissões do GitHub; se não houver ferramenta para acioná-lo daqui, informar ao Marcos o passo necessário no GitHub. Não pedir execução no PowerShell.
 
-- Abra como PR **pronto**, não rascunho: rascunho não roda a regressão. Se abrir como rascunho, marque "Ready for review" quando terminar.
-- Título e descrição em português, com três partes:
-  - **O que muda para o Marcos**, em linguagem de uso.
-  - **Arquivos e motivo**, em poucas linhas.
-  - **Precisa do Raul**, só se houver. Veja a seção "Banco e funções".
+Nunca rodar simultaneamente contra o mesmo usuário de teste, inclusive no repositório antigo. Conferir execuções ativas antes de iniciar: a fila atual é por repositório, não entre repositórios.
 
-### 4. Espere a regressão
+Acompanhar a execução até o resultado e registrar URL, ref/SHA testado, número de testes, duração e falhas. O workflow manual atual mostra o resumo na página da execução; não presumir que haverá comentário no PR. CI verde de build/unitários não substitui regressão completa de código.
 
-- No PR aparece o check **"Regressão completa / regressao"**. Leva cerca de 45 minutos.
-- **Existe uma fila:** só roda uma regressão por vez no repositório inteiro, porque todas usam o mesmo usuário de teste no banco. Se outro PR estiver rodando, o seu fica "Queued/Pending". É normal.
-- Ao terminar, o GitHub publica (ou atualiza) **um comentário no PR**:
-  - `## ✅ Regressão verde`: pronto para o Raul revisar.
-  - `## ❌ Regressão com falhas`: vem a lista de testes que falharam e o erro de cada um.
-- Se você não consegue ler o PR, peça ao Marcos para copiar e colar esse comentário para você.
+**Somente documentação:** build basta, conforme a regra do projeto. Isso não significa afirmar que uma regressão completa foi executada.
 
-### 5. Se vier ❌
+## 4. Se houver falhas
 
-Para cada teste da lista, decida qual é o caso:
+- Código quebrou comportamento: corrigir o código.
+- Teste contradiz decisão de produto já aprovada: atualizar o teste e explicar a decisão.
+- Erros de rede/infraestrutura: verificar a evidência antes de classificar; repetir a execução pertinente sem enfraquecer testes. Um 403 exige parar e informar o Marcos.
+- Agrupar correções em um único envio e revalidar o código atualizado. Não integrar com falhas ou testes não executados.
 
-| Situação | O que fazer |
-|---|---|
-| A sua mudança quebrou algo que funcionava | Corrija o código |
-| O teste descreve o comportamento **antigo**, e a sua mudança o alterou **de propósito** | Atualize o teste e diga no PR qual decisão mudou. Se a decisão não foi tomada pelo Raul ou pelo Marcos, **pergunte antes** |
-| Muitos "fetch failed", "HTTP 502", "ECONNRESET" ou timeouts ao mesmo tempo | É instabilidade, não bug. Peça ao Marcos ou ao Raul para clicar em **"Re-run jobs"** na execução. Não mude código por isso |
+## 5. Integrar e confirmar publicação
 
-- **Junte as correções num único push.** Cada push dispara uma nova regressão de ~45 min. Vários pushes seguidos só enchem a fila.
-- O comentário do PR é atualizado a cada nova execução, sempre com o commit testado.
+1. Confirmar todos os portões exigidos verdes, no código final integrado à base atual. Se a base ou o código mudar, atualizar a branch e revalidar antes do merge.
+2. Conferir dependências de implantação; não integrar cliente incompatível com o servidor.
+3. Com autorização aplicável do Marcos, ele ou o agente faz o merge. A revisão do Raul não é obrigatória. Se a ferramenta ou permissão recusar, informar o impedimento sem contornar.
+4. Conferir que o Netlify publicou a versão e o site esperado. Não confundir commit, merge e deploy concluído.
 
-### 6. Se vier ✅: publicar
+Hoje, a `main` do resgate publica `https://hive-resgate.netlify.app`, o site de teste. Trocar o domínio da Hive atual exige decisão explícita do Marcos e um caminho de retorno.
 
-1. Confira no PR que **não há nada em "Precisa do Raul"** pendente (veja "Banco e funções" abaixo). Se houver, espere o Raul.
-2. Se o GitHub mostrar **"This branch is out-of-date with the base branch"**, clique em **"Update branch"**. A regressão roda de novo com a `main` atual e o merge só libera quando voltar ✅. Isso garante que o que entra foi testado junto com o que já estava no ar.
-3. Clique em **"Merge pull request"** e depois em **"Confirm merge"**. Pode ser o Marcos, ou você, se ele pedir.
-4. Em ~2 minutos o Netlify publica o app. Avise o Marcos: "publicado: <o que mudou, em linguagem de uso>".
+## 6. Banco, funções e configurações
 
-Ninguém consegue enviar direto para a `main` sem passar pelo PR com ✅. Só o Raul, como dono, pode.
+O merge publica somente o app; não aplica migrations ou Edge Functions. O resgate continua limitado ao front-end. Uma tarefa de servidor exige impacto, sequência de implantação, verificação, rollback, acesso confirmado e escopo autorizado pelo Marcos. Não depende obrigatoriamente do Raul nem é autorizada apenas por existir uma conexão administrativa.
 
-## Banco e funções (o merge NÃO publica isso)
+Não alterar workflows, segredos, proteção de branches, domínios ou crons como efeito incidental de um pedido de documentação. Configurações de infraestrutura são tarefas próprias, com autorização aplicável.
 
-O merge publica só o **app** (Netlify). Migrations (`supabase/migrations/`) e edge functions (`supabase/functions/`) **não** vão ao ar pelo merge: o Raul aplica.
+## 7. Prévia e dados reais
 
-A regressão roda contra o **banco de produção**, então um PR que depende de uma tabela ou função nova **vai falhar** até o Raul aplicar a parte do banco. Nesses casos:
+Os sites do resgate e da Hive atual compartilham banco e funções. Ações de aprovar, agendar ou publicar no site de teste valem de verdade. Não usá-lo para testar ações na conta do Marcos. Testes usam somente o usuário isolado e contas com token falso. Segredos nunca em arquivos versionados, PRs ou logs.
 
-1. Separe o que é banco (migration **aditiva**, idempotente e com rollback em `supabase/rollback/`; regras em `docs/agentes/02-REGRAS.md` §B).
-2. Escreva no PR, em **"Precisa do Raul"**: "aplicar a migration X" e/ou "deploy da função Y".
-3. Depois que o Raul aplicar, peça para rodar de novo ("Re-run jobs").
-
-## Nunca
-
-- Mexer em `.github/workflows/`, nos segredos do repositório ou em `scripts/regressao.mjs` sem pedido do Raul.
-- Publicar de verdade em rede social, ou usar ou alterar dados reais do Marcos. Os testes usam só o usuário de teste.
-- Colar senhas, tokens ou chaves em código, PR, comentário ou commit. **O repositório é público.**
-- Rodar `npm run regressao` no seu ambiente ou pedir isso ao Marcos. O caminho é o GitHub.
-- Abrir vários PRs ao mesmo tempo sobre a mesma área: um termina e o outro precisa ser refeito em cima dele.
-- Fazer merge com ❌, ou com "Precisa do Raul" pendente.
-
-## A prévia do Netlify
-
-Cada PR ganha um link de prévia ("Deploy Preview") para **ver** a mudança. Atenção: a prévia usa o **banco real**. O que se clica nela (aprovar, agendar, publicar) acontece de verdade na conta do Marcos. Use-a para olhar, não para testar ações.
+Segundo o plano atual, deploy previews e deploys de branches estão desligados; não presumir que abrir um PR produzirá uma prévia. Revalidar a ligação do Netlify com o Git após a transferência de titularidade.
