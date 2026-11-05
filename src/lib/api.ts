@@ -8,7 +8,6 @@ import type {
   AiLearning,
   AiReview,
   AiChatMessage,
-  AiSegment,
   AiSeveridade,
   AiVariation,
   BeeAnalogy,
@@ -18,7 +17,6 @@ import type {
   BeeExamplePost,
   BeePersona,
   BeeProduct,
-  BeeStyleRule,
   BeeSuggestion,
   BeeDirective,
   DirectiveScope,
@@ -26,7 +24,6 @@ import type {
   KnowledgeDocument,
   Podcast,
   PodcastClip,
-  PostDraft,
   PostStatus,
   PostTemplate,
   Profile,
@@ -374,10 +371,6 @@ export const podcastApi = {
     return db.select<Podcast>('podcasts', { order: 'created_at.desc' });
   },
 
-  async get(id: string): Promise<Podcast | null> {
-    return db.selectOne<Podcast>('podcasts', { id: `eq.${id}` });
-  },
-
   async findByVideoId(videoId: string): Promise<Podcast | null> {
     const userId = requireUserId();
     return db.selectOne<Podcast>('podcasts', {
@@ -433,17 +426,6 @@ export const podcastClipApi = {
     return db.select<PodcastClip>('podcast_clips', { order: 'created_at.desc' });
   },
 
-  async listByPodcast(podcastId: string): Promise<PodcastClip[]> {
-    return db.select<PodcastClip>('podcast_clips', {
-      podcast_id: `eq.${podcastId}`,
-      order: 'created_at.desc',
-    });
-  },
-
-  async get(id: string): Promise<PodcastClip | null> {
-    return db.selectOne<PodcastClip>('podcast_clips', { id: `eq.${id}` });
-  },
-
   async create(input: Partial<PodcastClip>): Promise<PodcastClip> {
     const userId = requireUserId();
     const rows = await db.insert<PodcastClip>('podcast_clips', { ...input, user_id: userId });
@@ -458,9 +440,6 @@ export const podcastClipApi = {
     return rows[0];
   },
 
-  async delete(id: string): Promise<void> {
-    return db.delete('podcast_clips', { id: `eq.${id}` });
-  },
 };
 
 // ----------------------------------------------------------------------------
@@ -522,14 +501,6 @@ export const suggestionApi = {
       status: 'eq.pending',
       order: 'created_at.desc',
     });
-  },
-
-  async countPending(): Promise<number> {
-    const rows = await db.select<{ id: string }>('bee_suggestions', {
-      status: 'eq.pending',
-      select: 'id',
-    });
-    return rows.length;
   },
 
   async create(input: Partial<BeeSuggestion>): Promise<BeeSuggestion> {
@@ -694,9 +665,6 @@ export const genesisApi = {
     return rows[0];
   },
 
-  async removePrincipio(id: string): Promise<void> {
-    return db.delete('genesis_principios', { id: `eq.${id}` });
-  },
 };
 
 // ----------------------------------------------------------------------------
@@ -938,11 +906,6 @@ export const aiApi = {
     );
     if (!rows[0]) throw new Error('Erro ao registrar a revisão');
     return rows[0];
-  },
-
-  // Detalhe por segmento (editoria × plataforma × alvo) com facetas.
-  async segments(): Promise<AiSegment[]> {
-    return db.rpc<AiSegment[]>('ai_segment_status', {});
   },
 
   async listReviews(limit = 30): Promise<AiReview[]> {
