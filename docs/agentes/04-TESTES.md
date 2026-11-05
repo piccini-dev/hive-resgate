@@ -1,5 +1,7 @@
 # 04 · Testes — regressão, como rodar, como escrever
 
+**Fluxo vigente do resgate (05/11/2026):** E2E e regressão completa são executados no GitHub. Não pedir execução local ou credenciais pelo chat ao Marcos. O agente pode rodar build e unitários puros; a configuração atual executa estes no PR e oferece a regressão completa manualmente. Consulte [REGRESSAO-GITHUB](REGRESSAO-GITHUB.md) e [AUTONOMIA-MARCOS](AUTONOMIA-MARCOS.md), que prevalecem sobre as receitas locais históricas abaixo. Somente documentação exige build; código exige regressão completa antes do merge.
+
 ## 1. O que é a "regressão completa"
 
 É rodar **todos** os testes automatizados de uma vez: hoje, **200 testes em ~39 min** (03/11/2026). Cada teste abre o app num navegador de verdade, faz o que o Marcos faria (agendar, aprovar, voltar, publicar com token falso…) e confere o resultado na tela e no banco. Os testes `unit-*` testam funções puras, em milissegundos.
@@ -8,11 +10,11 @@
 
 | Mudou… | Exige |
 |---|---|
-| `src/`, `supabase/` (migration, função, `_shared`), `e2e/`, `package.json`, configs de build | **Regressão completa verde antes do push** |
+| `src/`, `supabase/` (migration, função, `_shared`), `e2e/`, `package.json`, configs de build | **Regressão completa verde no GitHub antes do merge** |
 | Só `docs/`, `*.md`, `scripts/` que não afetam app nem testes | `npm run build` (por garantia) |
 | Banco ou função em produção sem mudar arquivo (correção de dado) | Spec da área + justificativa no relatório |
 
-## 2. Como rodar
+## 2. Referência de execução local (histórica; o resgate usa GitHub)
 
 ```bash
 npm run regressao:check                                # só confere se a máquina está pronta

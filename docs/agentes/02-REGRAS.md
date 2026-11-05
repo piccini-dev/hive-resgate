@@ -1,6 +1,6 @@
 # 02 · Regras — o que nunca fazer, o que sempre fazer, e por quê
 
-Cada regra traz o **porquê**. Quase todas nasceram de um incidente real. Quando uma regra parecer atrapalhar, o porquê diz se o caso é exceção (quase nunca é). Na dúvida: **pare e pergunte ao Raul**.
+Cada regra traz o **porquê**. Quase todas nasceram de um incidente real. Na dúvida sobre produto, escopo ou publicação, consulte o Marcos. A [decisão de autonomia de 05/11/2026](AUTONOMIA-MARCOS.md) rege responsabilidades e o caminho de testes/publicação e prevalece sobre orientações históricas conflitantes. As proteções de dados e contratos continuam valendo.
 
 Níveis:
 
@@ -142,7 +142,7 @@ Níveis:
 
 ## D. Testes e verificação
 
-**D1 🔴 Regressão completa antes de push** que toque `src/`, `supabase/` ou `e2e/`: `scripts/regressao.sh`, com 100% verde.
+**D1 🔴 Regressão completa no GitHub antes do merge** que toque código, testes, dependências ou configuração, com 100% verde no código final integrado à base atual. O push da branch e o PR vêm antes da execução; o CI de build/unitários não substitui a regressão. Veja [REGRESSAO-GITHUB](REGRESSAO-GITHUB.md).
 
 - Se algo falhar, investigue a causa. "Era flaky" só vale depois de entender o porquê e estabilizar o teste, nunca com `retries` ou `skip`.
 - Se a falha não tem relação com a sua mudança, diga isso no relatório com a evidência.
@@ -158,7 +158,7 @@ Níveis:
 
 ## E. Processo e comunicação
 
-**E1 🟠 Pergunte só o que é decisão do Raul** (produto, risco, dado real, dinheiro, publicação).
+**E1 🟠 Pergunte só o que é decisão do Marcos** (produto, risco, dado real, dinheiro, publicação). Não repetir pedidos de aprovação já abrangidos pela autorização da tarefa.
 
 - O que dá para descobrir no código ou no banco, descubra.
 - Quando houver escolha, **recomende uma opção** com o porquê, em vez de listar todas.
@@ -166,7 +166,7 @@ Níveis:
 **E2 🟠 Não faça commit nem push sem pedido**, salvo quando a tarefa já autoriza.
 
 - Commits: um por entrega ou feature, mensagem em português que diz o efeito ("Estabilização E4: publicação exclusiva consumindo o pacote programado"), rodapé `Co-Authored-By`.
-- Push direto na `main` (fluxo solo) com a conta `raulmf12`.
+- Push somente na branch de trabalho, com a conta autorizada e o remoto atual conferidos. Integração na `main` por PR, após validação e autorização aplicável do Marcos; sem revisão obrigatória do Raul.
 
 **E3 🟠 Toda entrega visível ao Marcos ganha uma nota em linguagem de uso** (antes → agora, como conferir), no doc da iniciativa. Veja [08-COMUNICACAO](08-COMUNICACAO.md).
 
