@@ -285,8 +285,6 @@ export function SettingsPage() {
         <TabsList>
           <TabsTrigger value="profile">Perfil</TabsTrigger>
           <TabsTrigger value="accounts">Contas</TabsTrigger>
-          <TabsTrigger value="voice">Voz Bee</TabsTrigger>
-          <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="integrations">Integracoes</TabsTrigger>
         </TabsList>
 
@@ -316,120 +314,6 @@ export function SettingsPage() {
               <div className="flex justify-end">
                 <Button onClick={handleSaveProfile} disabled={saving || name === currentUser.name || !name.trim()} variant="accent">
                   <Save className="h-4 w-4" /> Salvar perfil
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ============ VOZ BEE ============ */}
-        <TabsContent value="voice" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Persona Bee</CardTitle>
-              <CardDescription>
-                A voz da Bee é única — não é um arquétipo genérico. Voce ajusta texto livre aqui;
-                a arquitetura editorial estruturada (editoriais, glossário, analogias, exemplos)
-                fica gerenciada na seção abaixo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="persona">Persona (livre)</Label>
-                <Textarea
-                  id="persona"
-                  rows={5}
-                  value={persona}
-                  onChange={(e) => setPersona(e.target.value)}
-                  placeholder="Marcos Piccini / Bee Academy: alguem que viu de dentro..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tone">Tom em uma linha</Label>
-                <Input id="tone" value={tone} onChange={(e) => setTone(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="structure">Estrutura preferida</Label>
-                <Textarea id="structure" rows={3} value={structure} onChange={(e) => setStructure(e.target.value)} />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSavePersona} disabled={saving} variant="accent">
-                  <Save className="h-4 w-4" /> Salvar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" /> Arquitetura editorial Bee
-              </CardTitle>
-              <CardDescription>
-                Esta é a estrutura proprietária extraída do Guia de Voz, Estilo MP, Lógicas Desconstrutivas e Temas Olhar Bee.
-                A IA usa todas essas camadas em cada geração.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {!stats ? (
-                <p className="text-xs text-muted-foreground">Carregando...</p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <StatRow icon={<BookOpen className="h-4 w-4" />} label="Editoriais" value={stats.editorials} hint="tipos de post com estrutura, frequência e arsenal próprios" />
-                  <StatRow icon={<Library className="h-4 w-4" />} label="Itens de arsenal" value={stats.arsenal} hint="histórias, alumni, cases, crenças, bastidores, reflexões, trechos de livro" />
-                  <StatRow icon={<Tag className="h-4 w-4" />} label="Termos do glossário" value={stats.glossary} hint={`${stats.glossary_must} obrigatórios em todo post (ex: "Vê?")`} />
-                  <StatRow icon={<ImgIcon className="h-4 w-4" />} label="Analogias natureza/biologia" value={stats.analogies_used + stats.analogies_new} hint={`${stats.analogies_used} já usadas · ${stats.analogies_new} novas com alto potencial`} />
-                  <StatRow icon={<Sparkles className="h-4 w-4" />} label="Posts validados (few-shot)" value={stats.examples} hint="exemplos reais que a IA segue como referência" />
-                  <StatRow icon={<Megaphone className="h-4 w-4" />} label="Temas Senso Comum vs Olhar Bee" value={stats.themes} hint="ressignificações editoriais centrais" />
-                  <StatRow icon={<Brain className="h-4 w-4" />} label="Lógicas desconstrutivas" value={stats.logics} hint="crenças comuns que a Bee desafia" />
-                  <StatRow icon={<Tag className="h-4 w-4" />} label="Hashtags obrigatórias" value={stats.hashtags_required} hint="aplicadas no fim de toda caption" />
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-border">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Base de conhecimento (RAG)</Label>
-                {!stats ? null : (
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="text-sm">
-                      <span className="font-semibold">{stats.rag_docs}</span> documentos ·{' '}
-                      <span className="font-semibold">{stats.rag_chunks.toLocaleString('pt-BR')}</span> chunks indexados
-                    </div>
-                    <Button asChild variant="outline" size="sm" className="ml-auto">
-                      <Link to="/conhecimento">
-                        Gerenciar <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-xs text-muted-foreground">
-                💡 As tabelas editoriais (editoriais, glossário, analogias, exemplos) ainda não têm UI dedicada de edição —
-                hoje gerenciadas direto no Supabase. Posso construir telas de CRUD quando precisar ajustar.
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ============ BRANDING ============ */}
-        <TabsContent value="branding" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Identidade visual</CardTitle>
-              <CardDescription>Cores e logo aplicados nos conteudos gerados.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="logo">URL do logo</Label>
-                <Input id="logo" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="colors">Paleta (hex separados por virgula)</Label>
-                <Input id="colors" value={brandColors} onChange={(e) => setBrandColors(e.target.value)} placeholder="#2D4A5C, #E8A04C, #FBF5E2" />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSaveBranding} disabled={saving} variant="accent">
-                  <Save className="h-4 w-4" /> Salvar branding
                 </Button>
               </div>
             </CardContent>
