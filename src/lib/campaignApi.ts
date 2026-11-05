@@ -207,7 +207,7 @@ export const metricsApi = {
   async listAll(): Promise<PostMetrics[]> {
     return db.select<PostMetrics>('post_metrics', { order: 'captured_at.desc' });
   },
-  // LinkedIn não tem API de leitura: o usuário registra na mão.
+  // Alcance/impressões do LinkedIn só o autor vê: registro manual (reações e comentários vêm do Apify).
   async upsertManual(postId: string, accountId: string | null, values: Partial<Pick<PostMetrics,
     'reach' | 'impressions' | 'likes' | 'comments' | 'saves' | 'shares'>>): Promise<PostMetrics> {
     const userId = requireUserId();

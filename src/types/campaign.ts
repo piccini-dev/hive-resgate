@@ -244,7 +244,7 @@ export interface PostMetrics {
   user_id: string;
   post_id: string;
   account_id?: string | null;
-  source: 'instagram_api' | 'manual';
+  source: 'instagram_api' | 'manual' | 'linkedin_apify' | 'linkedin_export';
   captured_at: string;
   reach?: number | null;
   impressions?: number | null;

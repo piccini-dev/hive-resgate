@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { hashText, memoryText, repeatedStructures } from '../supabase/functions/_shared/memory-text';
-import { liMapPost, liMatchPlatform, liNormText, liPostedAt, liUsername } from '../supabase/functions/_shared/linkedin-map';
+import { liMapPost, liMatchPlatform, liNormText, liPostedAt, liStats, liUsername } from '../supabase/functions/_shared/linkedin-map';
 
 test.describe('unit · memória anti-repetição e LinkedIn', () => {
   test('texto da memória = frase + legenda, sem hashtags nem placeholder', () => {
@@ -50,5 +50,12 @@ test.describe('unit · memória anti-repetição e LinkedIn', () => {
     expect(liMatchPlatform({ text: 'Esta é uma das queixas mais comuns nas empresas. Um sentimento comum entre líderes que cobram senso de dono.', posted_at: '2026-10-10T15:30:00Z' }, plat)).toBeNull(); // outro dia
     expect(liMatchPlatform({ text: 'Texto completamente diferente publicado no mesmo dia, sem relação nenhuma.', posted_at: '2026-09-28T15:30:00Z' }, plat)).toBeNull();
     expect(liNormText('Há sim, muitas mentes sãs.\n\nhttps://lnkd.in/x #tag')).toBe(liNormText('Há sim,  muitas mentes sãs. https://lnkd.in/y'));
+  });
+
+  test('LinkedIn: métricas públicas do scraper (reações, comentários, reposts) e formatos antigos', () => {
+    // Formato real do apimaestro/linkedin-profile-posts (03/11/2026).
+    expect(liStats({ stats: { like: 11, love: 0, reposts: 1, comments: 5, total_reactions: 11 } })).toMatchObject({ likes: 11, comments: 5, shares: 1 });
+    expect(liStats({ numLikes: 7, numComments: '2', numShares: 0 })).toMatchObject({ likes: 7, comments: 2, shares: 0 });
+    expect(liStats({ text: 'sem números' })).toBeNull();
   });
 });
