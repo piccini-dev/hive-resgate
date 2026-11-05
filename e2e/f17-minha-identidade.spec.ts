@@ -241,7 +241,7 @@ test.describe('F17 · Minha identidade', () => {
     await expect(page.getByTestId('profile-detail')).toContainText('Frente A · Autora · A1');
     await expect(page.getByTestId('profile-version')).toHaveCount(1);
     await expect(page.getByTestId('profile-version')).toContainText('v1 · ativa');
-    await page.goto('/genesis');                                   // o grupo "Base Hive" abre com a rota ativa
+    await page.goto('/genesis');                                   // o grupo "Voz da Hive" abre com a rota ativa
     await page.getByRole('link', { name: 'Minha identidade' }).click();
     await expect(page).toHaveURL(/\/identidade$/);
     await expect(page.getByTestId('identity-home')).toBeVisible();

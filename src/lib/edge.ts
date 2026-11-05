@@ -144,42 +144,6 @@ export interface CommitLearningOutput {
   error?: string;
 }
 
-export interface GeneratePersonaOutput {
-  success: boolean;
-  persona: {
-    nome: string; idade: number | null; cargo: string; empresa: string;
-    historia: string; rotina: string; personalidade: string;
-    memorias: string[]; valores: string[];
-    dor: string; desejo: string; objecoes: string[]; gatilhos: string[]; linguagem: string;
-  };
-  error?: string;
-}
-export interface PersonaProfile {
-  nome?: string;
-  idade?: number | null;
-  cargo?: string;
-  empresa?: string;
-  historia?: string;
-  rotina?: string;
-  personalidade?: string;
-  memorias?: string[];
-  valores?: string[];
-  quem?: string;
-  estado?: string;
-  dor?: string;
-  desejo?: string;
-  gatilhos?: string[];
-  objecoes?: string[];
-  linguagem?: string;
-  desafio_comunicacao?: string;
-  frases?: string[];
-}
-export interface PersonaChatOutput {
-  success: boolean;
-  reply: string;
-  error?: string;
-}
-
 // POST numa edge function com a sessão atual; erro vira Error com a mensagem do servidor.
 async function postEdge<T>(fn: string, body: unknown): Promise<T> {
   const headers = await authHeader();
@@ -199,33 +163,6 @@ export function olharBee<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 export const edge = {
-  // A IA cria uma PESSOA inteira a partir de um público-base + pistas (não salva).
-  async generatePersona(input: { base?: object; hints?: string }): Promise<GeneratePersonaOutput> {
-    const headers = await authHeader();
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-persona`, {
-      method: 'POST', headers, body: JSON.stringify(input),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-    return json;
-  },
-
-  // Simulação de público: a persona responde EM PERSONAGEM. Opcionalmente vê um
-  // post (imagem renderizada + texto) via visão do Gemini.
-  async personaChat(input: {
-    persona: PersonaProfile;
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>;
-    post?: { quote?: string; caption?: string; image_base64?: string };
-  }): Promise<PersonaChatOutput> {
-    const headers = await authHeader();
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/persona-chat`, {
-      method: 'POST', headers, body: JSON.stringify(input),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? `HTTP ${res.status}`);
-    return json;
-  },
-
   // A IA propoe o publico-alvo de um editorial a partir da descricao (nao salva).
   async suggestAudience(editorial: { name?: string; description?: string; objetivo?: string; tom?: string }): Promise<SuggestAudienceOutput> {
     const headers = await authHeader();

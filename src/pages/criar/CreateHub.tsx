@@ -1,7 +1,7 @@
 // TELA 02 — CRIAR: "O que você quer criar agora?"
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layers, PenLine, Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { Layers, PenLine, Sparkles, Loader2, ArrowRight, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { WizardShell, ChoiceCard } from '@/components/campaign/WizardShell';
 import { HiveNote } from '@/components/campaign/HiveNote';
@@ -26,6 +26,8 @@ export function CreateHub() {
           title="Campanha de conteúdos" description="Uma estratégia que a Hive transforma em ciclos de ideias, conteúdos e peças." />
         <ChoiceCard testId="create-content" onClick={() => navigate('/criar/conteudo')} icon={<PenLine className="h-5 w-5" />}
           title="Um conteúdo" description="Uma ideia pontual, fora de campanha." />
+        <ChoiceCard testId="create-invite" onClick={() => navigate('/hive/convite')} icon={<Ticket className="h-5 w-5" />}
+          title="Convite para evento" description="Um convite com os dados reais do evento: data, hora e link de inscrição." />
         <ChoiceCard testId="create-recommend" onClick={askHive} icon={loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
           title="Hive, recomende" description="Deixar a Hive analisar seu momento e sugerir o melhor próximo movimento." />
       </div>
