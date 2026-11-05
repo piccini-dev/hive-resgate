@@ -67,13 +67,19 @@ test.describe('F7 · home, pipeline e navegação', () => {
     await expect(page.getByTestId('upcoming-item')).toContainText('Frase agendada amanhã');
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/f7-home.png` });
 
-    // Menu: fluxo principal solto; antigos fora.
+    // Menu do resgate: fluxo principal solto; grupos novos; antigos fora.
     const nav = page.locator('aside nav');
-    for (const label of ['Início', 'Campanhas', 'Produção', 'Pipeline', 'Agenda', 'Base Hive', 'Inteligência', 'Configurações']) {
+    for (const label of ['Início', 'Campanhas', 'Produção', 'Pipeline', 'Agenda', 'Desempenho', 'Jornada relacional (ACJ)',
+      'Voz da Hive', 'Ensinar a Hive', 'Visual', 'Configurações', 'Ferramentas internas']) {
       await expect(nav.getByText(label, { exact: true })).toBeVisible();
     }
-    await expect(nav.getByText('Post individual')).toHaveCount(0);
-    await expect(nav.getByText('Campanha de conteúdo')).toHaveCount(0);
+    for (const gone of ['Base Hive', 'Inteligência', 'Post individual', 'Campanha de conteúdo']) {
+      await expect(nav.getByText(gone, { exact: true })).toHaveCount(0);
+    }
+    await nav.getByRole('button', { name: 'Ferramentas internas' }).click();
+    await expect(nav.getByRole('link', { name: 'Custos de API' })).toBeVisible();
+    await expect(nav.getByText('Simular público')).toHaveCount(0);
+    await expect(nav.getByText('Teste de imagem')).toHaveCount(0);
 
     // CTA da pendência leva direto ao ponto certo.
     await items.filter({ hasText: 'Lançamento Imersão' }).getByRole('link', { name: /Iniciar produção/ }).click();
