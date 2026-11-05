@@ -730,55 +730,6 @@ export const suggestionApi = {
 };
 
 // ----------------------------------------------------------------------------
-// BARRAMENTO DE EVENTOS (legado alma_eventos) — o Genesis substituiu a psique,
-// mas o barramento continua sendo a memória viva do sistema. emitEvento move a
-// oitava das lentes (genesis_lentes) quando vem dimensão+delta.
-// ----------------------------------------------------------------------------
-export const almaApi = {
-  // Barramento: qualquer ação do sistema alimenta o Genesis. Se vier dimensão+delta,
-  // move a oitava (clamp 0..100). Fire-and-forget: nunca quebra o fluxo chamador.
-  async emitEvento(evt: {
-    tipo: string;
-    descricao: string;
-    source?: string;
-    dimensao_slug?: string | null;
-    delta?: number | null;
-  }): Promise<void> {
-    try {
-      const userId = getCurrentUserId();
-      await db.insert(
-        'alma_eventos',
-        {
-          tipo: evt.tipo,
-          descricao: evt.descricao,
-          source: evt.source ?? 'app',
-          dimensao_slug: evt.dimensao_slug ?? null,
-          delta: evt.delta ?? null,
-          user_id: userId,
-        },
-        { returning: false },
-      );
-      if (evt.dimensao_slug && evt.delta) {
-        const dim = await db.selectOne<import('@/types').GenesisLente>('genesis_lentes', {
-          slug: `eq.${evt.dimensao_slug}`,
-          select: 'slug,oitava',
-        });
-        if (dim) {
-          const nova = Math.max(0, Math.min(100, dim.oitava + evt.delta));
-          await db.update(
-            'genesis_lentes',
-            { slug: `eq.${evt.dimensao_slug}` },
-            { oitava: nova, updated_at: new Date().toISOString() },
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('[barramento.emitEvento]', e);
-    }
-  },
-};
-
-// ----------------------------------------------------------------------------
 // GENESIS — a Constituicao Cognitiva (substitui o modelo da Alma).
 // Leitura completa + edição do núcleo (persona/voz/missão) e dos princípios.
 // ----------------------------------------------------------------------------
