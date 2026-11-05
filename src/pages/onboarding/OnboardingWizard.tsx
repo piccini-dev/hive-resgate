@@ -15,18 +15,10 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { takeNext } from '@/lib/navigation';
 
-type Step = 'persona' | 'gemini';
-
-const DEFAULT_PERSONA = 'Marcos Piccini / Bee Academy: alguem que viu de dentro. Que viveu o colapso antes de nomea-lo. Que passou pela propria travessia antes de convidar outros. Voz com autoridade que vem de 20 anos de cases reais e dois livros escritos.';
-const DEFAULT_TONE = 'Direto, provocador, autentico. Linguagem forte sem ser agressiva. Provoca sem acusar.';
-
 export function OnboardingWizard() {
   const navigate = useNavigate();
   const { settings, updateSettings } = useAuthStore();
 
-  const [step, setStep] = useState<Step>(settings?.gemini_api_key ? 'gemini' : 'persona');
-  const [persona, setPersona] = useState(settings?.persona ?? DEFAULT_PERSONA);
-  const [tone, setTone] = useState(settings?.tone_of_voice ?? DEFAULT_TONE);
   const [geminiKey, setGeminiKey] = useState(settings?.gemini_api_key ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -75,65 +67,8 @@ export function OnboardingWizard() {
           </p>
         </header>
 
-        {/* Stepper */}
-        <div className="flex items-center justify-center gap-2">
-          {(['persona', 'gemini'] as Step[]).map((s, i) => {
-            const labels = ['Persona Bee', 'Chave Gemini'];
-            const isActive = s === step;
-            const isDone = s === 'persona' && step === 'gemini';
-            return (
-              <div key={s} className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    'flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold',
-                    isDone && 'bg-accent text-accent-foreground',
-                    isActive && 'bg-primary text-primary-foreground',
-                    !isActive && !isDone && 'bg-secondary text-muted-foreground',
-                  )}
-                >
-                  {isDone ? <Check className="h-3.5 w-3.5" /> : i + 1}
-                </div>
-                <span
-                  className={cn(
-                    'text-xs',
-                    isActive ? 'font-semibold text-foreground' : 'text-muted-foreground',
-                  )}
-                >
-                  {labels[i]}
-                </span>
-                {i < 1 && <div className="h-px w-8 bg-border" />}
-              </div>
-            );
-          })}
-        </div>
-
         <Card>
           <CardContent className="p-6">
-            {step === 'persona' && (
-              <div className="space-y-4">
-                <div>
-                  <h2 className="font-display text-xl font-semibold">Confirma a persona</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Já preenchemos com a voz Bee oficial extraída do Guia de Voz. Ajuste se quiser.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="persona">Persona</Label>
-                  <Textarea
-                    id="persona"
-                    rows={6}
-                    value={persona}
-                    onChange={(e) => setPersona(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tone">Tom em uma linha</Label>
-                  <Input id="tone" value={tone} onChange={(e) => setTone(e.target.value)} />
-                </div>
-              </div>
-            )}
-
-            {step === 'gemini' && (
               <div className="space-y-4">
                 <div>
                   <h2 className="font-display text-xl font-semibold flex items-center gap-2">
@@ -162,12 +97,8 @@ export function OnboardingWizard() {
                   Voce paga o uso direto pro Google. A plataforma só envia os prompts em nome da sua chave.
                 </div>
               </div>
-            )}
 
             <div className="mt-6 flex justify-end gap-2">
-              {step === 'gemini' && (
-                <Button variant="ghost" onClick={() => setStep('persona')}>Voltar</Button>
-              )}
               <Button
                 variant="accent"
                 onClick={saveAndNext}
