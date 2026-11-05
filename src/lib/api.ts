@@ -15,7 +15,6 @@ import type {
   BeeAvatar,
   BeeEditorial,
   BeeExamplePost,
-  BeePersona,
   BeeProduct,
   BeeSuggestion,
   BeeDirective,
@@ -715,29 +714,6 @@ export const directivesApi = {
 
   async remove(id: string): Promise<void> {
     return db.delete('bee_directives', { id: `eq.${id}` });
-  },
-};
-
-// ----------------------------------------------------------------------------
-// PERSONAS (biblioteca de pessoas pra simular o público)
-// ----------------------------------------------------------------------------
-export const personaApi = {
-  async list(): Promise<BeePersona[]> {
-    return db.select<BeePersona>('bee_personas', { is_active: 'eq.true', order: 'position.asc,created_at.desc' });
-  },
-  async create(input: Partial<BeePersona>): Promise<BeePersona> {
-    const rows = await db.insert<BeePersona>('bee_personas', { ...input, user_id: requireUserId() });
-    if (!rows[0]) throw new Error('Falha ao criar persona');
-    return rows[0];
-  },
-  async update(id: string, patch: Partial<BeePersona>): Promise<BeePersona> {
-    const { id: _id, user_id: _u, ...safe } = patch;
-    const rows = await db.update<BeePersona>('bee_personas', { id: `eq.${id}` }, { ...safe, updated_at: new Date().toISOString() });
-    if (!rows[0]) throw new Error('Persona nao encontrada');
-    return rows[0];
-  },
-  async remove(id: string): Promise<void> {
-    return db.delete('bee_personas', { id: `eq.${id}` });
   },
 };
 
