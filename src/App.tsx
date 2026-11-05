@@ -35,8 +35,6 @@ import { HivePreview } from '@/pages/hive/HivePreview';
 import { HiveAssets } from '@/pages/hive/HiveAssets';
 import { HiveMarcos } from '@/pages/hive/HiveMarcos';
 import { HiveConvite } from '@/pages/hive/HiveConvite';
-import { HiveTesteM02 } from '@/pages/hive/HiveTesteM02'; // TEMP: apagar depois
-import { HiveTesteM01 } from '@/pages/hive/HiveTesteM01'; // TEMP: apagar depois
 import { Custos } from '@/pages/custos/Custos';
 import { OlharCalibracao } from '@/pages/olhar/Calibracao';
 import { ImageLab } from '@/pages/labs/ImageLab';
@@ -143,8 +141,8 @@ export default function App() {
           <Route path="hive/marcos" element={<HiveMarcos />} />
           <Route path="hive/fotografia" element={<PhotoEngine />} />
           <Route path="hive/convite" element={<HiveConvite />} />
-          <Route path="hive/teste-m02" element={<HiveTesteM02 />} /> {/* TEMP: apagar depois */}
-          <Route path="hive/teste-m01" element={<HiveTesteM01 />} /> {/* TEMP: apagar depois */}
+          <Route path="hive/teste-m02" element={<Navigate to="/" replace />} />
+          <Route path="hive/teste-m01" element={<Navigate to="/" replace />} />
           <Route path="custos" element={<Custos />} />
           <Route path="olhar/calibracao" element={<OlharCalibracao />} />
           <Route path="labs/imagens" element={<ImageLab />} />
