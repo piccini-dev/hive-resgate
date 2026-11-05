@@ -86,6 +86,8 @@ test.describe('F7 · home, pipeline e navegação', () => {
     await expect(page).toHaveURL(new RegExp(`/producao\\?campaign=${b.id}&cycle=${b.cycleIds[0]}`));
     await page.getByTestId('nav-create').click();
     await expect(page).toHaveURL(/\/criar$/);
+    await page.getByTestId('create-invite').click();
+    await expect(page).toHaveURL(/\/hive\/convite$/);
   });
 
   test('pipeline: 1 card por ideia/conteúdo, colunas, filtros, banner e manifestações', async ({ page }) => {
