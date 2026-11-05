@@ -25,7 +25,7 @@ import { POST_STATUS_LABELS, type AiVariation, type PostStatus } from '@/types';
 import { useAuthStore } from '@/store/authStore';
 import { uploadAssetImage, hashDataUrl, toJpegDataUrl } from '@/lib/storage';
 import { edge, PublishStateError } from '@/lib/edge';
-import { aiApi, almaApi, severidadeOf } from '@/lib/api';
+import { aiApi, severidadeOf } from '@/lib/api';
 import { formatInZone, isoToLocalInput, localInputToIso, nowLocalInput, scheduleTimeZone } from '@/lib/schedule';
 import { approvePieceOnServer, registerManualPublication } from '@/lib/approval';
 import { scheduleAt, unschedule } from '@/lib/scheduling';
@@ -330,13 +330,6 @@ export function PostEditor() {
       }
     } catch (e) { toast.error(userMessage(e, 'Não foi possível mudar o status.')); return; }
     toast.success(`Status: ${POST_STATUS_LABELS[status]}`);
-    if (status === 'published') {
-      void almaApi.emitEvento({
-        tipo: 'post_publicado',
-        descricao: `Post publicado: "${(post.title ?? post.caption ?? 'sem título').slice(0, 60)}"`,
-        source: 'posts',
-      });
-    }
   }
 
   // Portão do fundo de IA (M01-D/E): aprova o fundo gerado — libera Stand-by/Publicar.
@@ -479,14 +472,6 @@ export function PostEditor() {
       } else {
         toast.success(`Peça ${where} — sem alterações, a IA acertou 🎯`);
       }
-      void almaApi.emitEvento({
-        tipo: sev === 'reescrita' ? 'post_corrigido' : sev === 'ajuste' ? 'post_ajustado' : 'post_aprovado_intacto',
-        descricao:
-          sev === 'reescrita' ? `Reescrita em "${(post.title ?? '').slice(0, 50)}" — a IA aprende com ela`
-          : sev === 'ajuste' ? `Ajuste fino em "${(post.title ?? '').slice(0, 50)}"`
-          : `A IA acertou de primeira: "${(post.title ?? '').slice(0, 50)}"`,
-        source: 'posts',
-      });
     } catch (e) {
       console.error(e);
       toast.error(`Erro ao aprovar: ${userMessage(e)}`);
@@ -604,11 +589,6 @@ export function PostEditor() {
       // Metodologia viva: a frase publicada vira candidata a few-shot (passa pela
       // curadoria). Fire-and-forget — nunca atrapalha a publicacao.
       void import('@/lib/api').then(({ suggestionApi }) => suggestionApi.captureFromPublishedPost({ ...post, caption }));
-      void almaApi.emitEvento({
-        tipo: 'post_publicado',
-        descricao: `Publicado ao vivo no ${platformLabel}: "${(post.title ?? caption ?? '').slice(0, 55)}"`,
-        source: 'posts',
-      });
       window.open(result.published_url, '_blank');
     } catch (e) {
       console.error(e);
