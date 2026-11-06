@@ -5,7 +5,7 @@
 
 ## 0. Operação resgate: orquestração por micro-tarefas
 
-Este repositório (`raulmf12/hive-resgate`) é a **operação resgate** da Hive, com plano em [`docs/plano/PLANO.md`](docs/plano/PLANO.md). Ele é desenvolvido por agentes de IA a partir de micro-tarefas (issues do GitHub) criadas por um orquestrador. Qualquer agente que pegar uma issue segue este protocolo **e** as regras das seções 1 a 6 abaixo. Se algo aqui conflitar com um hábito seu, vale este arquivo.
+Este repositório (`piccini-dev/hive-resgate`) é a **operação resgate** da Hive, com plano em [`docs/plano/PLANO.md`](docs/plano/PLANO.md). Ele é desenvolvido por agentes de IA a partir de micro-tarefas (issues do GitHub) criadas por um orquestrador. Qualquer agente que pegar uma issue segue este protocolo **e** as regras das seções 1 a 6 abaixo. Se algo aqui conflitar com um hábito seu, vale este arquivo.
 
 **Diferenças deste repositório:**
 - O banco e as Edge Functions são os **de produção**, compartilhados com o site atual do Marcos.
