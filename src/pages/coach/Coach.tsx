@@ -1,21 +1,20 @@
-// Coach de voz — /coach.
-//
-// Um segundo caminho pra a IA aprender: você CONVERSA pra corrigir os erros de
-// geração, e o agente destila regras. Ele enxerga seus dados reais (correções,
-// precisão por conjunto) e só PROPÕE — nada vira lição sem você confirmar.
+// Coach de voz — /coach. Um lugar para ensinar a Hive: Conversa (o agente propõe lições, você confirma), Observações (observações gerais) e Lições (ligar/desligar). A aba vem de ?aba=.
 
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Brain, Check, Loader2, Send, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { aiApi } from '@/lib/api';
 import { edge, type CoachProposal } from '@/lib/edge';
 import type { AiChatMessage } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { LicoesTab } from './LicoesTab';
+import { ObservacoesTab } from './ObservacoesTab';
 
 const FACET_LABEL: Record<string, string> = { texto: 'Texto', legenda: 'Legenda', imagem: 'Imagem' };
 const PLATFORM_LABEL: Record<string, string> = { linkedin: 'LinkedIn', instagram: 'Instagram' };
