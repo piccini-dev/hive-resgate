@@ -16,7 +16,6 @@ import {
   Paintbrush,
   Brain,
   MessagesSquare,
-  MessageSquarePlus,
   ChevronDown,
   ChevronRight,
   Library,
@@ -79,8 +78,6 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Brain,
     items: [
       { to: '/coach', label: 'Coach de voz', icon: MessagesSquare },
-      { to: '/feedback', label: 'Feedback contínuo', icon: MessageSquarePlus },
-      { to: '/aprendizado', label: 'Aprendizado', icon: Brain },
       { to: '/curadoria', label: 'Curadoria', icon: Sparkles },
     ],
   },
