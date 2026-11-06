@@ -1,4 +1,4 @@
-// Lista + CRUD dos 8 pilares editoriais (bee_editorials).
+// Editoriais — /editoriais. Lista + CRUD dos pilares (bee_editorials) e, na aba Arsenal, o material de cada um (?aba=arsenal).
 // Editar os oficiais (is_system) e criar novos. O que for salvo aqui entra
 // automaticamente na geracao (generate-content le por slug) e na selecao de
 // editorial dos posts (beeApi.editorials()).
@@ -293,10 +293,10 @@ export function Editoriais() {
             <h1 className="font-display text-3xl font-bold">Editoriais</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Os pilares de conteúdo da Bee. A IA usa o nome, a descrição, a estrutura e a sequência
-            emocional de cada editorial pra gerar os posts. O que você editar aqui entra na geração na hora.
+            Os pilares de conteúdo da Bee e o arsenal que alimenta cada um. A IA usa o nome, a descrição, a estrutura e a sequência emocional de cada editorial pra gerar os posts. O que você editar aqui entra na geração na hora.
           </p>
         </div>
+        {aba === 'editoriais' && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="accent" onClick={openNew}>
@@ -510,8 +510,15 @@ export function Editoriais() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </header>
 
+      <Tabs value={aba} onValueChange={setAba}>
+        <TabsList>
+          <TabsTrigger value="editoriais">Editoriais</TabsTrigger>
+          <TabsTrigger value="arsenal">Arsenal</TabsTrigger>
+        </TabsList>
+        <TabsContent value="editoriais" className="mt-4">
       {loading ? (
         <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : (
@@ -557,6 +564,9 @@ export function Editoriais() {
           ))}
         </div>
       )}
+        </TabsContent>
+        <TabsContent value="arsenal" className="mt-4"><Arsenal /></TabsContent>
+      </Tabs>
     </div>
   );
 }
