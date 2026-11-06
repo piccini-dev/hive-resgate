@@ -3,7 +3,7 @@
 // exemplos few-shot. O que estiver 'ativo' entra na rotação da geração.
 
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Plus, Trash2, Boxes } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -136,13 +136,9 @@ export function Arsenal() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6 lg:p-8">
+    <div className="space-y-6" data-testid="editoriais-arsenal">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <Boxes className="h-6 w-6 text-accent" />
-            <h1 className="font-display text-3xl font-bold">Arsenal</h1>
-          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             O material que alimenta a geração. A IA rotaciona os itens <span className="font-medium">ativos</span> por
             frescor (menos usados primeiro), pra cada post sair diferente.
