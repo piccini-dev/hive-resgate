@@ -8,7 +8,9 @@
 - [ ] Apagar o zip `Downloads/Hive-transferencia.zip` e a cópia extraída (contém senha do usuário de teste), quando o Raul mandar
 - [ ] Copiar a memória antiga (`Hive-transferencia/memoria-do-claude/`) para a memória deste projeto, se o Raul quiser
 - [ ] Consertar ou remover o `npm run lint` (sem configuração do ESLint 9)
-- [ ] Blocos 03–10 (ver docs/plano/PLANO.md §10)
+- [ ] Colar no ChatGPT os prompts #18, #19, #20 e #22; depois #21 e #23
+- [ ] `/integrar` do bloco 03 quando o painel mostrar "Pronto para /integrar"
+- [ ] Blocos 04–10 (ver docs/plano/PLANO.md §10)
 - [ ] Decidir se saem também `edge.acjAssign`, `edge.acjValidate` e `edge.campaignTick` (sem uso no front, fora do plano)
 - [ ] Corrida possível entre importação manual do LinkedIn e o cron `linkedin-metrics` no mesmo run (pode duplicar posts importados); corrigir num bloco futuro, exige deploy da função
 
@@ -26,3 +28,5 @@
 - [x] Bloco 01b integrado (PR #10): patch aplicado (#7), produção conferida (#8), regressão 202/202 (#9)
 - [x] Bloco 02 aberto: milestone 3, issues #11–#16, prompts e painel
 - [x] Conta principal trocada para o Marcos: login piccini@beeconsulting.com, nome "Marcos Piccini"
+- [x] Bloco 02 integrado (PR #17): #11–#16 validadas, regressão 202/202
+- [x] Bloco 03 aberto: milestone 4, issues #18–#23, prompts e painel

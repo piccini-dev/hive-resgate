@@ -11,10 +11,6 @@
 
 import * as fabric from 'fabric';
 import { ensureFontsLoaded } from './layout';
-import { getLayoutDimensions, type BeeQuoteSize } from './beeQuote';
-
-// Largura de saída pra visão da persona — vai por rede pro modelo, não precisa 1080.
-const PERSONA_OUT_WIDTH = 640;
 
 // ============================================================================
 // PRÉ-CARGA DE IMAGENS — a causa do "post bugado" na geração.
@@ -134,15 +130,4 @@ export async function renderFabricToDataUrl(
     console.error('[renderFabricToDataUrl]', e);
     return null;
   }
-}
-
-// Visão da persona: PNG downscaled. Passe o tamanho do post pra não distorcer
-// (o JSON não carrega dims; sem isso um post 'square' sairia com aspecto errado).
-export async function renderPostImage(
-  fabricJson: object | undefined,
-  size: BeeQuoteSize = 'portrait',
-): Promise<string | null> {
-  if (!fabricJson) return null;
-  const { width, height } = getLayoutDimensions(size);
-  return renderFabricToDataUrl(fabricJson, { width, height, multiplier: PERSONA_OUT_WIDTH / width });
 }

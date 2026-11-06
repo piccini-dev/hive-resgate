@@ -1,49 +1,24 @@
 // Configuracoes do user.
-// Aba Persona refeita: SEM arquetipos genericos. Mostra a arquitetura editorial Bee real.
+// Abas: Perfil, Contas e Integrações.
 
 import { useEffect, useState } from 'react';
 import {
-  ArrowRight, BookOpen, Brain, CheckCircle2, Image as ImgIcon, Library, Loader2, Megaphone,
-  Save, Sparkles, Tag, User as UserIcon,
+  CheckCircle2, Loader2, Save, Sparkles, User as UserIcon,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/store/authStore';
-import { beeApi, knowledgeApi } from '@/lib/api';
 import { edge } from '@/lib/edge';
-import { db } from '@/lib/db';
 import { toast } from 'sonner';
 import { AccountsPanel, IG_ACCOUNT_STATE_KEY } from '@/components/settings/AccountsPanel';
-
-interface BeeStats {
-  editorials: number;
-  arsenal: number;
-  glossary: number;
-  glossary_must: number;
-  analogies_used: number;
-  analogies_new: number;
-  examples: number;
-  themes: number;
-  logics: number;
-  hashtags_required: number;
-  rag_docs: number;
-  rag_chunks: number;
-}
 
 export function SettingsPage() {
   const { currentUser, settings, updateProfile, updateSettings } = useAuthStore();
   const [name, setName] = useState(currentUser?.name ?? '');
-  const [persona, setPersona] = useState(settings?.persona ?? '');
-  const [tone, setTone] = useState(settings?.tone_of_voice ?? '');
-  const [structure, setStructure] = useState(settings?.content_structure ?? '');
-  const [brandColors, setBrandColors] = useState((settings?.brand_colors ?? []).join(', '));
-  const [logoUrl, setLogoUrl] = useState(settings?.brand_logo_url ?? '');
   const [geminiKey, setGeminiKey] = useState(settings?.gemini_api_key ?? '');
   const [openaiKey, setOpenaiKey] = useState(settings?.openai_api_key ?? '');
   const [serpKey, setSerpKey] = useState(settings?.serpapi_key ?? '');
@@ -55,7 +30,6 @@ export function SettingsPage() {
   const [testingLi, setTestingLi] = useState(false);
   const [testingIg, setTestingIg] = useState(false);
   const [connectingIg, setConnectingIg] = useState(false);
-  const [stats, setStats] = useState<BeeStats | null>(null);
   // Perfis IG vinculados + token pendente (quando há mais de um, o usuário escolhe).
   type IgAccount = { instagram_business_account_id: string; username: string; page_name: string };
   const [igAccounts, setIgAccounts] = useState<IgAccount[]>([]);
@@ -123,11 +97,6 @@ export function SettingsPage() {
 
   useEffect(() => {
     setName(currentUser?.name ?? '');
-    setPersona(settings?.persona ?? '');
-    setTone(settings?.tone_of_voice ?? '');
-    setStructure(settings?.content_structure ?? '');
-    setBrandColors((settings?.brand_colors ?? []).join(', '));
-    setLogoUrl(settings?.brand_logo_url ?? '');
     setGeminiKey(settings?.gemini_api_key ?? '');
     setOpenaiKey(settings?.openai_api_key ?? '');
     setSerpKey(settings?.serpapi_key ?? '');
@@ -138,44 +107,6 @@ export function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, settings?.user_id]);
 
-  useEffect(() => {
-    void loadBeeStats();
-  }, []);
-
-  async function loadBeeStats() {
-    try {
-      const [editorials, arsenal, glossary, glossaryMust, analogiesUsed, analogiesNew, examples, themes, logics, hashtagsReq, docs] = await Promise.all([
-        beeApi.editorials(),
-        db.select('bee_arsenal'),
-        db.select('bee_glossary'),
-        db.select('bee_glossary', { must_appear: 'eq.true' }),
-        db.select('bee_analogies', { used: 'eq.true' }),
-        db.select('bee_analogies', { used: 'eq.false' }),
-        db.select('bee_example_posts'),
-        db.select('bee_themes'),
-        db.select('bee_logics'),
-        db.select('bee_hashtags', { required: 'eq.true' }),
-        knowledgeApi.list(),
-      ]);
-      setStats({
-        editorials: editorials.length,
-        arsenal: arsenal.length,
-        glossary: glossary.length,
-        glossary_must: glossaryMust.length,
-        analogies_used: analogiesUsed.length,
-        analogies_new: analogiesNew.length,
-        examples: examples.length,
-        themes: themes.length,
-        logics: logics.length,
-        hashtags_required: hashtagsReq.length,
-        rag_docs: docs.length,
-        rag_chunks: docs.reduce((s, d) => s + (d.chunk_count ?? 0), 0),
-      });
-    } catch (e) {
-      console.error('[loadBeeStats]', e);
-    }
-  }
-
   if (!currentUser) return null;
 
   async function handleSaveProfile() {
@@ -184,29 +115,6 @@ export function SettingsPage() {
     try {
       await updateProfile({ name: name.trim() });
       toast.success('Perfil atualizado');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSavePersona() {
-    setSaving(true);
-    try {
-      await updateSettings({ persona, tone_of_voice: tone, content_structure: structure });
-      toast.success('Voz Bee salva');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleSaveBranding() {
-    setSaving(true);
-    try {
-      await updateSettings({
-        brand_colors: brandColors.split(',').map((c) => c.trim()).filter(Boolean),
-        brand_logo_url: logoUrl,
-      });
-      toast.success('Branding salvo');
     } finally {
       setSaving(false);
     }
@@ -277,7 +185,7 @@ export function SettingsPage() {
     <div className="mx-auto max-w-4xl space-y-6 p-6 lg:p-8">
       <header>
         <h1 className="font-display text-3xl font-bold">Configuracoes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Perfil, voz Bee, branding e integracoes.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Perfil, contas e integrações.</p>
       </header>
 
       {/* Volta do OAuth de uma conta (Contas) abre direto na aba Contas. */}
@@ -285,8 +193,6 @@ export function SettingsPage() {
         <TabsList>
           <TabsTrigger value="profile">Perfil</TabsTrigger>
           <TabsTrigger value="accounts">Contas</TabsTrigger>
-          <TabsTrigger value="voice">Voz Bee</TabsTrigger>
-          <TabsTrigger value="branding">Branding</TabsTrigger>
           <TabsTrigger value="integrations">Integracoes</TabsTrigger>
         </TabsList>
 
@@ -316,120 +222,6 @@ export function SettingsPage() {
               <div className="flex justify-end">
                 <Button onClick={handleSaveProfile} disabled={saving || name === currentUser.name || !name.trim()} variant="accent">
                   <Save className="h-4 w-4" /> Salvar perfil
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ============ VOZ BEE ============ */}
-        <TabsContent value="voice" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Persona Bee</CardTitle>
-              <CardDescription>
-                A voz da Bee é única — não é um arquétipo genérico. Voce ajusta texto livre aqui;
-                a arquitetura editorial estruturada (editoriais, glossário, analogias, exemplos)
-                fica gerenciada na seção abaixo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="persona">Persona (livre)</Label>
-                <Textarea
-                  id="persona"
-                  rows={5}
-                  value={persona}
-                  onChange={(e) => setPersona(e.target.value)}
-                  placeholder="Marcos Piccini / Bee Academy: alguem que viu de dentro..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tone">Tom em uma linha</Label>
-                <Input id="tone" value={tone} onChange={(e) => setTone(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="structure">Estrutura preferida</Label>
-                <Textarea id="structure" rows={3} value={structure} onChange={(e) => setStructure(e.target.value)} />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSavePersona} disabled={saving} variant="accent">
-                  <Save className="h-4 w-4" /> Salvar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" /> Arquitetura editorial Bee
-              </CardTitle>
-              <CardDescription>
-                Esta é a estrutura proprietária extraída do Guia de Voz, Estilo MP, Lógicas Desconstrutivas e Temas Olhar Bee.
-                A IA usa todas essas camadas em cada geração.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {!stats ? (
-                <p className="text-xs text-muted-foreground">Carregando...</p>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <StatRow icon={<BookOpen className="h-4 w-4" />} label="Editoriais" value={stats.editorials} hint="tipos de post com estrutura, frequência e arsenal próprios" />
-                  <StatRow icon={<Library className="h-4 w-4" />} label="Itens de arsenal" value={stats.arsenal} hint="histórias, alumni, cases, crenças, bastidores, reflexões, trechos de livro" />
-                  <StatRow icon={<Tag className="h-4 w-4" />} label="Termos do glossário" value={stats.glossary} hint={`${stats.glossary_must} obrigatórios em todo post (ex: "Vê?")`} />
-                  <StatRow icon={<ImgIcon className="h-4 w-4" />} label="Analogias natureza/biologia" value={stats.analogies_used + stats.analogies_new} hint={`${stats.analogies_used} já usadas · ${stats.analogies_new} novas com alto potencial`} />
-                  <StatRow icon={<Sparkles className="h-4 w-4" />} label="Posts validados (few-shot)" value={stats.examples} hint="exemplos reais que a IA segue como referência" />
-                  <StatRow icon={<Megaphone className="h-4 w-4" />} label="Temas Senso Comum vs Olhar Bee" value={stats.themes} hint="ressignificações editoriais centrais" />
-                  <StatRow icon={<Brain className="h-4 w-4" />} label="Lógicas desconstrutivas" value={stats.logics} hint="crenças comuns que a Bee desafia" />
-                  <StatRow icon={<Tag className="h-4 w-4" />} label="Hashtags obrigatórias" value={stats.hashtags_required} hint="aplicadas no fim de toda caption" />
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-border">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Base de conhecimento (RAG)</Label>
-                {!stats ? null : (
-                  <div className="mt-2 flex items-center gap-3">
-                    <div className="text-sm">
-                      <span className="font-semibold">{stats.rag_docs}</span> documentos ·{' '}
-                      <span className="font-semibold">{stats.rag_chunks.toLocaleString('pt-BR')}</span> chunks indexados
-                    </div>
-                    <Button asChild variant="outline" size="sm" className="ml-auto">
-                      <Link to="/conhecimento">
-                        Gerenciar <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-xs text-muted-foreground">
-                💡 As tabelas editoriais (editoriais, glossário, analogias, exemplos) ainda não têm UI dedicada de edição —
-                hoje gerenciadas direto no Supabase. Posso construir telas de CRUD quando precisar ajustar.
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ============ BRANDING ============ */}
-        <TabsContent value="branding" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Identidade visual</CardTitle>
-              <CardDescription>Cores e logo aplicados nos conteudos gerados.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="logo">URL do logo</Label>
-                <Input id="logo" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="colors">Paleta (hex separados por virgula)</Label>
-                <Input id="colors" value={brandColors} onChange={(e) => setBrandColors(e.target.value)} placeholder="#2D4A5C, #E8A04C, #FBF5E2" />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSaveBranding} disabled={saving} variant="accent">
-                  <Save className="h-4 w-4" /> Salvar branding
                 </Button>
               </div>
             </CardContent>
@@ -583,21 +375,6 @@ export function SettingsPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function StatRow({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: number; hint?: string }) {
-  return (
-    <div className="flex items-start gap-3 rounded-md border border-border bg-card/40 p-3">
-      <div className="text-accent shrink-0">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-bold leading-none">{value}</span>
-          <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        </div>
-        {hint && <p className="mt-0.5 text-[11px] text-muted-foreground leading-snug">{hint}</p>}
-      </div>
     </div>
   );
 }
