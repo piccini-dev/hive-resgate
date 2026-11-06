@@ -1,4 +1,5 @@
-// Aba "Lições" do Coach: as regras que a IA destilou das correções e conversas. As ativas entram no prompt; o Marcos desliga a que não fizer sentido.
+// Aba "Lições" do Coach: as regras que a IA destilou das correções e conversas.
+// As ativas entram no prompt; o Marcos desliga a que não fizer sentido.
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
