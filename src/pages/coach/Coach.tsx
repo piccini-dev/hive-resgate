@@ -35,7 +35,7 @@ const SUGESTOES = [
   'Pro público incomodado, seja mais provocativo.',
 ];
 
-export function Coach() {
+function CoachChat() {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -115,21 +115,7 @@ export function Coach() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col p-6 lg:p-8">
-      <header className="mb-4">
-        <div className="flex items-center gap-2">
-          <Brain className="h-6 w-6 text-accent" />
-          <h1 className="font-display text-3xl font-bold">Coach de voz</h1>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Converse pra corrigir os erros de geração. O agente vê suas correções e a precisão por
-          conjunto, e propõe regras — <strong>você confirma</strong> antes de virar lição.{' '}
-          <Link to="/aprendizado" className="text-accent underline-offset-2 hover:underline">
-            Ver o que já aprendeu →
-          </Link>
-        </p>
-      </header>
-
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto rounded-lg border border-border bg-card/30 p-4">
         {loading ? (
           <div className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
