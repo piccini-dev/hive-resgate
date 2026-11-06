@@ -208,3 +208,38 @@ function CoachChat() {
     </div>
   );
 }
+
+type Aba = 'conversa' | 'observacoes' | 'licoes';
+const ABAS: readonly Aba[] = ['conversa', 'observacoes', 'licoes'];
+
+export function Coach() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('aba');
+  const aba: Aba = ABAS.includes(raw as Aba) ? (raw as Aba) : 'conversa';
+  const setAba = (v: string) => setParams(v === 'conversa' ? {} : { aba: v }, { replace: true });
+
+  return (
+    <div className="mx-auto flex h-full max-w-3xl flex-col p-6 lg:p-8">
+      <header className="mb-4">
+        <div className="flex items-center gap-2">
+          <Brain className="h-6 w-6 text-accent" />
+          <h1 className="font-display text-3xl font-bold">Coach de voz</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ensine a Hive a escrever como você: converse para corrigir, deixe observações gerais e
+          confira as lições que ela já aprendeu. <strong>Nada vira lição sem você confirmar.</strong>
+        </p>
+      </header>
+      <Tabs value={aba} onValueChange={setAba} className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="self-start">
+          <TabsTrigger value="conversa">Conversa</TabsTrigger>
+          <TabsTrigger value="observacoes">Observações</TabsTrigger>
+          <TabsTrigger value="licoes">Lições</TabsTrigger>
+        </TabsList>
+        <TabsContent value="conversa" className="flex min-h-0 flex-1 flex-col"><CoachChat /></TabsContent>
+        <TabsContent value="observacoes"><ObservacoesTab /></TabsContent>
+        <TabsContent value="licoes"><LicoesTab /></TabsContent>
+      </Tabs>
+    </div>
+  );
+}
