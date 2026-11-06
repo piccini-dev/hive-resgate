@@ -364,32 +364,6 @@ export interface YoutubeMeta {
 // ---------------------------------------------------------------------------
 // BEE EDITORIAL ARCHITECTURE
 // ---------------------------------------------------------------------------
-// Uma PESSOA da biblioteca de personas — ficha completa pra simular o público.
-export interface BeePersona {
-  id: string;
-  user_id: string;
-  nome: string;
-  idade?: number | null;
-  cargo?: string;
-  empresa?: string;
-  historia?: string;
-  rotina?: string;
-  personalidade?: string;
-  memorias?: string[];
-  valores?: string[];
-  dor?: string;
-  desejo?: string;
-  objecoes?: string[];
-  gatilhos?: string[];
-  linguagem?: string;
-  base_tipo?: string | null;
-  base_ref?: string | null;
-  is_active: boolean;
-  position: number;
-  created_at: string;
-  updated_at: string;
-}
-
 // Público-alvo próprio de um editorial (perfil rico, aditivo ao avatar global).
 export interface BeeAudience {
   quem?: string;
