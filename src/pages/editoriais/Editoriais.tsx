@@ -4,6 +4,7 @@
 // editorial dos posts (beeApi.editorials()).
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BookOpen, Loader2, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Arsenal } from '@/pages/arsenal/Arsenal';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -73,7 +76,14 @@ function slugify(v: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+type Aba = 'editoriais' | 'arsenal';
+const ABAS: readonly Aba[] = ['editoriais', 'arsenal'];
+
 export function Editoriais() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('aba');
+  const aba: Aba = ABAS.includes(raw as Aba) ? (raw as Aba) : 'editoriais';
+  const setAba = (v: string) => setParams(v === 'editoriais' ? {} : { aba: v }, { replace: true });
   const [editorials, setEditorials] = useState<BeeEditorial[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
