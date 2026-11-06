@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { AlertTriangle, ArrowRight, BookOpen, BrainCircuit, Loader2, Plus, RefreshCw, ScrollText, Sparkles, UserRound, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateWorkspaceCard } from '@/components/identity/CreateWorkspaceCard';
+import { Produtos } from '@/pages/produtos/Produtos';
 import { identityApi, profileSummary, type IdentityState } from '@/lib/identityApi';
 import { useAuthStore } from '@/store/authStore';
 import type { Brand, SetupMode, SetupSession } from '@/types';
@@ -179,6 +180,10 @@ export function IdentityHome() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">O que falta revisar</p>
                   {pending.length ? <ul className="list-disc space-y-1 pl-4 text-sm">{pending.map((x) => <li key={x.k}>{x.text}</li>)}</ul> : <p className="text-sm text-muted-foreground">Nada pendente.</p>}
                 </div>
+              </section>
+
+              <section id="produtos" className="rounded-2xl border bg-card p-5">
+                <Produtos />
               </section>
 
               {done.length > 0 && <SessionList title="Ativações recentes" sessions={done} />}
