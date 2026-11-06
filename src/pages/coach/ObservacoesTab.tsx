@@ -1,6 +1,6 @@
 // Aba "Observações" do Coach: observações gerais sobre o conteúdo, mesmo depois de aprovar. Cada uma é destilada pela IA (edge.learnFromFeedback) em lições no escopo escolhido.
 import { useEffect, useState } from 'react';
-import { MessageSquarePlus, Send, Loader2, Sparkles, Check } from 'lucide-react';
+import { Send, Loader2, Sparkles, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -75,15 +75,8 @@ export function ObservacoesTab(): JSX.Element {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6 lg:p-8">
-      <header>
-        <h1 className="font-display text-2xl font-bold flex items-center gap-2">
-          <MessageSquarePlus className="h-6 w-6 text-accent" /> Feedback contínuo
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Vá passando observações sobre o conteúdo — mesmo depois de aprovar. A IA destila cada uma em lições que passam a valer nas próximas gerações.
-        </p>
-      </header>
+    <div className="space-y-6" data-testid="coach-observacoes">
+      <p className="text-xs text-muted-foreground">Vá passando observações sobre o conteúdo, mesmo depois de aprovar. A IA destila cada uma em lições que passam a valer nas próximas gerações.</p>
 
       <Card>
         <CardContent className="p-5 space-y-4">
@@ -139,7 +132,7 @@ export function ObservacoesTab(): JSX.Element {
             <span className="text-xs text-muted-foreground">Escopo: <span className="font-medium text-foreground">{scopeLabel()}</span></span>
             <Button variant="accent" disabled={!observation.trim() || sending} onClick={() => void submit()}>
               {sending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Send className="h-4 w-4 mr-1" />}
-              Enviar feedback
+              Enviar observação
             </Button>
           </div>
         </CardContent>
