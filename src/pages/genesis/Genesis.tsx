@@ -250,13 +250,6 @@ export function Genesis() {
       <div className="page">
         <div className="head">
           <div>
-            <h1>
-              <svg className="hex" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-                <path d="M12 2 21 7 21 17 12 22 3 17 3 7 Z" />
-                <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
-              </svg>
-              Genesis
-            </h1>
             <p className="sub">
               A Constituição Cognitiva da Bee — como o agente pensa <b>antes</b> de produzir qualquer resposta.
               Governa a geração de conteúdo: princípios invioláveis, os estados de consciência, as tensões e o
