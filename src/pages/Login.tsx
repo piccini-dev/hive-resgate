@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { safeInternalPath, takeNext } from '@/lib/navigation';
 import { ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -98,6 +98,9 @@ export function Login() {
                   </>
                 )}
               </Button>
+              <Link to="/recuperar-senha" className="block text-center text-sm text-muted-foreground underline">
+                Esqueci minha senha
+              </Link>
             </form>
           </CardContent>
         </Card>

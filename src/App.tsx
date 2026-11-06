@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuthStore, needsOnboarding } from '@/store/authStore';
 import { AppShell } from '@/components/layout/AppShell';
 import { Login } from '@/pages/Login';
+import { ChangePassword, PasswordRecoveryRequest } from '@/pages/PasswordRecovery';
 import { Dashboard } from '@/pages/Dashboard';
 import { NewPost } from '@/pages/posts/NewPost';
 import { PostEditor } from '@/pages/posts/PostEditor';
@@ -69,12 +70,14 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { init, initialized } = useAuthStore();
+  const { pathname } = useLocation();
+  const passwordRoute = pathname === '/recuperar-senha' || pathname === '/alterar-senha';
 
   useEffect(() => {
-    void init();
-  }, [init]);
+    if (!passwordRoute) void init();
+  }, [init, passwordRoute]);
 
-  if (!initialized) {
+  if (!initialized && !passwordRoute) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
@@ -86,6 +89,8 @@ export default function App() {
     <TooltipProvider delayDuration={200}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/recuperar-senha" element={<PasswordRecoveryRequest />} />
+        <Route path="/alterar-senha" element={<ChangePassword />} />
         {/* Editor de templates: tela cheia, fora do AppShell (precisa da largura).
             O editor de post continua embutido no PostEditor. */}
         <Route

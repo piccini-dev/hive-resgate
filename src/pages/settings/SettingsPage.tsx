@@ -2,6 +2,7 @@
 // Abas: Perfil, Contas e Integrações.
 
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CheckCircle2, Loader2, Save, Sparkles, User as UserIcon,
 } from 'lucide-react';
@@ -219,7 +220,8 @@ export function SettingsPage() {
                 <Label htmlFor="name">Nome</Label>
                 <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-4">
+                <Link to="/alterar-senha" className="text-sm underline">Alterar minha senha</Link>
                 <Button onClick={handleSaveProfile} disabled={saving || name === currentUser.name || !name.trim()} variant="accent">
                   <Save className="h-4 w-4" /> Salvar perfil
                 </Button>
