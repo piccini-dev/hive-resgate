@@ -321,12 +321,6 @@ export function Directives() {
       <div className="page">
         <div className="head">
           <div>
-            <h1>
-              <svg className="hex" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-                <path d="M4 20 L12 4 L20 20" /><path d="M7.5 13 H16.5" />
-              </svg>
-              Diretrizes de Criação
-            </h1>
             <p className="sub">
               O <b>ofício</b> — como escrever de fato, trabalhando junto do Genesis (a filosofia). Cada diretriz tem um
               <b> tipo</b> com função real no prompt: <span style={{ color: 'var(--g-accent)' }}>regras</span>,{' '}
