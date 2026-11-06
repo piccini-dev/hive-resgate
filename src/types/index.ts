@@ -1003,38 +1003,14 @@ export interface AiLearning {
   created_at: string;
 }
 
-// Retorno de ai_gate_status() — a MESMA regra que o cron enxerga.
 // Severidade de uma correção — a régua graduada (item 2).
 //   intacto:  a IA acertou (peso 1.0)
 //   ajuste:   cosmético, drift <= ajuste_max_drift (peso 0.6)
 //   reescrita: a IA errou o conteúdo (peso 0.0)
 export type AiSeveridade = 'intacto' | 'ajuste' | 'reescrita';
 
-// A eficácia de UMA faceta num segmento. acuracia/passa = null quando a faceta
-// não tem dados (imagem antes de os templates gerarem imagem).
-export interface AiFacetStat {
-  amostra: number;
-  acuracia: number | null;
-  passa: boolean | null;
-}
-
 export type AiFacet = 'texto' | 'legenda' | 'imagem';
 
-// Um SEGMENTO = (editoria × plataforma × alvo). O portão libera por segmento.
-export interface AiSegment {
-  editorial_slug: string;
-  platform: string;
-  target_avatar: string;
-  amostra: number;
-  texto: AiFacetStat;
-  legenda: AiFacetStat;
-  imagem: AiFacetStat;
-  destravada: boolean;
-  em_risco: boolean;
-}
-
-// Resumo global — a campanha deixou de ser toda-ou-nada. `destravada` = existe
-// pelo menos 1 segmento liberado. `segmentos` traz o detalhe por conjunto.
 // Mensagem do chat com o agente de voz. `proposals` guarda o que o agente
 // propôs (pra UI renderizar Salvar/Descartar mesmo após recarregar).
 export interface AiChatProposal {
@@ -1052,19 +1028,6 @@ export interface AiChatMessage {
   content: string;
   proposals: AiChatProposal[];
   created_at: string;
-}
-
-export interface AiGate {
-  meta: number;
-  min_amostra: number;
-  relock_band: number;
-  ajuste_max_drift: number;
-  total_segmentos: number;
-  destravados: number;
-  em_risco: boolean;
-  destravada: boolean;
-  amostra_total: number;
-  segmentos: AiSegment[];
 }
 
 export * from './campaign';
