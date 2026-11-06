@@ -3,7 +3,6 @@
 
 import { db, getCurrentUserId } from './db';
 import type {
-  AiGate,
   AiGeneration,
   AiLearning,
   AiReview,
@@ -769,33 +768,7 @@ export function severidadeOf(review: { changed: boolean; drift_pct?: number | nu
   return 'reescrita';
 }
 
-// Severidade de UMA faceta. Texto/legenda usam drift; imagem é binária.
-export function severidadeFaceta(
-  facet: 'texto' | 'legenda' | 'imagem',
-  review: {
-    quote_changed: boolean; quote_drift_pct?: number | null;
-    caption_changed: boolean; caption_drift_pct?: number | null;
-    has_image: boolean; image_changed: boolean;
-  },
-): AiSeveridade | null {
-  if (facet === 'imagem') {
-    if (!review.has_image) return null; // N/A
-    return review.image_changed ? 'reescrita' : 'intacto';
-  }
-  const changed = facet === 'texto' ? review.quote_changed : review.caption_changed;
-  const drift = facet === 'texto' ? review.quote_drift_pct : review.caption_drift_pct;
-  if (!changed) return 'intacto';
-  return (drift ?? 100) <= AJUSTE_MAX_DRIFT ? 'ajuste' : 'reescrita';
-}
-
 export const aiApi = {
-  // O portao. Vem do banco (ai_gate_status) pra o frontend e o cron
-  // enxergarem a MESMA regra — duas implementacoes divergiriam.
-  async gate(): Promise<AiGate> {
-    const r = await db.rpc<AiGate>('ai_gate_status', {});
-    return r;
-  },
-
   async createGeneration(input: {
     editorial_slug?: string;
     target_avatar?: string;
@@ -882,13 +855,6 @@ export const aiApi = {
     );
     if (!rows[0]) throw new Error('Erro ao registrar a revisão');
     return rows[0];
-  },
-
-  async listReviews(limit = 30): Promise<AiReview[]> {
-    return db.select<AiReview>('ai_reviews', {
-      order: 'created_at.desc',
-      limit: String(limit),
-    });
   },
 
   async listLearnings(opts?: { onlyActive?: boolean }): Promise<AiLearning[]> {

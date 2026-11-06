@@ -8,9 +8,11 @@
 - [ ] Apagar o zip `Downloads/Hive-transferencia.zip` e a cópia extraída (contém senha do usuário de teste), quando o Raul mandar
 - [ ] Copiar a memória antiga (`Hive-transferencia/memoria-do-claude/`) para a memória deste projeto, se o Raul quiser
 - [ ] Consertar ou remover o `npm run lint` (sem configuração do ESLint 9)
-- [ ] Colar no ChatGPT os prompts #18, #19, #20 e #22; depois #21 e #23
-- [ ] `/integrar` do bloco 03 quando o painel mostrar "Pronto para /integrar"
-- [ ] Blocos 04–10 (ver docs/plano/PLANO.md §10)
+- [ ] Colar no ChatGPT os prompts #26 e #27; depois #28, #29 e #30 (em cadeia)
+- [ ] `/integrar` do bloco 04 quando o painel mostrar "Pronto para /integrar" (inclui a #31 exec:claude: E2E `f28-ensinar-hive`)
+- [ ] `/impeccable critique` nas telas do bloco 03 (menu, Configurações, Onboarding, Criar) em 375 px e desktop: não feito na integração
+- [ ] Consertar o `pasta` do projeto `liam` em `C:\central\orquestra\projetos.json` (barras perdidas: `C:projetosinternoliam`)
+- [ ] Blocos 05–10 (ver docs/plano/PLANO.md §10)
 - [ ] Decidir se saem também `edge.acjAssign`, `edge.acjValidate` e `edge.campaignTick` (sem uso no front, fora do plano)
 - [ ] Corrida possível entre importação manual do LinkedIn e o cron `linkedin-metrics` no mesmo run (pode duplicar posts importados); corrigir num bloco futuro, exige deploy da função
 
@@ -30,3 +32,5 @@
 - [x] Conta principal trocada para o Marcos: login piccini@beeconsulting.com, nome "Marcos Piccini"
 - [x] Bloco 02 integrado (PR #17): #11–#16 validadas, regressão 202/202
 - [x] Bloco 03 aberto: milestone 4, issues #18–#23, prompts e painel
+- [x] Bloco 03 integrado (PR #25): #18–#23 validadas, regressão 202/202, tipo `BeePersona` removido na integração
+- [x] Bloco 04 aberto: milestone 5, issues #26–#31, prompts e painel

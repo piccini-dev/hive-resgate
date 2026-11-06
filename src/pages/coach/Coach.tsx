@@ -1,21 +1,20 @@
-// Coach de voz — /coach.
-//
-// Um segundo caminho pra a IA aprender: você CONVERSA pra corrigir os erros de
-// geração, e o agente destila regras. Ele enxerga seus dados reais (correções,
-// precisão por conjunto) e só PROPÕE — nada vira lição sem você confirmar.
+// Coach de voz — /coach. Um lugar para ensinar a Hive: Conversa (o agente propõe lições, você confirma), Observações (observações gerais) e Lições (ligar/desligar). A aba vem de ?aba=.
 
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Brain, Check, Loader2, Send, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { aiApi } from '@/lib/api';
 import { edge, type CoachProposal } from '@/lib/edge';
 import type { AiChatMessage } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { LicoesTab } from './LicoesTab';
+import { ObservacoesTab } from './ObservacoesTab';
 
 const FACET_LABEL: Record<string, string> = { texto: 'Texto', legenda: 'Legenda', imagem: 'Imagem' };
 const PLATFORM_LABEL: Record<string, string> = { linkedin: 'LinkedIn', instagram: 'Instagram' };
@@ -35,7 +34,7 @@ const SUGESTOES = [
   'Pro público incomodado, seja mais provocativo.',
 ];
 
-export function Coach() {
+function CoachChat() {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -115,21 +114,7 @@ export function Coach() {
   }
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col p-6 lg:p-8">
-      <header className="mb-4">
-        <div className="flex items-center gap-2">
-          <Brain className="h-6 w-6 text-accent" />
-          <h1 className="font-display text-3xl font-bold">Coach de voz</h1>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Converse pra corrigir os erros de geração. O agente vê suas correções e a precisão por
-          conjunto, e propõe regras — <strong>você confirma</strong> antes de virar lição.{' '}
-          <Link to="/aprendizado" className="text-accent underline-offset-2 hover:underline">
-            Ver o que já aprendeu →
-          </Link>
-        </p>
-      </header>
-
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto rounded-lg border border-border bg-card/30 p-4">
         {loading ? (
           <div className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -219,6 +204,41 @@ export function Coach() {
           <Send className="h-4 w-4" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+type Aba = 'conversa' | 'observacoes' | 'licoes';
+const ABAS: readonly Aba[] = ['conversa', 'observacoes', 'licoes'];
+
+export function Coach() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('aba');
+  const aba: Aba = ABAS.includes(raw as Aba) ? (raw as Aba) : 'conversa';
+  const setAba = (v: string) => setParams(v === 'conversa' ? {} : { aba: v }, { replace: true });
+
+  return (
+    <div className="mx-auto flex h-full max-w-3xl flex-col p-6 lg:p-8">
+      <header className="mb-4">
+        <div className="flex items-center gap-2">
+          <Brain className="h-6 w-6 text-accent" />
+          <h1 className="font-display text-3xl font-bold">Coach de voz</h1>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ensine a Hive a escrever como você: converse para corrigir, deixe observações gerais e
+          confira as lições que ela já aprendeu. <strong>Nada vira lição sem você confirmar.</strong>
+        </p>
+      </header>
+      <Tabs value={aba} onValueChange={setAba} className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="self-start">
+          <TabsTrigger value="conversa">Conversa</TabsTrigger>
+          <TabsTrigger value="observacoes">Observações</TabsTrigger>
+          <TabsTrigger value="licoes">Lições</TabsTrigger>
+        </TabsList>
+        <TabsContent value="conversa" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"><CoachChat /></TabsContent>
+        <TabsContent value="observacoes"><ObservacoesTab /></TabsContent>
+        <TabsContent value="licoes"><LicoesTab /></TabsContent>
+      </Tabs>
     </div>
   );
 }
