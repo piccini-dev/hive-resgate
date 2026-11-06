@@ -25,10 +25,8 @@ import { Directives } from '@/pages/directives/Directives';
 import { IdentityConfigure, IdentityHome } from '@/pages/identidade/IdentityHome';
 import { ProfileDetail } from '@/pages/identidade/ProfileDetail';
 import { SetupSessionPage } from '@/pages/identidade/SetupSessionPage';
-import { Aprendizado } from '@/pages/aprendizado/Aprendizado';
 import { RegistroVivo } from '@/pages/aprendizado/RegistroVivo';
 import { Coach } from '@/pages/coach/Coach';
-import { Feedback } from '@/pages/feedback/Feedback';
 import { Agenda } from '@/pages/agenda/Agenda';
 import { HivePreview } from '@/pages/hive/HivePreview';
 import { HiveAssets } from '@/pages/hive/HiveAssets';
@@ -122,10 +120,10 @@ export default function App() {
           <Route path="identidade/perfis/:id" element={<ProfileDetail />} />
           <Route path="alma" element={<Navigate to="/genesis" replace />} />
           <Route path="templates" element={<Templates />} />
-          <Route path="aprendizado" element={<Aprendizado />} />
+          <Route path="aprendizado" element={<Navigate to="/coach?aba=licoes" replace />} />
           <Route path="jornada" element={<RegistroVivo />} />
           <Route path="coach" element={<Coach />} />
-          <Route path="feedback" element={<Feedback />} />
+          <Route path="feedback" element={<Navigate to="/coach?aba=observacoes" replace />} />
           <Route path="personas" element={<Navigate to="/" replace />} />
           {/* O kanban virou o Dashboard — links antigos pra /posts caem la. */}
           <Route path="posts" element={<Navigate to="/" replace />} />
