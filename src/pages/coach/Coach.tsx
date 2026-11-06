@@ -235,7 +235,7 @@ export function Coach() {
           <TabsTrigger value="observacoes">Observações</TabsTrigger>
           <TabsTrigger value="licoes">Lições</TabsTrigger>
         </TabsList>
-        <TabsContent value="conversa" className="flex min-h-0 flex-1 flex-col"><CoachChat /></TabsContent>
+        <TabsContent value="conversa" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"><CoachChat /></TabsContent>
         <TabsContent value="observacoes"><ObservacoesTab /></TabsContent>
         <TabsContent value="licoes"><LicoesTab /></TabsContent>
       </Tabs>
