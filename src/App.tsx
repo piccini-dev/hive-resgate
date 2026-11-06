@@ -12,16 +12,13 @@ import { Biblioteca } from '@/pages/biblioteca/Biblioteca';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { OnboardingWizard } from '@/pages/onboarding/OnboardingWizard';
 import { KnowledgeBase } from '@/pages/conhecimento/KnowledgeBase';
-import { Produtos } from '@/pages/produtos/Produtos';
 import { Editoriais } from '@/pages/editoriais/Editoriais';
-import { Arsenal } from '@/pages/arsenal/Arsenal';
 import { Curadoria } from '@/pages/curadoria/Curadoria';
 import { Podcasts } from '@/pages/podcasts/Podcasts';
 import { NewPodcastClip } from '@/pages/podcasts/NewPodcastClip';
 import { Templates } from '@/pages/templates/Templates';
 import { TemplateEditor } from '@/pages/templates/TemplateEditor';
-import { Genesis } from '@/pages/genesis/Genesis';
-import { Directives } from '@/pages/directives/Directives';
+import { ComoEscrevo } from '@/pages/genesis/ComoEscrevo';
 import { IdentityConfigure, IdentityHome } from '@/pages/identidade/IdentityHome';
 import { ProfileDetail } from '@/pages/identidade/ProfileDetail';
 import { SetupSessionPage } from '@/pages/identidade/SetupSessionPage';
@@ -112,8 +109,8 @@ export default function App() {
           }
         >
           <Route index element={<Dashboard />} />
-          <Route path="genesis" element={<Genesis />} />
-          <Route path="diretrizes" element={<Directives />} />
+          <Route path="genesis" element={<ComoEscrevo />} />
+          <Route path="diretrizes" element={<Navigate to="/genesis?aba=oficio" replace />} />
           <Route path="identidade" element={<IdentityHome />} />
           <Route path="identidade/configurar" element={<IdentityConfigure />} />
           <Route path="identidade/sessoes/:id" element={<SetupSessionPage />} />
@@ -153,9 +150,9 @@ export default function App() {
           <Route path="podcasts" element={<Podcasts />} />
           <Route path="podcasts/novo" element={<NewPodcastClip />} />
           <Route path="posts/:id" element={<PostEditor />} />
-          <Route path="produtos" element={<Produtos />} />
+          <Route path="produtos" element={<Navigate to="/identidade" replace />} />
           <Route path="editoriais" element={<Editoriais />} />
-          <Route path="arsenal" element={<Arsenal />} />
+          <Route path="arsenal" element={<Navigate to="/editoriais?aba=arsenal" replace />} />
           <Route path="curadoria" element={<Curadoria />} />
           {/* Linhas editoriais foram encerradas no cutover (D11): a estrutura agora é Campanhas. */}
           <Route path="linhas" element={<Navigate to="/campanhas" replace />} />
