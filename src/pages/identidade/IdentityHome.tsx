@@ -123,8 +123,8 @@ export function IdentityHome() {
                     </div>
                   ) : <p className="text-sm text-muted-foreground">Genesis não configurado.</p>}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button size="sm" variant="ghost" asChild><Link to="/genesis"><BrainCircuit className="h-3.5 w-3.5" /> Edição detalhada do Genesis</Link></Button>
-                    <Button size="sm" variant="ghost" asChild><Link to="/diretrizes"><ScrollText className="h-3.5 w-3.5" /> Diretrizes</Link></Button>
+                    <Button size="sm" variant="ghost" asChild><Link to="/genesis"><BrainCircuit className="h-3.5 w-3.5" /> Como escrevo</Link></Button>
+                    <Button size="sm" variant="ghost" asChild><Link to="/genesis?aba=oficio"><ScrollText className="h-3.5 w-3.5" /> Ofício (diretrizes)</Link></Button>
                   </div>
                 </div>
               </section>
