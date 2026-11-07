@@ -2,35 +2,37 @@
 
 - Status: ativo · **operação resgate**
 - Prioridade: alta
-- Atualizado: 2026-11-06
+- Atualizado: 2026-11-07
 
 ## Objetivo
 Devolver ao Marcos uma Hive que ele entende e usa: menos telas, um caminho por tarefa e fluxos curtos. A queixa dele é de fluxo confuso, longo e sem nexo, não de erro técnico.
 
 ## Agora
-- O trabalho é no repositório `piccini-dev/hive-resgate` (`origin`), **público** desde 06/11 (transferido pelo Raul). O `bee-platform` (produção) é o remoto `producao`, com o push desligado.
-- **Blocos 01, 01b, 02 e 03 integrados.** A `main` (`3f2f274`, PR #25) já tem o menu novo:
-  - grupos Voz da Hive, Ensinar a Hive, Visual e Ferramentas internas;
-  - Configurações só com Perfil, Contas e Integrações; Onboarding só com a chave do Gemini;
-  - fora Simular público e Teste de imagem; Convite no Criar.
-  - Regressão completa 202/202 em 06/11. Nada publicado no banco nem nas funções.
-- **Bloco atual: 04 · Ensinar a Hive** (branch `bloco/04-ensinar-hive`, milestone 5). `/coach` ganha as abas Conversa, Observações e Lições; `/feedback` e `/aprendizado` redirecionam; o portão da IA sai do cliente.
-  - prontas: #26 (aba Lições) e #27 (aba Observações);
-  - em cadeia: #28 (abas no Coach) → #29 (redirecionar e apagar telas) → #30 (limpar `api.ts`/`types`) → #31 (`exec:claude`, E2E `f28-ensinar-hive`).
-- Painel: https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k (03 integrado, 04 aberto com os prompts).
+- O trabalho é no repositório `piccini-dev/hive-resgate` (`origin`, público). O `bee-platform` (produção) é o remoto `producao`, com o push desligado.
+- **Blocos 01 a 05 integrados.** A `main` (`46566eb`, PR #39) já tem a Voz da Hive em 4 telas:
+  - "Como escrevo" (Genesis + Diretrizes em abas);
+  - Arsenal como aba de Editoriais;
+  - Produtos e ofertas em Minha identidade;
+  - `/diretrizes`, `/arsenal` e `/produtos` redirecionando.
+  - Regressão completa 213/213 em 06/11, com o E2E novo `f29-voz-da-hive`. Nada publicado no banco nem nas funções.
+- **Bloco atual: 06 · Visual e resultados, sem Vídeos** (branch `bloco/06-visual-resultados`, milestone 7).
+  - Prontas, em paralelo: #40 (Fotos do Marcos = motor + fotos reais) e #41 (Resultados = Desempenho + Jornada ACJ).
+  - Depois: #42 (rotas e menu) → #43 (`exec:claude`, E2E `f30-visual-resultados` + ajuste do `f7` + conferência visual).
+  - Prompts em `.orquestra/prompts/40.md`, `41.md` e `42.md`.
+- **Painel desatualizado:** as ferramentas de artifact pararam nesta sessão. Ele ainda mostra o 05 aberto e não tem o 06. Link: https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k
 - Relatório preliminar para o Marcos: https://claude.ai/artifact/EbE9cZXaJyQoEc1UCifNd7
 
 ## Próximos passos
-1. Colar no ChatGPT os prompts das #26 e #27 (painel); depois #28, #29 e #30.
-2. Quando o painel mostrar "Pronto para /integrar": `/integrar` do bloco 04 (fazer a #31, regressão, PR e merge) e abrir o bloco 05 (Voz da Hive).
-3. Rodar `/impeccable critique` nas telas do bloco 03 (não feito na integração).
-4. Entrar uma vez com o login novo para confirmar e passar a senha ao Marcos.
-5. O Raul mostra o relatório ao Marcos e traz as respostas (Pipeline, vídeo, IA distribui, Feedback, wizard).
+1. Reiniciar o Claude Code e rodar `/painel` (05 integrado com #34–#38 validadas; 06 com #40–#43).
+2. Colar no ChatGPT os prompts das #40 e #41 (em paralelo); depois a #42.
+3. `/integrar` do bloco 06 quando o painel mostrar "Pronto para /integrar". Antes da regressão, conferir se o login do teste responde em menos de 1 s.
+4. Vídeos na Biblioteca (resto do 06) depois da resposta do Marcos; depois, bloco 07 (Andamento).
+5. `/impeccable critique` nas telas dos blocos 03 e 05.
 
 ## Bloqueios / aguardando
-- Respostas do Marcos às perguntas do relatório: confirmam os cortes dos blocos 06 e 07.
+- Respostas do Marcos às perguntas do relatório (Pipeline, vídeo, IA distribui, Feedback, wizard): confirmam Vídeos (06) e os cortes do 07.
+- **Memória do Supabase:** em 06/11 o projeto travou por *memory commitment* severo (login 504, conexões com tempo esgotado, falha no `archive command`) e voltou com o reinício. A regressão pesa no banco. Se o alerta voltar, decidir se a instância sobe de tamanho (tem custo).
 - `npm run lint` quebrado desde antes do bloco 01 (sem `eslint.config.js`).
-- Regressão pesa na memória: rodou com 8 GB livres em 06/11; com 4 GB, já falhou antes.
 
 ## Última sessão
-2026-11-06: bloco 03 integrado (PR #25, regressão 202/202; correção: `BeePersona` sem uso). Repositório migrado para `piccini-dev/hive-resgate`, com as referências atualizadas. Bloco 04 aberto com #26–#31 (Correções recentes sai junto com Aprendizado, por decisão do Raul).
+2026-11-06 (noite): bloco 05 integrado (PR #39; regressão 213/213 vigiando o login). O Supabase travou por memória e o Raul reiniciou o projeto. Bloco 06 aberto sem Vídeos (#40–#43); painel pendente.

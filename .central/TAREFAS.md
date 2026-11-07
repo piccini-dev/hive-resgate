@@ -8,11 +8,17 @@
 - [ ] Apagar o zip `Downloads/Hive-transferencia.zip` e a cópia extraída (contém senha do usuário de teste), quando o Raul mandar
 - [ ] Copiar a memória antiga (`Hive-transferencia/memoria-do-claude/`) para a memória deste projeto, se o Raul quiser
 - [ ] Consertar ou remover o `npm run lint` (sem configuração do ESLint 9)
-- [ ] Colar no ChatGPT os prompts #26 e #27; depois #28, #29 e #30 (em cadeia)
-- [ ] `/integrar` do bloco 04 quando o painel mostrar "Pronto para /integrar" (inclui a #31 exec:claude: E2E `f28-ensinar-hive`)
+- [ ] Reiniciar o Claude Code e rodar `/painel`: 05 integrado (#34–#38 validadas), 06 aberto (#40–#43). As ferramentas de artifact pararam na sessão de 06/11
+- [ ] Colar no ChatGPT os prompts #40 e #41 (em paralelo); depois #42
+- [ ] `/integrar` do bloco 06 (inclui a #43 exec:claude: E2E `f30-visual-resultados`, ajuste do `f7` e conferência visual)
+- [ ] Vídeos na Biblioteca (`/podcasts` → aba da Biblioteca, "novo corte" no Criar), depois da resposta do Marcos sobre vídeo
+- [ ] Memória do Supabase: se o alerta de memory commitment voltar, decidir se a instância sobe de tamanho; ver no painel o que consome memória
+- [ ] "Produtos e ofertas" (Minha identidade) lista os produtos da conta, não os da marca escolhida no seletor
+- [ ] Aba Princípios de "Como escrevo" fica ~10 px mais recuada que o cabeçalho (o Genesis tem contêiner próprio)
+- [ ] Produtos duplicados em `bee_products` (2× FLS e 2× masterclass-6d): conferir com o Raul se é dado de teste ou do Marcos antes de mexer
 - [ ] `/impeccable critique` nas telas do bloco 03 (menu, Configurações, Onboarding, Criar) em 375 px e desktop: não feito na integração
 - [ ] Consertar o `pasta` do projeto `liam` em `C:\central\orquestra\projetos.json` (barras perdidas: `C:projetosinternoliam`)
-- [ ] Blocos 05–10 (ver docs/plano/PLANO.md §10)
+- [ ] Blocos 07–10 (ver docs/plano/PLANO.md §10)
 - [ ] Decidir se saem também `edge.acjAssign`, `edge.acjValidate` e `edge.campaignTick` (sem uso no front, fora do plano)
 - [ ] Corrida possível entre importação manual do LinkedIn e o cron `linkedin-metrics` no mesmo run (pode duplicar posts importados); corrigir num bloco futuro, exige deploy da função
 
@@ -34,3 +40,7 @@
 - [x] Bloco 03 aberto: milestone 4, issues #18–#23, prompts e painel
 - [x] Bloco 03 integrado (PR #25): #18–#23 validadas, regressão 202/202, tipo `BeePersona` removido na integração
 - [x] Bloco 04 aberto: milestone 5, issues #26–#31, prompts e painel
+- [x] Bloco 04 integrado (PR #33): #26–#31 validadas, E2E `f28-ensinar-hive`, regressão 208/208 (2×); correção da aba Conversa na integração
+- [x] Bloco 05 aberto: milestone 6, issues #34–#38, prompts e painel
+- [x] Bloco 05 integrado (PR #39): #34–#38 validadas, E2E `f29-voz-da-hive`, regressão 213/213 depois do reinício do Supabase
+- [x] Bloco 06 aberto sem Vídeos: milestone 7, issues #40–#43, prompts (painel pendente)
