@@ -1,9 +1,10 @@
-// Lista + CRUD dos 8 pilares editoriais (bee_editorials).
+// Editoriais — /editoriais. Lista + CRUD dos pilares (bee_editorials) e, na aba Arsenal, o material de cada um (?aba=arsenal).
 // Editar os oficiais (is_system) e criar novos. O que for salvo aqui entra
 // automaticamente na geracao (generate-content le por slug) e na selecao de
 // editorial dos posts (beeApi.editorials()).
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BookOpen, Loader2, Plus, Sparkles, Trash2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Arsenal } from '@/pages/arsenal/Arsenal';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -73,7 +76,14 @@ function slugify(v: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+type Aba = 'editoriais' | 'arsenal';
+const ABAS: readonly Aba[] = ['editoriais', 'arsenal'];
+
 export function Editoriais() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('aba');
+  const aba: Aba = ABAS.includes(raw as Aba) ? (raw as Aba) : 'editoriais';
+  const setAba = (v: string) => setParams(v === 'editoriais' ? {} : { aba: v }, { replace: true });
   const [editorials, setEditorials] = useState<BeeEditorial[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -283,10 +293,10 @@ export function Editoriais() {
             <h1 className="font-display text-3xl font-bold">Editoriais</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Os pilares de conteúdo da Bee. A IA usa o nome, a descrição, a estrutura e a sequência
-            emocional de cada editorial pra gerar os posts. O que você editar aqui entra na geração na hora.
+            Os pilares de conteúdo da Bee e o arsenal que alimenta cada um. A IA usa o nome, a descrição, a estrutura e a sequência emocional de cada editorial pra gerar os posts. O que você editar aqui entra na geração na hora.
           </p>
         </div>
+        {aba === 'editoriais' && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="accent" onClick={openNew}>
@@ -500,8 +510,15 @@ export function Editoriais() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </header>
 
+      <Tabs value={aba} onValueChange={setAba}>
+        <TabsList>
+          <TabsTrigger value="editoriais">Editoriais</TabsTrigger>
+          <TabsTrigger value="arsenal">Arsenal</TabsTrigger>
+        </TabsList>
+        <TabsContent value="editoriais" className="mt-4">
       {loading ? (
         <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : (
@@ -547,6 +564,9 @@ export function Editoriais() {
           ))}
         </div>
       )}
+        </TabsContent>
+        <TabsContent value="arsenal" className="mt-4"><Arsenal /></TabsContent>
+      </Tabs>
     </div>
   );
 }

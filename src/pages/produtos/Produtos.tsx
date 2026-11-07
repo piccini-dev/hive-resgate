@@ -1,7 +1,7 @@
 // Lista + CRUD de produtos Bee.
 
 import { useEffect, useState } from 'react';
-import { Loader2, Package, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -146,15 +146,12 @@ export function Produtos() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6 lg:p-8">
+    <div className="space-y-4" data-testid="identity-products">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <Package className="h-6 w-6 text-accent" />
-            <h1 className="font-display text-3xl font-bold">Produtos</h1>
-          </div>
+          <h2 className="font-display text-lg font-semibold">Produtos e ofertas</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Produtos vinculáveis às linhas editoriais. A IA referencia o produto no contexto de geração.
+            O que cada frente oferece. A IA cita o produto no contexto da geração.
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

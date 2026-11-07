@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { AlertTriangle, ArrowRight, BookOpen, BrainCircuit, Loader2, Plus, RefreshCw, ScrollText, Sparkles, UserRound, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CreateWorkspaceCard } from '@/components/identity/CreateWorkspaceCard';
+import { Produtos } from '@/pages/produtos/Produtos';
 import { identityApi, profileSummary, type IdentityState } from '@/lib/identityApi';
 import { useAuthStore } from '@/store/authStore';
 import type { Brand, SetupMode, SetupSession } from '@/types';
@@ -122,8 +123,8 @@ export function IdentityHome() {
                     </div>
                   ) : <p className="text-sm text-muted-foreground">Genesis não configurado.</p>}
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <Button size="sm" variant="ghost" asChild><Link to="/genesis"><BrainCircuit className="h-3.5 w-3.5" /> Edição detalhada do Genesis</Link></Button>
-                    <Button size="sm" variant="ghost" asChild><Link to="/diretrizes"><ScrollText className="h-3.5 w-3.5" /> Diretrizes</Link></Button>
+                    <Button size="sm" variant="ghost" asChild><Link to="/genesis"><BrainCircuit className="h-3.5 w-3.5" /> Como escrevo</Link></Button>
+                    <Button size="sm" variant="ghost" asChild><Link to="/genesis?aba=oficio"><ScrollText className="h-3.5 w-3.5" /> Ofício (diretrizes)</Link></Button>
                   </div>
                 </div>
               </section>
@@ -179,6 +180,10 @@ export function IdentityHome() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300">O que falta revisar</p>
                   {pending.length ? <ul className="list-disc space-y-1 pl-4 text-sm">{pending.map((x) => <li key={x.k}>{x.text}</li>)}</ul> : <p className="text-sm text-muted-foreground">Nada pendente.</p>}
                 </div>
+              </section>
+
+              <section id="produtos" className="rounded-2xl border bg-card p-5">
+                <Produtos />
               </section>
 
               {done.length > 0 && <SessionList title="Ativações recentes" sessions={done} />}
