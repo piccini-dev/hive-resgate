@@ -22,18 +22,16 @@ import { ComoEscrevo } from '@/pages/genesis/ComoEscrevo';
 import { IdentityConfigure, IdentityHome } from '@/pages/identidade/IdentityHome';
 import { ProfileDetail } from '@/pages/identidade/ProfileDetail';
 import { SetupSessionPage } from '@/pages/identidade/SetupSessionPage';
-import { RegistroVivo } from '@/pages/aprendizado/RegistroVivo';
 import { Coach } from '@/pages/coach/Coach';
 import { Agenda } from '@/pages/agenda/Agenda';
 import { HivePreview } from '@/pages/hive/HivePreview';
 import { HiveAssets } from '@/pages/hive/HiveAssets';
-import { HiveMarcos } from '@/pages/hive/HiveMarcos';
+import { FotosDoMarcos } from '@/pages/hive/FotosDoMarcos';
 import { HiveConvite } from '@/pages/hive/HiveConvite';
 import { Custos } from '@/pages/custos/Custos';
 import { OlharCalibracao } from '@/pages/olhar/Calibracao';
 import { Pipeline } from '@/pages/pipeline/Pipeline';
-import { PhotoEngine } from '@/pages/hive/PhotoEngine';
-import { Performance } from '@/pages/desempenho/Performance';
+import { Resultados } from '@/pages/desempenho/Resultados';
 import { AccountsCompare } from '@/pages/desempenho/AccountsCompare';
 import { OneContent } from '@/pages/criar/OneContent';
 import { CreateHub } from '@/pages/criar/CreateHub';
@@ -118,7 +116,7 @@ export default function App() {
           <Route path="alma" element={<Navigate to="/genesis" replace />} />
           <Route path="templates" element={<Templates />} />
           <Route path="aprendizado" element={<Navigate to="/coach?aba=licoes" replace />} />
-          <Route path="jornada" element={<RegistroVivo />} />
+          <Route path="jornada" element={<Navigate to="/desempenho?aba=acj" replace />} />
           <Route path="coach" element={<Coach />} />
           <Route path="feedback" element={<Navigate to="/coach?aba=observacoes" replace />} />
           <Route path="personas" element={<Navigate to="/" replace />} />
@@ -127,12 +125,12 @@ export default function App() {
           <Route path="posts/novo" element={<NewPost />} />
           <Route path="agenda" element={<Agenda />} />
           <Route path="pipeline" element={<Pipeline />} />
-          <Route path="desempenho" element={<Performance />} />
+          <Route path="desempenho" element={<Resultados />} />
           <Route path="desempenho/contas" element={<AccountsCompare />} />
           <Route path="hive/preview" element={<HivePreview />} />
           <Route path="hive/assets" element={<HiveAssets />} />
-          <Route path="hive/marcos" element={<HiveMarcos />} />
-          <Route path="hive/fotografia" element={<PhotoEngine />} />
+          <Route path="hive/marcos" element={<Navigate to="/hive/fotografia?aba=reais" replace />} />
+          <Route path="hive/fotografia" element={<FotosDoMarcos />} />
           <Route path="hive/convite" element={<HiveConvite />} />
           <Route path="hive/teste-m02" element={<Navigate to="/" replace />} />
           <Route path="hive/teste-m01" element={<Navigate to="/" replace />} />

@@ -2,11 +2,11 @@
 // (Rosto + Pensamento). O usuário sobe as fotos que já existem e as tagueia com o
 // vocabulário semântico que o motor da Hive lê pra ESCOLHER (não sortear): quem
 // aparece, se está reconhecível, onde há espaço pro texto, tipo de registro, etc.
-// A geração de imagem só entra quando NÃO houver foto real adequada. Rota: /hive/marcos
+// A geração de imagem só entra quando NÃO houver foto real adequada. Aba Fotos reais de /hive/fotografia.
 
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Loader2, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Trash2, Upload, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -106,9 +106,6 @@ export function HiveMarcos() {
     <div className="mx-auto max-w-6xl space-y-6 p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 font-display text-2xl font-bold">
-            <Camera className="h-6 w-6 text-accent" /> Hive · Fotos do Marcos (M02)
-          </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             O topo da hierarquia de imagem: a Hive usa <b>foto real do Marcos primeiro</b> e só gera uma cena quando não houver foto adequada. Suba as fotos reais e marque as tags — é o que deixa o motor <b>escolher</b> a certa em vez de sortear.
           </p>

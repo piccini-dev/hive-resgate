@@ -69,7 +69,7 @@ test.describe('F7 · home, pipeline e navegação', () => {
 
     // Menu do resgate: fluxo principal solto; grupos novos; antigos fora.
     const nav = page.locator('aside nav');
-    for (const label of ['Início', 'Campanhas', 'Produção', 'Pipeline', 'Agenda', 'Desempenho', 'Jornada relacional (ACJ)',
+    for (const label of ['Início', 'Campanhas', 'Produção', 'Pipeline', 'Agenda', 'Resultados',
       'Voz da Hive', 'Ensinar a Hive', 'Visual', 'Configurações', 'Ferramentas internas']) {
       await expect(nav.getByText(label, { exact: true })).toBeVisible();
     }

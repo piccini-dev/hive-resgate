@@ -24,7 +24,6 @@ import {
   Workflow,
   BarChart3,
   Camera,
-  Route as RouteIcon,
   Fingerprint,
   Wrench,
   Eye,
@@ -47,16 +46,14 @@ type NavGroup = {
 
 // Menu do resgate (relatório §6.1): o fluxo principal solto no topo; a voz, o
 // ensino da IA e o visual em grupos; ferramentas internas recolhidas no fim.
-// Itens que os blocos 04–07 vão juntar (Pipeline, Diretrizes, Arsenal, Produtos,
-// Feedback, Aprendizado, Jornada, Vídeos) ficam aqui até lá.
+// Itens que os blocos seguintes ainda vão juntar (Pipeline, Vídeos) ficam aqui até lá.
 const NAV_GROUPS: NavGroup[] = [
   { label: 'Início', to: '/', icon: LayoutDashboard },
   { label: 'Campanhas', to: '/campanhas', icon: CalendarClock },
   { label: 'Produção', to: '/producao', icon: Layers },
   { label: 'Pipeline', to: '/pipeline', icon: Workflow },
   { label: 'Agenda', to: '/agenda', icon: CalendarDays },
-  { label: 'Desempenho', to: '/desempenho', icon: BarChart3 },
-  { label: 'Jornada relacional (ACJ)', to: '/jornada', icon: RouteIcon },
+  { label: 'Resultados', to: '/desempenho', icon: BarChart3 },
   {
     label: 'Voz da Hive',
     icon: Fingerprint,
@@ -80,7 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Paintbrush,
     items: [
       { to: '/templates', label: 'Templates', icon: Paintbrush },
-      { to: '/hive/fotografia', label: 'Fotografia do Marcos', icon: Camera },
+      { to: '/hive/fotografia', label: 'Fotos do Marcos', icon: Camera },
       { to: '/biblioteca', label: 'Biblioteca', icon: Library },
       { to: '/podcasts', label: 'Vídeos', icon: Mic },
     ],
