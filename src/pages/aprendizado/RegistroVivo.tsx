@@ -1,4 +1,4 @@
-// Jornada relacional (ACJ) — Resultados por ACJ + Registro Vivo de Aprendizagens.
+// Aba Jornada ACJ de /desempenho — Resultados por ACJ + Registro Vivo de Aprendizagens.
 // dado → observação → hipótese → teste → aprendizagem → princípio consolidado.
 // Nada aqui altera as ACJs: aprendizagem provisória fica no registro até validação humana.
 import { useCallback, useEffect, useMemo, useState } from 'react';

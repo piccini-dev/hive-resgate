@@ -2,7 +2,7 @@
 // (Rosto + Pensamento). O usuário sobe as fotos que já existem e as tagueia com o
 // vocabulário semântico que o motor da Hive lê pra ESCOLHER (não sortear): quem
 // aparece, se está reconhecível, onde há espaço pro texto, tipo de registro, etc.
-// A geração de imagem só entra quando NÃO houver foto real adequada. Rota: /hive/marcos
+// A geração de imagem só entra quando NÃO houver foto real adequada. Aba Fotos reais de /hive/fotografia.
 
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
