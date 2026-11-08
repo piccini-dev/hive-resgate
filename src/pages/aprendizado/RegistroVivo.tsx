@@ -34,7 +34,6 @@ export function RegistroVivo() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 lg:p-8">
       <div>
-        <h1 className="font-display text-3xl font-bold">Jornada relacional (ACJ)</h1>
         <p className="text-sm text-muted-foreground">O que cada movimento produziu e o que a Hive está aprendendo — sem transformar sinais isolados em princípios.</p>
       </div>
       <div className="flex gap-2" role="tablist">
