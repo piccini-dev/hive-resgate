@@ -6,7 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { differenceInCalendarDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { ArrowDownRight, ArrowUpRight, BarChart3, ImageIcon, Instagram, Lightbulb, Linkedin, Loader2, Minus, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ImageIcon, Instagram, Lightbulb, Linkedin, Loader2, Minus, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MetricsForm } from '@/components/performance/MetricsForm';
 import { edge } from '@/lib/edge';
@@ -93,7 +93,6 @@ export function Performance() {
     <div className="mx-auto max-w-6xl space-y-6 p-6 lg:p-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 font-display text-2xl font-bold"><BarChart3 className="h-6 w-6 text-accent" /> Desempenho</h1>
           <p className="text-sm text-muted-foreground">Como suas peças foram recebidas — comparadas com a sua própria média recente.</p>
         </div>
         <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing} data-testid="refresh-metrics">
