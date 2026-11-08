@@ -1,6 +1,6 @@
 # Estado — bee-platform
 
-- Status: ativo · **operação resgate**
+- Status: aguardando-cliente · **operação resgate, 1ª etapa concluída**
 - Prioridade: alta
 - Atualizado: 2026-11-08
 
@@ -9,29 +9,24 @@ Devolver ao Marcos uma Hive que ele entende e usa: menos telas, um caminho por t
 
 ## Agora
 - O trabalho é no repositório `piccini-dev/hive-resgate` (`origin`, público). O `bee-platform` (produção) é o remoto `producao`, com o push desligado.
-- **Blocos 01 a 05 integrados.** A `main` (`46566eb`, PR #39) já tem a Voz da Hive em 4 telas:
-  - "Como escrevo" (Genesis + Diretrizes em abas);
-  - Arsenal como aba de Editoriais;
-  - Produtos e ofertas em Minha identidade;
-  - `/diretrizes`, `/arsenal` e `/produtos` redirecionando.
-  - Regressão completa 213/213 em 06/11, com o E2E novo `f29-voz-da-hive`. Nada publicado no banco nem nas funções.
-- **Bloco atual: 06 · Visual e resultados, sem Vídeos** (branch `bloco/06-visual-resultados`, milestone 7).
-  - Prontas, em paralelo: #40 (Fotos do Marcos = motor + fotos reais) e #41 (Resultados = Desempenho + Jornada ACJ).
-  - Depois: #42 (rotas e menu) → #43 (`exec:claude`, E2E `f30-visual-resultados` + ajuste do `f7` + conferência visual).
-  - Prompts em `.orquestra/prompts/40.md`, `41.md` e `42.md`.
-- Painel em dia (08/11): 05 integrado, 06 aberto com #40–#43 e prompts. Link: https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k
+- **Blocos 01 a 06 integrados; a 1ª etapa do resgate terminou.** O Marcos quis o plano só até o 06. A `main` (`71f630f`, PR #44) tem:
+  - Voz da Hive em 4 telas (bloco 05): Minha identidade, Como escrevo, Editoriais (com Arsenal) e Conhecimento;
+  - "Fotos do Marcos" (motor + fotos reais em abas) e "Resultados" (Desempenho + Jornada ACJ em abas) (bloco 06);
+  - `/hive/marcos`, `/jornada`, `/diretrizes`, `/arsenal` e `/produtos` redirecionando.
+  - Regressão completa 217/217 em 08/11. Nada publicado no banco nem nas funções.
+- Blocos 07–10 do `docs/plano/PLANO.md` (Andamento, wizard, fluxos curtos, virada) ficam parados até nova missão.
+- Painel em dia (06 integrado): https://claude.ai/artifact/83PGHGYEKxe8wbgLn5Rr9k
 - Relatório preliminar para o Marcos: https://claude.ai/artifact/EbE9cZXaJyQoEc1UCifNd7
 
 ## Próximos passos
-1. Colar no ChatGPT os prompts das #40 e #41 (em paralelo); depois a #42.
-2. `/integrar` do bloco 06 quando o painel mostrar "Pronto para /integrar". Antes da regressão, conferir se o login do teste responde em menos de 1 s.
-3. Vídeos na Biblioteca (resto do 06) depois da resposta do Marcos; depois, bloco 07 (Andamento).
-4. `/impeccable critique` nas telas dos blocos 03 e 05.
+1. Esperar o Raul trazer a próxima missão; ao abrir, reler o `PLANO.md` §10 e ver se os blocos 07–10 ainda valem.
+2. Se o Marcos for usar o site de teste: confirmar o login piccini@beeconsulting.com e passar a senha.
+3. Pendências pequenas da lista (Produtos por marca, recuo da aba Princípios, `npm run lint`).
 
 ## Bloqueios / aguardando
-- Respostas do Marcos às perguntas do relatório (Pipeline, vídeo, IA distribui, Feedback, wizard): confirmam Vídeos (06) e os cortes do 07.
-- **Memória do Supabase:** em 06/11 o projeto travou por *memory commitment* severo (login 504, conexões com tempo esgotado, falha no `archive command`) e voltou com o reinício. A regressão pesa no banco. Se o alerta voltar, decidir se a instância sobe de tamanho (tem custo).
+- Nova missão do Raul/Marcos. Vídeos na Biblioteca (resto do 06) e os cortes do 07 dependiam das respostas do Marcos.
+- **Memória do Supabase:** travou em 06/11 por *memory commitment* severo e voltou com o reinício; a regressão de 08/11 rodou sem problema. Se o alerta voltar, decidir se a instância sobe de tamanho (tem custo).
 - `npm run lint` quebrado desde antes do bloco 01 (sem `eslint.config.js`).
 
 ## Última sessão
-2026-11-08: painel atualizado (05 integrado; 06 aberto com #40–#43 e prompts). Antes, em 06/11: bloco 05 integrado (PR #39, 213/213) e Supabase reiniciado por falta de memória.
+2026-11-08: painel atualizado e bloco 06 integrado (PR #44, regressão 217/217, E2E `f30`). O Raul informou que o Marcos queria só até o 06: 1ª etapa do resgate encerrada.
