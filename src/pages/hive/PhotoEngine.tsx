@@ -121,7 +121,6 @@ export function PhotoEngine() {
   return (
     <div className="mx-auto max-w-6xl space-y-8 p-6 lg:p-8">
       <header>
-        <h1 className="font-display text-2xl font-bold">Motor fotográfico do Marcos</h1>
         <p className="text-sm text-muted-foreground">A Hive não fabrica autoridade. Dá forma visual a uma presença real. · Constituição v1.0 · Perfil marcos_piccini_v1.1 · F01–F04</p>
       </header>
 
