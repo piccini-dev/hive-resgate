@@ -33,18 +33,24 @@ Plano: `docs/plano/CONTEUDOS-BASE-E-PRODUCAO.md` no PR #45. Base de código insp
 - Comparação em leitura: `content-develop` remoto versão 10 coincide com a base do repositório anterior às alterações desta branch.
 - Health Advisor: sem avisos na consulta realizada.
 
-## Bloqueio de implantação
+## Implantação da fundação
 
-As duas solicitações de `apply_migration` pelo conector Supabase retornaram confirmação expirada. A operação não foi contornada por SQL direto ou outro token. Uma leitura posterior confirmou que as tabelas novas não existem e que os conteúdos aprovados da campanha corrente permanecem preservados.
+As duas primeiras solicitações de `apply_migration` expiraram. Após Marcos pedir nova tentativa, a migration atual foi aplicada com sucesso pelo mesmo conector, sem contorno por SQL direto ou outro token.
 
-A migration local foi aperfeiçoada depois dessas tentativas. Ao retomar, ler **o arquivo local/commit atual**, não reutilizar o corpo das solicitações expiradas.
+Verificações posteriores:
 
-Não foi aplicado DDL ou DML de produção, não houve deploy de Edge Function, merge ou publicação do app. Foi salvo um registro privado recuperável da campanha/ciclo antes das tentativas, sem credenciais de contas sociais; o arquivo não está no repositório público.
+- Tabelas `content_base_versions` e `content_base_uses` criadas; inicialmente vazias, sem backfill dos registros reais.
+- Contratos exercitados com a identidade do usuário de teste, em transação inteiramente revertida: validação sem post, idempotência, rascunho sem sobrescrita da base validada, evolução de versão, preservação do uso anterior em outro ciclo, versão validada imutável, recusa de aprovação de corpo diferente e isolamento RLS entre identidades. Todos os asserts passaram.
+- O registro privado anterior foi comparado à campanha corrente: bases (IDs, corpos, versões, aprovação e vínculos) e peças (IDs, estados, textos, visuais e contas) permanecem iguais.
+- `content-develop` atualizado da versão 10 para 11, mantendo verificação de JWT e contrato legado. As oito dependências já implantadas foram preservadas no bundle; apenas a entrada foi estendida e duas dependências novas incluídas. O bundle exato passou no Deno e foi conferido após o deploy como ACTIVE, com os arquivos esperados.
+- Não houve geração real de IA nesses testes, alteração persistente de dados reais, merge ou publicação do app. O novo caminho da interface continua em rascunho, aguardando E2.
+
+O registro privado recuperável da campanha/ciclo permanece fora do repositório público e não contém credenciais de contas sociais.
 
 ## Próximos passos de implementação
 
-1. Resolver a confirmação do conector para aplicar a migration atual; verificar os contratos e RLS com o usuário de teste, sem tocar nas bases reais.
-2. Verificar os testes de integração de versão imutável, aprovação com corpo esperado, concorrência, autorização e idempotência. Aprovação no parse não substitui essas verificações.
+1. Fundação e contratos do banco aplicados e verificados; concluir a integração de E2 antes de disponibilizar o app novo.
+2. Executar os cenários de navegador no GitHub e completar cobertura de concorrência. A verificação direta dos contratos não substitui os testes da interface nem a regressão completa.
 3. Concluir o plano de produção por plataforma/formato, famílias visuais e confirmação tardia de contas. Retomar o ciclo legado em proposta de produção sem disparo automático do gerador antigo.
 4. Fazer a nova geração/revisão usar os snapshots aprovados. Preservar as peças legadas e exigir confirmação para substituir apenas pendências indicadas pelo produtor.
 5. Conectar acervo e pautas, atualizar os consumidores de memória e ACJ e completar os testes afetados (inclusive os que ainda pressupõem validação LinkedIn).
@@ -55,4 +61,4 @@ Não foi aplicado DDL ou DML de produção, não houve deploy de Edge Function, 
 
 Branch: `feat/bases-producao-campanhas`. Migration: `supabase/migrations/20261109185634_content_base_production.sql`; rollback com o mesmo nome em `supabase/rollback/`.
 
-Os novos contratos esperados pelo cliente são `save_base_draft`, `validate_content_base` e `adopt_content_base`. Não habilitar a interface antes de existirem e serem verificados. O trecho que segue para a produção ainda precisa ser integrado ao novo contrato de plano; manter o PR em rascunho até isso estar completo.
+Os contratos `save_base_draft`, `validate_content_base` e `adopt_content_base` já existem e foram verificados no banco. A finalidade `knowledge_base` também já está no servidor, sem alterar o comportamento das chamadas legadas. O trecho que segue para a produção ainda precisa ser integrado ao novo contrato de plano; manter o PR em rascunho até isso estar completo.
