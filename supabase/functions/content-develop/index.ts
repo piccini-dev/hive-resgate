@@ -16,6 +16,7 @@ import { fetchRest } from '../_shared/gemini.ts';
 import { resolveAndSnapshot, userBrandScope } from '../_shared/context.ts';
 import { judgeRepetition, memoryPromptBlock, neighborsFor, recentSaid, repeatedStructures, syncMemory, type MemoryHit } from '../_shared/content-memory.ts';
 import { buildContract, contractPromptBlock, validateMovement, type AcjContract, type AcjValidation } from '../_shared/acj.ts';
+import { developKnowledgeBase } from '../_shared/knowledge-base.ts';
 
 type Fn = 'presenca' | 'posicionamento' | 'autoridade' | 'relacionamento' | 'produtos';
 const FN_LABEL: Record<Fn, string> = {
@@ -29,6 +30,7 @@ const FN_SHORT: Record<Fn, string> = { presenca: 'presença', posicionamento: 'p
 const QA_PASS = 70;
 
 interface Input {
+  purpose?: 'knowledge_base';
   mode?: 'develop' | 'adjust' | 'new_version';
   idea_id: string;
   content_id?: string;
@@ -62,6 +64,12 @@ Deno.serve(async (req: Request) => {
     const mode = input.mode ?? 'develop';
     if (!input.idea_id) return errorResponse('idea_id obrigatório', 400);
     if (mode === 'adjust' && !input.instruction?.trim()) return errorResponse('Diga o que ajustar.', 400);
+    if (input.purpose === 'knowledge_base') {
+      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuid.test(input.idea_id) || (input.content_id && !uuid.test(input.content_id))) return errorResponse('Pauta/base inválida.', 400);
+      if (!['develop', 'adjust', 'new_version'].includes(mode)) return errorResponse('Modo inválido.', 400);
+      return jsonResponse(await developKnowledgeBase(userId, input));
+    }
 
     const [idea] = await fetchRest<Array<{ title: string; summary: string | null; strategic_function: Fn | null; editorial_slug: string | null; campaign_id: string | null; cycle_id: string | null; profile_id: string | null; rationale: string | null; acj_primary: string | null; acj_secondary: string | null; acj_role: string | null; acj_rationale: string | null }>>(
       `/ideas?id=eq.${input.idea_id}&user_id=eq.${userId}&select=title,summary,strategic_function,editorial_slug,campaign_id,cycle_id,profile_id,rationale,acj_primary,acj_secondary,acj_role,acj_rationale&limit=1`);

@@ -153,6 +153,7 @@ export interface Idea {
   strategic_function?: StrategicFunction | null;
   editorial_slug?: string | null;
   channels: IdeaChannel[];
+  source_base_version_id?: string | null;
   suggested_pieces: number;
   origin: 'hive' | 'user' | 'result';
   status: IdeaStatus;

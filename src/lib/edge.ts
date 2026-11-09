@@ -469,12 +469,14 @@ export const edge = {
   },
 
   async contentDevelop(input: {
+    purpose?: 'knowledge_base';
     idea_id: string; content_id?: string; mode?: 'develop' | 'adjust' | 'new_version';
     current?: { frase?: string; texto?: string }; instruction?: string;
   }): Promise<{
     success: boolean; frase: string; texto: string;
     considered: { base: string; coerencia: string; formato: string };
     meta: {
+      purpose?: 'knowledge_base'; sources?: string[]; gaps?: string[];
       headline_type: string | null; analogy: string | null; virality_score: number | null; virality_reason: string | null; qa_score: number | null;
       repeat?: { verdict: string; reason: string; retried: boolean; of_text: string | null; of_date: string | null } | null;
     };

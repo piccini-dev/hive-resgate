@@ -1,128 +1,97 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { cleanupE2EData, sql } from './helpers/admin';
-import { mockDevelop, mockProduction } from './helpers/mocks';
-import { seedAccounts, seedApprovedPauta, seedCampaign } from './helpers/fixtures';
+import { mockDevelop } from './helpers/mocks';
+import { seedAccounts, seedApprovedPauta, seedCampaign, seedValidatedContents } from './helpers/fixtures';
 
-// F4 — Telas 10–11: desenvolver os conteúdos-mãe e validá-los um a um.
-test.describe('F4 · desenvolvimento e validação', () => {
+// F4 (09/11): conhecimento reutilizável. Validação da base não cria nem aprova post.
+// Substitui a expectativa antiga de que toda validação gerava uma peça LinkedIn.
+test.describe('F4 · conteúdos-base e versões', () => {
   test.beforeEach(async () => { await cleanupE2EData(); });
   test.afterAll(async () => { await cleanupE2EData(); });
 
-  async function setup(ideasSpec: (acc: { linkedin: string; instagram: string }) => Array<{ title: string; fn: string; channels: Array<{ account_id: string; platform: string }> }>) {
-    const acc = await seedAccounts();
-    const camp = await seedCampaign({ weeks: 8, name: 'Presença Marcos', accountIds: [acc.linkedin, acc.instagram], cadence: [2, 3] });
-    const ideaIds = await seedApprovedPauta(camp.id, camp.cycleIds[0], ideasSpec(acc));
-    return { acc, camp, ideaIds };
-  }
-
-  test('desenvolver → aprovar / editar / ajustar → resumo → desdobramentos (com ciclo de aprendizado)', async ({ page }) => {
+  async function setup(page: Page) {
     const calls: Array<Record<string, unknown>> = [];
     await mockDevelop(page, calls);
-    await mockProduction(page); // a etapa seguinte (produção visual) começa sozinha
-    const { acc, camp } = await setup((a) => [
-      { title: 'Por que bons líderes repetem velhos padrões?', fn: 'autoridade', channels: [{ account_id: a.linkedin, platform: 'linkedin' }, { account_id: a.instagram, platform: 'instagram' }] },
-      { title: 'O problema pode não estar onde procuramos', fn: 'posicionamento', channels: [{ account_id: a.linkedin, platform: 'linkedin' }] },
-      { title: 'Resistência ou coerência?', fn: 'presenca', channels: [{ account_id: a.instagram, platform: 'instagram' }] },
+    const acc = await seedAccounts();
+    const camp = await seedCampaign({ weeks: 2, accountIds: [acc.linkedin, acc.instagram] });
+    await seedApprovedPauta(camp.id, camp.cycleIds[0], [
+      { title: 'Pensamento da pauta A', fn: 'autoridade', channels: [{ platform: 'linkedin', account_id: acc.linkedin }] },
+      { title: 'Pensamento da pauta B', fn: 'posicionamento', channels: [{ platform: 'instagram', account_id: acc.instagram }] },
     ]);
+    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
+    await page.getByRole('button', { name: 'Desenvolver conteúdos-base', exact: true }).click();
+    await expect(page.getByTestId('base-card')).toHaveCount(2);
+    return { calls, acc, camp, cycleId: camp.cycleIds[0] };
+  }
+  async function openFirst(page: Page) {
+    await page.getByTestId('base-card').filter({ hasText: 'Pensamento da pauta A' }).getByRole('button').click();
+    await expect(page.getByTestId('content-texto')).toBeVisible();
+  }
+
+  test('desenvolve bases sem escolher destino e valida sem criar peça (T01/T02)', async ({ page }) => {
+    const { calls, cycleId } = await setup(page);
+    expect(calls.filter((c) => c.mode === 'develop')).toHaveLength(2);
+    expect(calls.every((c) => c.purpose === 'knowledge_base')).toBe(true);
+    await openFirst(page);
+    await page.getByRole('button', { name: 'Validar conteúdo-base', exact: true }).click();
+    await expect(page.getByTestId('content-approved')).toContainText('Nenhum post foi criado');
+    expect(await sql(`select id from user_posts where cycle_id='${cycleId}'`)).toHaveLength(0);
+    expect(await sql(`select id from content_base_versions where draft_cycle_id='${cycleId}' and status='validated'`)).toHaveLength(1);
+    await page.getByRole('button', { name: 'Voltar à visão geral', exact: true }).click();
+    await expect(page.getByTestId('base-progress')).toContainText('1 bases validadas');
+    await expect(page.getByRole('button', { name: 'Seguir para criação dos posts' })).toBeEnabled();
+  });
+
+  test('edição de base validada cria rascunho sem alterar versão já utilizada (T04/T10)', async ({ page }) => {
+    const { cycleId } = await setup(page);
+    await openFirst(page);
+    await page.getByRole('button', { name: 'Validar conteúdo-base', exact: true }).click();
+    const [before] = await sql<{ id: string; body: { texto: string } }>(`select id,body from content_base_versions where draft_cycle_id='${cycleId}' and status='validated'`);
+    await page.getByRole('button', { name: 'Voltar à visão geral', exact: true }).click();
+    await openFirst(page);
+    await page.getByRole('button', { name: 'Editar diretamente', exact: true }).click();
+    await page.getByLabel('Desenvolvimento', { exact: true }).fill('Uma nova nuance que complementa o pensamento.');
+    await page.getByRole('button', { name: 'Salvar versão', exact: true }).click();
+    await expect(page.getByTestId('content-texto')).toHaveText('Uma nova nuance que complementa o pensamento.');
+    const [original] = await sql<{ body: { texto: string } }>(`select body from content_base_versions where id='${before.id}'`);
+    expect(original.body).toEqual(before.body);
+    const [use] = await sql<{ version_id: string }>(`select version_id from content_base_uses where cycle_id='${cycleId}'`);
+    expect(use.version_id).toBe(before.id);
+    await page.reload();
+    await openFirst(page);
+    await expect(page.getByTestId('content-texto')).toContainText('nova nuance');
+    await page.getByRole('button', { name: 'Validar conteúdo-base', exact: true }).click();
+    const versions = await sql(`select id from content_base_versions where draft_cycle_id='${cycleId}' and status='validated'`);
+    expect(versions).toHaveLength(2);
+    expect(await sql(`select id from user_posts where cycle_id='${cycleId}'`)).toHaveLength(0);
+  });
+
+  test('ajuste com IA mantém finalidade de base e salva nova versão em elaboração (T01/T04)', async ({ page }) => {
+    const { calls, cycleId } = await setup(page);
+    await openFirst(page);
+    await page.getByRole('button', { name: 'Ajustar com a Hive', exact: true }).click();
+    await page.getByLabel('O que vamos aprofundar ou ajustar?').fill('Amplie as relações e indique lacunas.');
+    await page.getByRole('button', { name: 'Ajustar base com a Hive', exact: true }).click();
+    await expect(page.getByTestId('content-texto')).toContainText('(ajustado)');
+    expect(calls.find((c) => c.mode === 'adjust')).toMatchObject({ purpose: 'knowledge_base', instruction: 'Amplie as relações e indique lacunas.' });
+    expect(await sql(`select id from content_base_versions where draft_cycle_id='${cycleId}' and status='draft'`)).toHaveLength(1);
+    expect(await sql(`select id from user_posts where cycle_id='${cycleId}'`)).toHaveLength(0);
+  });
+
+  test('nove bases legadas continuam validadas sem regeneração e sem reaprovação (T14/T17)', async ({ page }) => {
+    const calls: Array<Record<string, unknown>> = [];
+    await mockDevelop(page, calls);
+    const acc = await seedAccounts();
+    const camp = await seedCampaign({ weeks: 2, accountIds: [acc.instagram] });
     const cycleId = camp.cycleIds[0];
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${cycleId}`);
-    await expect(page.getByTestId('develop-intro')).toContainText('3 ideias aprovadas');
-    await page.getByRole('button', { name: /Desenvolver conteúdos/ }).click();
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 01 de 03');
-    expect(calls.filter((c) => c.mode === 'develop')).toHaveLength(3);
-    const [cy] = await sql<{ status: string }>(`select status from campaign_cycles where id='${cycleId}'`);
-    expect(cy.status).toBe('developing');
-    expect(await sql(`select 1 from contents where cycle_id='${cycleId}' and status='pending_validation'`)).toHaveLength(3);
-
-    // 1) aprovar direto → peça LinkedIn de validação + IG a desenvolver
-    await expect(page.getByTestId('content-frase')).toHaveText('Frase de Por que bons líderes repetem velhos padrões?');
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
-    await expect(page.getByTestId('content-approved')).toContainText('Primeira peça aprovada');
-    await expect(page.getByTestId('content-approved')).toContainText('A desenvolver');
-    await page.getByRole('button', { name: /Próximo conteúdo/ }).click();
-
-    // 2) editar diretamente (LinkedIn) → validação mede a edição humana
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 02 de 03');
-    await page.getByRole('button', { name: 'Editar diretamente' }).click();
-    await page.getByLabel('Frase').fill('Frase reescrita à mão pelo Marcos');
-    await page.getByRole('button', { name: 'Salvar edição' }).click();
-    await expect(page.getByTestId('content-frase')).toHaveText('Frase reescrita à mão pelo Marcos');
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
-    await page.getByRole('button', { name: /Próximo conteúdo/ }).click();
-
-    // 3) ajustar com a Hive (só Instagram) → sem peça de validação
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 03 de 03');
-    await page.getByRole('button', { name: 'Ajustar com a Hive' }).click();
-    await page.getByRole('button', { name: '“Quero uma abertura mais provocativa.”' }).click();
-    await page.getByRole('button', { name: 'Ajustar', exact: true }).click();
-    await expect(page.getByTestId('content-frase')).toContainText('(ajustado)');
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
-    await expect(page.getByTestId('content-approved')).not.toContainText('Primeira peça aprovada');
-    await page.getByRole('button', { name: /Ver resumo do ciclo/ }).click();
-
-    // resumo: 3 conteúdos · 4 peças potenciais · 2 já aprovadas · 2 a desenvolver
-    await expect(page.getByTestId('develop-stats')).toContainText('3conteúdos');
-    await expect(page.getByTestId('develop-stats')).toContainText('4peças potenciais');
-    await expect(page.getByTestId('develop-stats')).toContainText('2já aprovadas no formato de validação');
-    await expect(page.getByTestId('develop-stats')).toContainText('2desdobramentos a desenvolver');
-    await page.getByRole('button', { name: /Desenvolver desdobramentos/ }).click();
-    await expect(page.getByTestId('review-overview')).toBeVisible();
-    const [cy2] = await sql<{ status: string }>(`select status from campaign_cycles where id='${cycleId}'`);
-    expect(cy2.status).toBe('producing');
-
-    // ---- banco: peças de validação + ciclo de aprendizado ----
-    const pieces = await sql<{ id: string; platform: string; piece_role: string; status: string; text_approved: boolean; account_id: string; caption: string; quote: string; ai_edit_rounds: number; manual_edits: number; codigo: string }>(
-      `select id, platform, piece_role, status, text_approved, account_id, caption, carousel_text->>'quote' as quote, ai_edit_rounds, manual_edits, codigo from user_posts where cycle_id='${cycleId}' and piece_role='validation' order by created_at`);
-    expect(pieces).toHaveLength(2);
-    for (const p of pieces) {
-      // o status evolui (a produção visual começa sozinha e aprova a peça de validação)
-      expect(p).toMatchObject({ platform: 'linkedin', piece_role: 'validation', text_approved: true, account_id: acc.linkedin });
-      expect(p.codigo).toMatch(/^BEE-\d{6}-G\d+-D\d+$/);
-    }
-    expect(pieces[1].quote).toBe('Frase reescrita à mão pelo Marcos');
-    expect(pieces[1].manual_edits).toBe(1);
-    const reviews = await sql<{ post_id: string; quote_changed: boolean }>(`select post_id, quote_changed from ai_reviews where post_id in ('${pieces[0].id}','${pieces[1].id}')`);
-    expect(reviews.find((r) => r.post_id === pieces[0].id)?.quote_changed).toBe(false);
-    expect(reviews.find((r) => r.post_id === pieces[1].id)?.quote_changed).toBe(true);
-    const linked = await sql<{ post_id: string }>(`select post_id from ai_variations where post_id in ('${pieces[0].id}','${pieces[1].id}')`);
-    expect(linked).toHaveLength(2);
-    const [adj] = await sql<{ versions: unknown[]; meta: { ai_rounds: number } }>(`select versions, metadata as meta from contents where title='Resistência ou coerência?'`);
-    expect(adj.versions).toHaveLength(2);
-    expect(adj.meta.ai_rounds).toBe(1);
-  });
-
-  test('nova versão e descartar conteúdo', async ({ page }) => {
-    await mockDevelop(page);
-    const { camp, ideaIds } = await setup((a) => [
-      { title: 'Ideia A', fn: 'autoridade', channels: [{ account_id: a.linkedin, platform: 'linkedin' }] },
-      { title: 'Ideia B', fn: 'presenca', channels: [{ account_id: a.instagram, platform: 'instagram' }] },
-    ]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
-    await page.getByRole('button', { name: /Desenvolver conteúdos/ }).click();
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 01 de 02');
-    await page.getByRole('button', { name: 'Nova versão' }).click();
-    await expect(page.getByTestId('content-frase')).toContainText('(nova versão)');
-    page.once('dialog', (d) => d.accept());
-    await page.getByRole('button', { name: 'Descartar' }).click();
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 01 de 01');
-    await expect(page.getByTestId('content-frase')).toHaveText('Frase de Ideia B');
-    const [idea] = await sql<{ status: string }>(`select status from ideas where id='${ideaIds[0]}'`);
-    expect(idea.status).toBe('discarded');
-  });
-
-  test('@live conteúdo-mãe real a partir de uma ideia aprovada', async ({ page }) => {
-    test.setTimeout(240_000);
-    const { camp } = await setup((a) => [
-      { title: 'Por que bons líderes repetem velhos padrões?', fn: 'autoridade', channels: [{ account_id: a.linkedin, platform: 'linkedin' }, { account_id: a.instagram, platform: 'instagram' }] },
-    ]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
-    await page.getByRole('button', { name: /Desenvolver conteúdos/ }).click();
-    await expect(page.getByTestId('validate-step')).toBeVisible({ timeout: 200_000 });
-    await expect(page.getByTestId('content-frase')).not.toBeEmpty();
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
-    await expect(page.getByTestId('content-approved')).toBeVisible();
-    const [p] = await sql<{ caption: string; quote: string }>(`select caption, carousel_text->>'quote' as quote from user_posts where cycle_id='${camp.cycleIds[0]}'`);
-    expect(p.caption.length).toBeGreaterThan(200);
-    expect(p.quote.length).toBeGreaterThan(15);
+    const originals = await seedValidatedContents(camp.id, cycleId, Array.from({ length: 9 }, (_, n) => ({ title: `Base preservada ${n + 1}`, channels: [{ platform: 'instagram', account_id: acc.instagram }] })));
+    await page.goto(`/producao?campaign=${camp.id}&cycle=${cycleId}&step=4`);
+    await expect(page.getByTestId('base-card')).toHaveCount(9);
+    await expect(page.getByTestId('base-progress')).toContainText('9 bases validadas');
+    await expect(page.getByRole('button', { name: 'Seguir para criação dos posts' })).toBeEnabled();
+    expect(calls).toHaveLength(0);
+    const saved = await sql<{ id: string; status: string }>(`select id,status from contents where cycle_id='${cycleId}'`);
+    expect(saved.map((r) => r.id).sort()).toEqual(originals.map((r) => r.contentId).sort());
+    expect(saved.every((r) => r.status === 'validated')).toBe(true);
   });
 });
