@@ -40,6 +40,11 @@ O avulso utiliza as mesmas regras de base, peça e destino, sem obrigar o produt
 13. Reaproveitar uma peça em duas contas pode dispensar nova produção. Quando houver adaptação material, criar versão/peça derivada identificada e exigir revisão correspondente. Nunca trocar silenciosamente o arquivo ou texto aprovado/agendado.
 14. A base permanece no acervo, mesmo após conclusão ou cancelamento da campanha. Registrar origem, versão, usos e resultados; não duplicar todo o conhecimento a cada utilização.
 15. Somente o acervo autorizado do produtor/organização pode ser consultado. Preservar voz, contexto, fontes e critérios de confidencialidade, sem incorporar casos reais identificáveis aos posts.
+16. Na criação visual, considerar as famílias cadastradas e elegíveis da marca, conforme significado, contexto, formato, legibilidade, recursos disponíveis e histórico de utilização. Explicar recomendação e permitir escolha/ajuste do produtor. Não usar uma única família como padrão universal nem alternar famílias aleatoriamente para simular diversidade.
+17. Cadastro/ativação de família não garante sua elegibilidade para toda peça. Quando faltarem fotos, dados de evento ou compatibilidade de renderização, explicar o impedimento e oferecer um caminho para resolvê-lo. Preservar os requisitos de identidade e de uso dos recursos.
+18. A proposta de produção deve considerar imagem única, carrossel, stories e reels, quando adequados e compatíveis com as capacidades reais de produção/publicação. Recomendação de roteiro, geração de mídia e publicação são capacidades distintas; roteiro de vídeo não deve aparecer como Reel finalizado.
+19. A revisão apresenta uma peça uma única vez, com seus destinos associados em uma etapa posterior. Uma cópia idêntica destinada a outra conta não exige uma segunda aprovação editorial. Aprovar a peça não autoriza automaticamente agendar/publicar em todas as contas; a autorização de distribuição continua explícita. Adaptações materiais exigem a revisão da versão alterada.
+20. Campanhas em andamento precisam poder retomar com as bases já validadas, sem repetir suas aprovações. Preservar texto, IDs, origem, versões e estado de validação. Textos legados mais fechados podem ser reaproveitados como estão; ampliar seu conhecimento é revisão opcional, com nova versão e validação próprias.
 
 ## 4. Repetição: duas responsabilidades
 
@@ -71,7 +76,7 @@ O contrato de cancelamento precisa ser validado também no agendador e na public
 
 ## 6. Diagnóstico do código atual
 
-Leitura da `main` em `71f630f2d032b9f203f092e0235d590032812154`, em 09/11/2026. Não houve inspeção do banco remoto nem comparação das Edge Functions implantadas; os achados abaixo são do repositório.
+Leitura da `main` em `71f630f2d032b9f203f092e0235d590032812154`, em 09/11/2026. Os achados abaixo são do repositório, complementados por consultas remotas agregadas sobre persistência da campanha em andamento e cadastro de famílias. O esquema remoto completo e as versões das Edge Functions implantadas ainda não foram comparados. Este documento público não contém o inventário de conteúdos reais.
 
 | Local | Evidência | Consequência para a implementação |
 |---|---|---|
@@ -84,6 +89,8 @@ Leitura da `main` em `71f630f2d032b9f203f092e0235d590032812154`, em 09/11/2026. 
 | `src/types/campaign.ts` / `src/types/sequence.ts` | Base tem `campaign_id/cycle_id`, corpo `frase/texto` e versões; plano já tem plataforma, formato e conta opcional. Campanha prevê draft/active/paused/ended, sem cancelled. | Evolução aditiva e discriminada para bases/versões/usos; compatibilidade com legado. Não basta renomear ended para representar cancelamento. |
 | `_shared/content-memory.ts` | Memória consulta peças aprovadas/agendadas/publicadas por produtor; também reavalia ideias e bases pendentes. Contratos de vizinhos lidos não trazem conta. | Separar recuperação de conhecimento da proteção de peças e completar o escopo por destino; revisar todos os chamadores. |
 | `src/pages/campanhas/CampaignDetail.tsx` | Há Pausar, Retomar, Encerrar e Excluir. Não há Cancelar com prévia de impacto. | Implementar cancelamento próprio, cobrindo servidor/fila; não reutilizar exclusão. |
+| `generate-content/index.ts`, `hive-decide/index.ts` e `src/lib/hive/loadDesign.ts` | Existe leitura do catálogo de famílias; há filtros de elegibilidade/auto-seleção e trava de M01-A para LinkedIn. M04 depende de dados de evento e tem caminho específico. | Investigar por que o fluxo corrente concentra M01. Corrigir a seleção em todos os motores/consumidores, respeitando requisitos reais; não basta listar mais famílias na tela. |
+| `src/lib/sequence/service.ts` | Há plano recomendado de sequências, criação de roteiro e consulta de `format_capabilities`; a produção padrão por canais em `produce.ts` cria imagem única. | Integrar a recomendação de formatos ao plano macro; conferir capacidade de mídia/renderização/publicação antes de apresentar cada formato como pronto. |
 | `e2e/f4-desenvolvimento.spec.ts` | Testes exigem criação da peça LinkedIn na validação. | Atualizar os testes porque a decisão de produto mudou. Manter cobertura do legado quando o contrato ainda precisar ser aceito. |
 
 ## 7. Ordem de execução
@@ -105,6 +112,9 @@ Leitura da `main` em `71f630f2d032b9f203f092e0235d590032812154`, em 09/11/2026. 
 
 - Proposta do conjunto da campanha; aprovação explícita; produção por plataforma/formato e verificação de sobreposição desde a geração.
 - Contas confirmadas na preparação da publicação; nova conferência por destino; republicação intencional identificada.
+- Revisão sem duplicação editorial por conta, com aprovação vinculada à versão exata da peça e distribuição autorizada separadamente.
+- Escolha contextual de família, justificativa, alternativas elegíveis e diagnóstico de famílias indisponíveis. Revisar tanto `generate-content` quanto `hive-decide`, catálogo/renderizadores e caminhos de sequências.
+- Formatos variados na proposta, considerando a campanha como conjunto e as capacidades reais por plataforma; diferenciar roteiro de vídeo e arquivo final publicável.
 - Guardar versão de origem e usos; preservar contratos de aprovação, pacote de agendamento e publicação.
 - E1/E2 têm dependência de contrato: funcionalidades novas só são liberadas ao produtor quando houver caminho completo de base até peça/revisão/destino. Fundação aditiva pode entrar antes; não disponibilizar uma tela que encaminhe uma base nova para o contrato antigo de post LinkedIn.
 
@@ -114,6 +124,16 @@ Leitura da `main` em `71f630f2d032b9f203f092e0235d590032812154`, em 09/11/2026. 
 - Status consultável e preservação de acervo/histórico; sem efeitos em outras campanhas.
 
 Uma entrega por PR, na ordem das dependências. Aplicar somente mudanças autorizadas, sem interromper campanhas atuais nem alterar seus agendamentos para testar. Após cada entrega, oferecer uma verificação de uso curta ao produtor, com lista detalhada de ajustes no registro da entrega.
+
+### Retomada da campanha em andamento
+
+Antes de aplicar, guardar inventário privado recuperável das bases e suas versões, estados, vínculos, planos e peças. Confirmar persistência no banco; um diagnóstico agregado não substitui esse registro de preservação.
+
+Ao abrir um ciclo legado já em `producing`, sem plano novo aprovado, apresentar **Proposta de produção** a partir das bases validadas. Não executar o gerador antigo automaticamente, não pedir novamente aprovação das bases e não excluir as peças já geradas.
+
+As peças legadas pendentes ficam preservadas. Após o produtor aprovar a substituição pelo novo plano, retirar do fluxo ativo somente as peças pendentes expressamente substituídas, com vínculo/histórico auditável e operação idempotente. Peças aprovadas, agendadas ou publicadas exigem tratamento específico e não entram nessa substituição automática. Manter outros ciclos e campanhas intactos.
+
+A primeira verificação de uso após a implantação será retomar a campanha existente, conferir as bases preservadas, aprovar um plano variado e revisar peças sem multiplicação por conta. Não exigir recriar campanha ou refazer o trabalho já validado.
 
 ## 8. Critérios de aceite e testes
 
@@ -133,6 +153,10 @@ Uma entrega por PR, na ordem das dependências. Aplicar somente mudanças autori
 | T12 Concorrência | Cancelar duas vezes é seguro; fila/cancelamento concorrentes não causam nova publicação ou reativação; resultados incertos são reconciliados. |
 | T13 Isolamento | Usuário/organização sem permissão não consulta base, cancela campanha ou utiliza peça alheia. |
 | T14 Legado/avulso | Campanha atual e avulso continuam navegáveis e recuperáveis; nenhum conteúdo real é apagado/reescrito na migração. |
+| T15 Famílias | Catálogo com várias famílias elegíveis é considerado de fato; recomendação justificada e seleção humana alcançam renderização correspondente. Famílias inelegíveis exibem motivo verificável. |
+| T16 Formatos | Proposta pode conter carrossel/stories/reels conforme capacidades; aceitar plano não converte tudo em imagem única. Roteiro sem vídeo não é mostrado como peça pronta para publicar. |
+| T17 Retomada realista | Ciclo legado com bases validadas e peças pendentes abre proposta nova, sem gerar automaticamente ou exigir reaprovação das bases. Substituir pendências preserva histórico e não afeta peças protegidas. |
+| T18 Aprovação e distribuição | Mesma peça com dois destinos aparece uma vez para revisão editorial; cada destino exige confirmação de distribuição. Mudança material cria revisão da versão correspondente. |
 
 Specs existentes a revisar: `f2-campanha`, `f3-producao`, `f4-desenvolvimento`, `f5-producao-visual`, `f6-agenda`, `f7-home-pipeline`, identidade/ACJ, sequências e estabilização de aprovação/publicação. Testes novos devem afirmar as mudanças acordadas, sem enfraquecer garantias de publicação.
 
@@ -146,8 +170,8 @@ Reversão de interface deve manter versões/usos existentes. Não apagar bases o
 
 ## 10. Estado desta preparação
 
-- Inspeção estática do fluxo principal concluída; evidências registradas acima.
+- Inspeção estática do fluxo principal concluída; evidências registradas acima. Persistência de bases validadas e estado agregado das peças da campanha em andamento conferidos por leitura remota, sem mutações.
 - Decisões de produto e critérios de aceite consolidados.
 - Código de aplicação, banco e funções remotas: **não alterados**.
-- Inventário remoto, detalhamento de migrations/contratos e implementação: pendentes de E0.
+- Inventário remoto completo com registro privado recuperável, detalhamento de migrations/contratos e implementação: pendentes de E0.
 - Build deste PR documental: registrar o resultado no PR.
