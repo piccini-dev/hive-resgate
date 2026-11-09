@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { LoadError } from '@/components/shared/LoadState';
 import { baseApi } from '@/lib/campaign/bases';
-import { pieceApi } from '@/lib/campaignApi';
+import { cycleApi, pieceApi } from '@/lib/campaignApi';
 import { productionApi } from '@/lib/campaign/production-api';
 import { FAMILY_LABELS, pendingProduction, productionProblems, type ProductionItem, type ProductionProposal, type TemplateFamily } from '@/lib/campaign/production-plan';
 import { loadHiveDesign } from '@/lib/hive/loadDesign';
@@ -99,7 +99,12 @@ export function ProductionHub(props: Props) {
       {errors.length>0&&<ul className="space-y-1 text-xs text-destructive">{errors.slice(0,5).map((e,i)=><li key={i}>{e}</li>)}</ul>}
       <Button variant="accent" size="lg" disabled={busy||errors.length>0||(pending.length>0&&!confirmReplace)} onClick={async()=>{
         setBusy(true);try{const c=await productionApi.approve(cycle,command,bases,proposal.items,pending.map(p=>p.id));onCycleChange(c);setProposal(null);setView('review');toast.success('Proposta aprovada. A Hive vai produzir as peças selecionadas.');}
-        catch(e){toast.error((e as Error).message);await load();}finally{setBusy(false);}
+        catch(e){
+          toast.error((e as Error).message);
+          const latest=await cycleApi.get(cycle.id).catch(()=>null);
+          if(latest){onCycleChange(latest);if(latest.plan?.production?.batch_id===command){setProposal(null);setView('review');}}
+          setConfirmReplace(false);await load();
+        }finally{setBusy(false);}
       }}>Aprovar proposta e produzir posts <ArrowRight className="h-4 w-4"/></Button>
       <p className="text-xs text-muted-foreground">Esta aprovação libera a produção. Cada post terá sua própria revisão antes de selecionar contas e agendar.</p>
     </>}

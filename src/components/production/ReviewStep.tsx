@@ -269,7 +269,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
                   </div>
                 ))}
               </div>
-              {!productionBatchId && !cycle.plan?.production && <PiecePlanPanel content={c} plans={plans.filter((pl) => pl.content_id === c.id)} pieces={pieces.filter((x) => x.content_id === c.id)}
+              {allowAutoProduction && !productionBatchId && !cycle.plan?.production && <PiecePlanPanel content={c} plans={plans.filter((pl) => pl.content_id === c.id)} pieces={pieces.filter((x) => x.content_id === c.id)}
                 accounts={accounts.filter((a) => (campaign.account_ids ?? []).includes(a.id) || !(campaign.account_ids ?? []).length)}
                 onChanged={async (produce) => { await load(); if (produce) { setChecked(false); setRunNonce((x) => x + 1); setView({ kind: 'overview' }); } }} />}
             </section>

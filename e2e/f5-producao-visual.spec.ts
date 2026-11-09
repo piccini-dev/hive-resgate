@@ -1,3 +1,4 @@
+import {prepareLegacyReview,openLegacyReview} from './helpers/legacy-production';
 import { test, expect } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
 import { mockProduction } from './helpers/mocks';
@@ -23,7 +24,7 @@ test.describe('F5 · produção visual do ciclo', () => {
     const calls = await mockProduction(page);
     const { camp, seeded } = await setup();
     const cycleId = camp.cycleIds[0];
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${cycleId}`);
+    await prepareLegacyReview(page,camp.id,cycleId);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
     await expect(page.getByTestId('production-summary')).toContainText('3peças previstas');
     await expect(page.getByTestId('production-summary')).toContainText('1já aprovadas');
@@ -133,11 +134,11 @@ test.describe('F5 · produção visual do ciclo', () => {
     const calls = await mockProduction(page);
     const { camp } = await setup();
     const cycleId = camp.cycleIds[0];
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${cycleId}`);
+    await prepareLegacyReview(page,camp.id,cycleId);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
     expect(calls.gen).toHaveLength(2);
     // "volta" à tela: nada mais pra produzir
-    await page.reload();
+    await page.reload(); await openLegacyReview(page);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 60_000 });
     expect(calls.gen).toHaveLength(2);
     const unf = await sql(`select 1 from user_posts where cycle_id='${cycleId}' and piece_role='unfold'`);
@@ -148,7 +149,7 @@ test.describe('F5 · produção visual do ciclo', () => {
     test.setTimeout(300_000);
     const { camp, seeded } = await setup();
     const cycleId = camp.cycleIds[0];
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${cycleId}`);
+    await prepareLegacyReview(page,camp.id,cycleId);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 280_000 });
     const [v] = await sql<{ status: string; variant: string }>(`select status, visual_decision->>'variant' as variant from user_posts where id='${seeded[0].pieceId}'`);
     expect(v).toMatchObject({ status: 'approved', variant: 'M01-A' });

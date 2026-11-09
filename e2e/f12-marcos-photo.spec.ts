@@ -1,3 +1,4 @@
+import {prepareLegacyReview,openLegacyReview} from './helpers/legacy-production';
 import { test, expect } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { cleanupE2EData, cleanupE2EPhotoFiles, sql } from './helpers/admin';
@@ -112,7 +113,7 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
     const acc = await seedAccounts();
     const camp = await seedCampaign({ weeks: 8, name: 'Presença Marcos', accountIds: [acc.linkedin, acc.instagram] });
     await seedValidatedContents(camp.id, camp.cycleIds[0], [{ title: 'Liderar é sustentar a pergunta', channels: [{ account_id: acc.instagram, platform: 'instagram' }] }]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
+    await prepareLegacyReview(page,camp.id,camp.cycleIds[0]);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
     expect(calls.filter((c) => c.action === 'generate').length).toBeGreaterThan(0);
     const gen = calls.find((c) => c.action === 'generate')!;
@@ -144,7 +145,7 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
     const acc = await seedAccounts();
     const camp = await seedCampaign({ weeks: 8, name: 'Presença Marcos', accountIds: [acc.linkedin, acc.instagram] });
     await seedValidatedContents(camp.id, camp.cycleIds[0], [{ title: 'Liderar é sustentar a pergunta', channels: [{ account_id: acc.instagram, platform: 'instagram' }] }]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
+    await prepareLegacyReview(page,camp.id,camp.cycleIds[0]);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
     const [piece] = await sql<{ id: string; gid: string; quote: string; caption: string }>(`select id, visual_decision->'asset'->>'photo_generation_id' gid, carousel_text->>'quote' quote, caption from user_posts where cycle_id='${camp.cycleIds[0]}' and piece_role='unfold' and status<>'archived' limit 1`);
     await page.getByRole('button', { name: /Revisar produção/ }).click();

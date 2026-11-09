@@ -1,4 +1,7 @@
 // Conteúdos-base: desenvolver o pensamento e preservar versões antes de criar posts.
+import { AcjContractSummary } from '@/components/acj/AcjContractSummary';
+import { acjContractApi } from '@/lib/acj/api';
+import type { AcjContentContract } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, Loader2, Pencil, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +18,7 @@ export function DevelopStep({ campaign, cycle, ideas, editorials, onIdeasChange,
   campaign: Campaign; cycle: CampaignCycle; ideas: Idea[]; editorials: BeeEditorial[]; accounts: SocialAccount[]; focusContentId?: string;
   onIdeasChange: (i: Idea[]) => void; onCycleChange: (c: CampaignCycle) => void; onDone: (c: CampaignCycle) => void;
 }) {
+  const [contract, setContract] = useState<AcjContentContract | null>(null);
   const [contents, setContents] = useState<Content[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(focusContentId ?? null);
@@ -29,6 +33,7 @@ export function DevelopStep({ campaign, cycle, ideas, editorials, onIdeasChange,
     try { setContents(await baseApi.listByCycle(cycle.id)); } catch { setFailed(true); }
   }, [cycle.id]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { let alive=true; setContract(null); if(focusId)void acjContractApi.listByContents([focusId]).then(cs=>{if(alive)setContract(cs.sort((a,b)=>b.version-a.version)[0]??null);}).catch(()=>{}); return()=>{alive=false;}; },[focusId]);
   const live = (contents ?? []).filter((c) => c.status !== 'discarded');
   const approvedIdeas = ideas.filter((i) => i.status === 'approved' || i.status === 'developed');
   const missing = approvedIdeas.filter((i) => i.status === 'approved' && !live.some((c) => c.idea_id === i.id));
@@ -117,6 +122,7 @@ export function DevelopStep({ campaign, cycle, ideas, editorials, onIdeasChange,
         <p className="mt-2 font-display text-xl font-semibold" data-testid="content-frase">{c.body.frase}</p>
         <div className="mt-5 whitespace-pre-line leading-relaxed" data-testid="content-texto">{c.body.texto}</div>
       </article>}
+      {contract && <section className="space-y-2"><p className="text-xs text-muted-foreground">Contrato e leitura anteriores, preservados como referência. Validar esta base não aprova o movimento de um post futuro.</p><AcjContractSummary contract={contract} onChange={setContract}/></section>}
       {c.considered?.base && <p className="text-sm text-muted-foreground">Apoios considerados: {c.considered.base}</p>}
       {c.status === 'validated' && <p className="text-sm text-emerald-700">Base validada. Editar cria uma nova versão em elaboração; utilizações anteriores continuam preservadas.</p>}
       {adjusting && <section className="space-y-3 rounded-xl border bg-accent/5 p-4">
@@ -127,6 +133,7 @@ export function DevelopStep({ campaign, cycle, ideas, editorials, onIdeasChange,
       {!editing && <div className="flex flex-wrap justify-between gap-3">
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={!!busy} onClick={() => setEditing({ ...c.body })}><Pencil className="h-4 w-4" />Editar diretamente</Button>
+          <Button variant="outline" disabled={!!busy} onClick={() => act('new-version', async () => { const idea=ideas.find(i=>i.id===c.idea_id); if(!idea)throw new Error('Pauta de origem indisponível.'); replace(await reviseWithHive(c,idea,'new_version')); })}>Nova versão da base</Button>
           <Button variant="outline" disabled={!!busy} onClick={() => setAdjusting((v) => !v)}><Sparkles className="h-4 w-4" />Ajustar com a Hive</Button>
         </div>
         {c.status !== 'validated' && <Button variant="accent" disabled={!!busy} onClick={() => act('approve', async () => {

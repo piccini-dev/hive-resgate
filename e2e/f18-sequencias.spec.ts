@@ -1,3 +1,4 @@
+import {prepareLegacyReview,openLegacyReview} from './helpers/legacy-production';
 import { writeFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
@@ -56,25 +57,14 @@ test.describe('F18 · conteúdos sequenciais (carrossel)', () => {
     const seqCalls = await mockSequence(page);
     const { acc, camp, c, cycleId } = await setup();
 
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${cycleId}`);
-    await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
-    await page.getByRole('button', { name: /Revisar produção/ }).click();
-
-    // plano: o desdobramento padrão (imagem Instagram) virou item de plano com ID próprio
-    await page.getByTestId('plan-toggle').click();
-    await expect(page.getByTestId('plan-item')).toHaveCount(1);
-    // carrossel na MESMA conta LinkedIn da peça de imagem (abordagem diferente)
-    await page.getByLabel('Conta da peça').selectOption(acc.linkedin);
-    await page.getByLabel('Formato da peça').selectOption('carousel');
-    await page.getByLabel('Abordagem da peça').fill('A dinâmica organizacional');
-    await page.getByTestId('plan-add').click();
-    await expect(page.getByTestId('plan-item')).toHaveCount(2);
-    await page.getByTestId('plan-produce').click();
-    await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
+    // Fixture anterior à migração: uma peça adicional de carrossel já planejada.
+    await seed('content_piece_plans',{content_id:c.contentId,campaign_id:camp.id,cycle_id:cycleId,account_id:acc.linkedin,platform:'linkedin',format:'carousel',approach:'A dinâmica organizacional',origin:'user',status:'planned'});
+    await prepareLegacyReview(page,camp.id,cycleId);
+    await expect(page.getByTestId('production-summary')).toBeVisible({timeout:120000});
     expect(seqCalls.filter((x) => x.action === 'script')).toHaveLength(1);
 
     // retomar o ciclo não omite nem duplica
-    await page.reload();
+    await page.reload(); await openLegacyReview(page);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 60_000 });
     const pieces = await sql<{ platform: string; format: string; role: string; plan_id: string | null }>(`select platform, format, piece_role role, plan_id from user_posts where content_id='${c.contentId}' and status<>'archived' order by platform, format`);
     expect(pieces).toEqual([
@@ -99,7 +89,7 @@ test.describe('F18 · conteúdos sequenciais (carrossel)', () => {
     expect(noVisual.n).toBe(0);
     // texto que não cabe numa página: a produção falha SÓ nela (retomada depois)
     await sql(`update post_units set body = repeat('Texto longo demais para uma página legível. ', 40) where post_id='${carousel.id}' and position=4`);
-    await page.reload();
+    await page.reload(); await openLegacyReview(page);
     await page.getByRole('button', { name: /Revisar produção/ }).click();
     await page.getByTestId('gallery-unit').filter({ has: page.getByTestId('unit-format') }).getByRole('button').first().click();
     await page.getByTestId('script-approve').click();

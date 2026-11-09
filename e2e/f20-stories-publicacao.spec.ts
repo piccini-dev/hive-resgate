@@ -1,3 +1,4 @@
+import {prepareLegacyReview} from './helpers/legacy-production';
 import { writeFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
@@ -50,16 +51,10 @@ test.describe('F20 · Stories e publicação de sequências', () => {
     const acc = await seedAccounts();
     const camp = await seedCampaign({ weeks: 8, name: 'Presença Marcos', accountIds: [acc.linkedin, acc.instagram] });
     const [c] = await seedValidatedContents(camp.id, camp.cycleIds[0], [{ title: 'Quando o líder resolve tudo', channels: [{ account_id: acc.linkedin, platform: 'linkedin' }], validationPiece: true }]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
-    await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
-    await page.getByRole('button', { name: /Revisar produção/ }).click();
-    await page.getByTestId('plan-toggle').click();
-    await page.getByLabel('Conta da peça').selectOption(acc.instagram);
-    await page.getByLabel('Formato da peça').selectOption('story');
-    await page.getByTestId('plan-add').click();
-    await page.getByTestId('plan-produce').click();
-    await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
-    await page.getByRole('button', { name: /Revisar produção/ }).click();
+    // Sequência legada pré-existente: o comportamento de publicação continua coberto.
+    await seed('content_piece_plans',{content_id:c.contentId,campaign_id:camp.id,cycle_id:camp.cycleIds[0],account_id:acc.instagram,platform:'instagram',format:'story',origin:'user',status:'planned'});
+    await prepareLegacyReview(page,camp.id,camp.cycleIds[0]);
+    await page.getByRole('button',{name:/Revisar produção/}).click();
     await page.getByTestId('gallery-unit').filter({ has: page.getByTestId('unit-format') }).getByRole('button').first().click();
 
     await expect(page.getByTestId('sequence')).toHaveAttribute('data-stage', 'script');

@@ -24,7 +24,7 @@ export function PublicationDestinations({campaign,cycle,accounts,onBack,onCycleC
         const material=await db.rpc<Material>('publication_material',{p_post:piece.id});
         const hasRepeat=material.duplicates.some(d=>material.deliveries.some(x=>x.account_id===d.account_id));
         const selected=material.deliveries.map(d=>d.account_id).filter((a):a is string=>!!a);
-        return {piece,material,selected,allowRepeat:false,note:'',confirmed:piece.metadata?.destinations_confirmed===true&&piece.metadata?.destination_material_hash===material.hash&&(!hasRepeat||piece.metadata?.intentional_republish===true)};
+        return {piece,material,selected,allowRepeat:false,note:'',confirmed:piece.metadata?.destinations_confirmed===true&&piece.metadata?.destination_material_hash===material.hash&&piece.metadata?.destination_account_id===piece.account_id&&(!hasRepeat||piece.metadata?.intentional_republish===true)};
       }));setEntries(rows);
     }catch{setError(true);}
   }

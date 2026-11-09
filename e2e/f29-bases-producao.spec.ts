@@ -1,6 +1,8 @@
 import {test,expect} from '@playwright/test';
 import {cleanupE2EData,cleanupE2EStorage,seed,sql} from './helpers/admin';
-import {seedAccounts,seedCampaign,seedValidatedContents} from './helpers/fixtures';
+import {seedAccounts,seedCampaign,seedValidatedContents,seedIdentityBrand} from './helpers/fixtures';
+import {e2eUser} from './helpers/env';
+import {loginAs} from './helpers/tenant';
 import {mockEdge,mockProduction} from './helpers/mocks';
 
 test.describe('F29 · base reutilizável → proposta → post → destinos',()=>{
@@ -66,4 +68,64 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('button',{name:/Seguir para a agenda/}).click();
     await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
   });
+  test('contratos autenticados: uma base gera imagem/carrossel/Stories; entregas preservam o material e exigem reconfirmação de conta',async()=>{
+    test.setTimeout(180000);
+    const f=await setup(),user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
+    const [cycle]=await sql<{updated_at:string}>(`select updated_at from campaign_cycles where id='${f.cycle}'`);
+    const [base]=await sql<{body:object}>(`select body from contents where id='${f.base.contentId}'`);
+    const formats=['image','carousel','story'];
+    const approved=await client.rpc('approve_cycle_production',{p_cycle:f.cycle,p_command:crypto.randomUUID(),p_expected_updated:cycle.updated_at,p_bases:[{id:f.base.contentId,body:base.body}],
+      p_items:formats.map(format=>({content_id:f.base.contentId,platform:'instagram',format,approach:`Contribuição ${format}`,purpose:`Percurso próprio para ${format}`,template_family:'M01',editorial_slug:'diagnostico-sistemico'})),p_replace:[]});
+    expect(approved.status).toBe(200);
+    const plans=await sql<{id:string;format:string}>(`select id,format from content_piece_plans where cycle_id='${f.cycle}' order by position`);
+    expect(plans.map(p=>p.format)).toEqual(formats);
+    const parents:string[]=[];
+    for(const plan of plans){
+      const races=await Promise.all([client.rpc<{piece:{id:string};claim:string}>('reserve_production_piece',{p_plan:plan.id}),client.rpc('reserve_production_piece',{p_plan:plan.id})]);
+      expect(races.map(r=>r.status).sort()).toEqual([200,409]);
+      const reservation=races.find(r=>r.status===200)!.data as {piece:{id:string};claim:string};
+      const pid=reservation.piece.id;parents.push(pid);
+      const sequence=plan.format!=='image';
+      const saved=await client.rpc('save_production_progress',{p_plan:plan.id,p_claim:reservation.claim,p_done:true,
+        p_patch:{caption:plan.format==='story'?'':`Legenda exclusiva ${plan.format}`,carousel_text:{quote:`Capa ${plan.format}`},...(!sequence?{rendered_slides:{slide1:`https://example.test/${pid}.jpg`},visual_decision:{variant:'M01-A'}}:{})},
+        p_units:sequence?[{layout:'cover',title:`Capa ${plan.format}`,body:''},{layout:'text',title:'Desenvolvimento',body:`Contribuição ${plan.format}`},{layout:'closing',title:'Encerramento',body:'Pergunta para observar.'}]:null});
+      expect(saved.status).toBe(200);
+      if(sequence){
+        await sql(`update post_units set rendered_url='https://example.test/'||id||'.jpg',visual_status='ready',review_status='approved',rendered_text_version=text_version where post_id='${pid}'; update user_posts set script_status='approved' where id='${pid}';`);
+      }
+      const ap=await client.rpc(sequence?'approve_sequence':'approve_piece',sequence?{pid}:{p_post:pid,p_rendered:`https://example.test/${pid}.jpg`,p_approve_ai:false});
+      expect(ap.status).toBe(200);
+      const material=await client.rpc<{hash:string}>('publication_material',{p_post:pid});
+      const destinations=await client.rpc('prepare_piece_destinations',{p_post:pid,p_expected_hash:material.data.hash,p_accounts:[f.accounts.instagram,f.other]});
+      expect(destinations.status).toBe(200);
+      const resume=await client.rpc<{done:boolean;piece:{id:string}}>('reserve_production_piece',{p_plan:plan.id});
+      expect(resume.data).toMatchObject({done:true,piece:{id:pid}});
+    }
+    const counts=await sql<{format:string;n:number}>(`select format,count(*)::int n from user_posts where cycle_id='${f.cycle}' and status='approved' group by format order by format`);
+    expect(counts).toEqual([{format:'carousel',n:2},{format:'image',n:2},{format:'story',n:2}]);
+    expect((await client.rpc('complete_cycle_production',{p_cycle:f.cycle})).status).toBe(200);
+    const third=await seed('social_accounts',{platform:'instagram',label:'E2E terceiro',status:'connected'});
+    const [delivery]=await sql<{id:string}>(`select id from user_posts where metadata->>'delivery_of'='${parents[0]}' and status='approved'`);
+    await client.rest(`/user_posts?id=eq.${delivery.id}`,{method:'PATCH',body:JSON.stringify({account_id:third})});
+    expect((await client.rpc('complete_cycle_production',{p_cycle:f.cycle})).status).toBe(422);
+    const material=await client.rpc<{hash:string}>('publication_material',{p_post:parents[0]});
+    expect((await client.rpc('prepare_piece_destinations',{p_post:parents[0],p_expected_hash:material.data.hash,p_accounts:[f.accounts.instagram,third]})).status).toBe(200);
+    expect((await client.rpc('complete_cycle_production',{p_cycle:f.cycle})).status).toBe(200);
+    const [source]=await sql<{body:object}>(`select body from contents where id='${f.base.contentId}'`);
+    expect(source.body).toEqual(base.body);
+  });
+
+  test('servidor captura a voz da campanha sem IA e preserva snapshots quando a voz muda',async()=>{
+    const brand=await seedIdentityBrand(),camp=await seedCampaign({weeks:1}),user=e2eUser();
+    const client=await loginAs(user.email,user.password,user.id);
+    await sql(`update campaigns set profile_id='${brand.profileA}' where id='${camp.id}'`);
+    const first=await client.fn<{snapshot_id:string;profile_id:string}>('sequence-script',{action:'production_context',cycle_id:camp.cycleIds[0]});
+    expect(first.status).toBe(200);expect(first.data.profile_id).toBe(brand.profileA);expect(first.data.snapshot_id).toBeTruthy();
+    await sql(`update campaigns set profile_id='${brand.profileB}' where id='${camp.id}'`);
+    const second=await client.fn<{snapshot_id:string;profile_id:string}>('sequence-script',{action:'production_context',cycle_id:camp.cycleIds[0]});
+    expect(second.status).toBe(200);expect(second.data.profile_id).toBe(brand.profileB);expect(second.data.snapshot_id).not.toBe(first.data.snapshot_id);
+    const snapshot=await client.rest<Array<{profile_id:string;campaign_id:string}>>(`/context_snapshots?id=eq.${first.data.snapshot_id}&select=profile_id,campaign_id`);
+    expect(snapshot.data).toEqual([{profile_id:brand.profileA,campaign_id:camp.id}]);
+  });
+
 });
