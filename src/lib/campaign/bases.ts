@@ -4,11 +4,11 @@ import type { Content, ContentBody } from '@/types';
 import { resolveBases, type BaseUse, type BaseVersion } from './base-state';
 export type { BaseVersion } from './base-state';
 export const baseApi = {
-  async listByCycle(cycleId: string): Promise<Content[]> {
+  async listByCycle(cycleId: string, includeDrafts = true): Promise<Content[]> {
     const [originals, uses, drafts] = await Promise.all([
       contentApi.listByCycle(cycleId),
       db.select<BaseUse>('content_base_uses', { cycle_id: `eq.${cycleId}`, select: '*,content:contents(*),version:content_base_versions(*)', order: 'position.asc' }),
-      db.select<BaseVersion>('content_base_versions', { draft_cycle_id: `eq.${cycleId}`, status: 'eq.draft', order: 'ordinal.desc' }),
+      includeDrafts ? db.select<BaseVersion>('content_base_versions', { draft_cycle_id: `eq.${cycleId}`, status: 'eq.draft', order: 'ordinal.desc' }) : Promise.resolve([]),
     ]);
     return resolveBases(originals, uses, drafts, cycleId);
   },

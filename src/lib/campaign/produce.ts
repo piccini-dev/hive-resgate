@@ -36,23 +36,24 @@ async function updatePiece(id: string, patch: Partial<UserPost>): Promise<UserPo
 }
 
 // Produz (ou refaz) o visual da peça com a Hive e grava.
-export async function renderPiece(userId: string, piece: UserPost, opts: { seed?: HiveSeed; forceBg?: boolean; approve?: boolean; photoAdjust?: string } = {}): Promise<UserPost> {
+export async function renderPiece(userId: string, piece: UserPost, opts: { seed?: HiveSeed; forceBg?: boolean; approve?: boolean; photoAdjust?: string; persist?: boolean } = {}): Promise<UserPost> {
   const text = (piece.carousel_text?.quote as string | undefined)?.trim() || piece.title || '';
   const r = await generateHiveImage({
     userId, postId: piece.id, text, platform: piece.platform as 'linkedin' | 'instagram',
     editorialSlug: piece.metadata?.editorial_slug as string | undefined, seed: opts.seed, forceBg: opts.forceBg,
-    context: piece.caption ?? undefined, previousDecision: piece.visual_decision as Record<string, unknown> | null, photoAdjust: opts.photoAdjust,
+    persistDecision: opts.persist !== false, context: piece.caption ?? undefined, previousDecision: piece.visual_decision as Record<string, unknown> | null, photoAdjust: opts.photoAdjust,
   });
   // O upload reusa o mesmo caminho (upsert): o ?v= força o navegador a buscar a
   // peça refeita em vez de mostrar a versão antiga do cache.
   const slide1 = `${r.publicUrl.split('?')[0]}?v=${Date.now()}`;
-  return updatePiece(piece.id, {
+  const patch: Partial<UserPost> = {
     carousel_fabric_json: [r.slide], rendered_slides: { slide1 }, visual_decision: r.decision as Record<string, unknown>,
     ...(opts.approve
       ? { status: 'approved', image_status: 'approved', image_approved: true }
       : { image_status: 'pending', image_approved: false }),
     metadata: { ...piece.metadata, ...(opts.forceBg ? { bg_approved: false } : {}) },
-  });
+  };
+  return opts.persist === false ? { ...piece, ...patch } : updatePiece(piece.id, patch);
 }
 
 export interface UnfoldTask { content: Content; idea?: Idea; channel: IdeaChannel; validation?: UserPost; plan?: PiecePlan }
@@ -62,7 +63,15 @@ export interface UnfoldTask { content: Content; idea?: Idea; channel: IdeaChanne
 // carrosséis na mesma conta são legítimos; aprovar a imagem única não encerra os demais.
 //  - canal da ideia sem plano e sem peça de imagem → desdobramento padrão (imagem única);
 //  - plano "planejado" sem peça → produz (imagem: adaptação + visual; carrossel: roteiro).
-export function productionTodo(contents: Content[], ideas: Idea[], pieces: UserPost[], plans: PiecePlan[] = []): { validation: UserPost[]; unfold: UnfoldTask[]; sequences: UnfoldTask[] } {
+export function productionTodo(contents: Content[], ideas: Idea[], pieces: UserPost[], plans: PiecePlan[] = [], batchId?: string): { validation: UserPost[]; unfold: UnfoldTask[]; sequences: UnfoldTask[] } {
+  if (batchId) {
+    const tasks = plans.filter(p => p.production_batch_id === batchId && p.status === 'planned').map(plan => {
+      const content = contents.find(c => c.id === plan.content_id && c.status === 'validated');
+      if (!content) throw new Error('Base do plano indisponível. Atualize a produção.');
+      return { content, plan, channel: { platform: plan.platform } as IdeaChannel };
+    });
+    return { validation: [], unfold: tasks.filter(t => t.plan.format === 'image'), sequences: tasks.filter(t => t.plan.format !== 'image') };
+  }
   const validated = contents.filter((c) => c.status === 'validated');
   const validation = pieces.filter((p) => p.piece_role === 'validation' && p.status !== 'archived' && !p.rendered_slides?.slide1);
   const unfold: UnfoldTask[] = [];
@@ -162,10 +171,11 @@ export async function produceCycle(
   editorialName: (slug?: string | null) => string | undefined,
   onProgress?: (done: number, total: number, piece?: UserPost) => void,
 ): Promise<UserPost[]> {
-  const todo = productionTodo(data.contents, data.ideas, data.pieces, data.plans ?? []);
+  const todo = productionTodo(data.contents, data.ideas, data.pieces, data.plans ?? [], cycle.plan?.production?.batch_id);
   // Canal apontando pra conta que não existe mais (ex.: reconexão apagou a antiga):
   // usa a conta padrão da mesma rede em vez de falhar com 23503 na gravação da peça.
-  const accounts = await db.select<SocialAccount>('social_accounts', { select: 'id,platform,is_default,status' });
+  const batchId = cycle.plan?.production?.batch_id;
+  const accounts = batchId ? [] : await db.select<SocialAccount>('social_accounts', { select: 'id,platform,is_default,status' });
   const fixChannel = (ch: IdeaChannel): IdeaChannel => {
     if (!ch.account_id || accounts.some((a) => a.id === ch.account_id)) return ch;
     const same = accounts.filter((a) => a.platform === ch.platform && a.status === 'connected');
@@ -173,12 +183,16 @@ export async function produceCycle(
   };
   const tasks: Array<() => Promise<UserPost[]>> = [
     ...todo.validation.map((p) => async () => [await renderPiece(userId, p, { approve: true })]),
-    ...todo.unfold.map((t) => () => createUnfold(userId, cycle, { ...t, channel: fixChannel(t.channel) }, editorialName(t.content.editorial_slug))),
+    ...todo.unfold.filter(t => !batchId).map((t) => () => createUnfold(userId, cycle, { ...t, channel: fixChannel(t.channel) }, editorialName(t.content.editorial_slug))),
     // Sequências: só o ROTEIRO (o visual vem depois do roteiro aprovado pelo autor).
-    ...todo.sequences.map((t) => async () => {
+    ...todo.sequences.filter(t => !batchId).map((t) => async () => {
       const { createSequencePiece } = await import('@/lib/sequence/service');
       return [await createSequencePiece(cycle, { ...t.plan!, account_id: fixChannel(t.channel).account_id ?? t.plan!.account_id }, t.content)];
     }),
+    ...(batchId ? [...todo.unfold, ...todo.sequences].map(t => async () => {
+      const { producePlannedPiece } = await import('./planned-produce');
+      return [await producePlannedPiece(userId, t.plan!)];
+    }) : []),
   ];
   const total = tasks.length;
   let done = 0;
@@ -206,6 +220,7 @@ export async function produceCycle(
 
 // 12B — escolher a direção: a escolhida segue; as demais do grupo são arquivadas.
 export async function choosePiece(chosen: UserPost, group: UserPost[]): Promise<void> {
+  if (chosen.metadata?.production_flow === 'base_v2') { await db.rpc('select_production_alternative', { p_post: chosen.id }); return; }
   const others = group.filter((p) => p.id !== chosen.id && p.status !== 'archived').map((p) => p.id);
   if (others.length) await db.update('user_posts', { id: `in.(${others.join(',')})` }, { status: 'archived' });
 }
@@ -276,7 +291,7 @@ export async function finishProduction(cycle: CampaignCycle): Promise<CampaignCy
 
 // ---------------- Outras opções (12B): design, imagem ou os dois — mesma frase ----------------
 export type VaryMode = 'design' | 'image' | 'both';
-const FAMILY_ORDER = ['M01-A', 'M01-B', 'M01-C', 'M01-D', 'M01-E', 'M02-A', 'M02-B', 'M02-C', 'M02-D'];
+const FAMILY_ORDER = ['M01-A', 'M01-B', 'M01-C', 'M01-D', 'M01-E', 'M02-A', 'M02-B', 'M02-C', 'M02-D', 'M03-A', 'M03-B', 'M03-C', 'M03-D'];
 // Que tipo de imagem cada design carrega: nenhuma, fundo (M01-D/E) ou foto do Marcos (M02).
 export function imageKind(variant?: string | null): 'none' | 'bg' | 'photo' {
   if (!variant) return 'none';
@@ -322,7 +337,7 @@ export async function createAlternatives(userId: string, base: UserPost, group: 
       user_id: base.user_id, platform: base.platform, format: base.format, status: 'pending_approval',
       title: base.title, caption: base.caption, carousel_text: base.carousel_text, virality_score: base.virality_score ?? null, virality_reason: base.virality_reason ?? null,
       text_approved: base.text_approved ?? true, content_id: base.content_id ?? null, campaign_id: base.campaign_id ?? null, cycle_id: base.cycle_id ?? null,
-      account_id: base.account_id ?? null, piece_role: base.piece_role ?? null,
+      account_id: base.account_id ?? null, piece_role: base.piece_role ?? null, plan_id: base.plan_id ?? null, source_content_at: base.source_content_at ?? null,
       alternative_group: groupId, alternative_rank: ++rank, is_recommended: false, metadata: meta,
     });
     const piece = rows[0];

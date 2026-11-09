@@ -125,7 +125,7 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
   // Stories (9:16): todas as telas, inclusive a capa, pelo compositor da sequência no tamanho da capacidade.
   const story = post.format === 'story';
   const canvas = story ? { w: 1080, h: 1920 } : { w: 1080, h: 1350 };
-  if (u.layout === 'cover' && !story) {
+  if (u.layout === 'cover' && (!story || post.metadata?.production_flow === 'base_v2')) {
     const variant = opts.coverVariant ?? u.assets?.variant ?? dir.cover_variant ?? null;
     const asset = (u.assets?.asset ?? null) as { url?: string; width?: number; height?: number; espaco_texto?: string; texto_cor?: string; origin?: string; photo_generation_id?: string } | null;
     const kind = imageKind(variant);
@@ -135,7 +135,7 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
         : { url: u.assets!.image_ref!, kind: 'bg' as const })
       : null;
     const r = await generateHiveImage({
-      userId: post.user_id, postId: post.id, text: [u.title, u.body].filter(Boolean).join(' — ').slice(0, 200) || post.title || '',
+      userId: post.user_id, postId: post.id, canvas, text: [u.title, u.body].filter(Boolean).join(' — ').slice(0, 200) || post.title || '',
       platform: post.platform as 'linkedin' | 'instagram', editorialSlug: post.metadata?.editorial_slug as string | undefined,
       seed: variant ? seedForVariant(variant) : undefined, forceBg: !!opts.newImage, keepAsset: keep, persistDecision: false,
       context: post.caption ?? undefined, fileName: `unit-${u.id}-${opts.fileTag}.jpg`,

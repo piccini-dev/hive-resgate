@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Instagram, Linkedin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,16 +9,11 @@ import { ACJ_IDS, FUNCTION_LABELS, STRATEGIC_FUNCTIONS, type AcjId, type BeeEdit
 export interface IdeaDraft { title: string; summary: string; strategic_function: StrategicFunction; editorial_slug: string; channels: IdeaChannel[]; acj_primary?: AcjId | null; acj_secondary?: AcjId | null }
 
 // Edição inline de uma ideia (ou criação de uma nova, origin 'user').
-export function IdeaEditor({ initial, editorials, accounts, onSave, onCancel, saveLabel = 'Salvar ideia', busy }: {
+export function IdeaEditor({ initial, editorials, onSave, onCancel, saveLabel = 'Salvar ideia', busy }: {
   initial: IdeaDraft; editorials: BeeEditorial[]; accounts: SocialAccount[];
   onSave: (d: IdeaDraft) => void | Promise<void>; onCancel: () => void; saveLabel?: string; busy?: boolean;
 }) {
   const [d, setD] = useState<IdeaDraft>(initial);
-  const has = (a: SocialAccount) => d.channels.some((c) => c.account_id === a.id);
-  const toggle = (a: SocialAccount) => setD({
-    ...d,
-    channels: has(a) ? d.channels.filter((c) => c.account_id !== a.id) : [...d.channels, { account_id: a.id, platform: a.platform }],
-  });
   return (
     <div className="space-y-3 rounded-xl border border-accent/40 bg-accent/5 p-4" data-testid="idea-editor">
       <div className="space-y-1">
@@ -66,20 +60,9 @@ export function IdeaEditor({ initial, editorials, accounts, onSave, onCancel, sa
           </select>
         </div>
       </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium">Onde vai ganhar forma</p>
-        <div className="flex flex-wrap gap-2">
-          {accounts.map((a) => (
-            <button key={a.id} type="button" onClick={() => toggle(a)} aria-pressed={has(a)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${has(a) ? 'border-accent bg-accent/15' : 'hover:bg-accent/5'}`}>
-              {a.platform === 'linkedin' ? <Linkedin className="h-3.5 w-3.5 text-[#0A66C2]" /> : <Instagram className="h-3.5 w-3.5 text-[#E1306C]" />}
-              {a.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {a.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <p className="text-xs text-muted-foreground">Esta é uma pauta. Plataforma e formato serão propostos ao criar os posts; contas depois da aprovação.</p>
       <div className="flex gap-2 pt-1">
-        <Button variant="accent" size="sm" disabled={busy || !d.title.trim() || d.channels.length === 0} onClick={() => onSave({ ...d, title: d.title.trim(), summary: d.summary.trim() })}>{saveLabel}</Button>
+        <Button variant="accent" size="sm" disabled={busy || !d.title.trim()} onClick={() => onSave({ ...d, channels: [], title: d.title.trim(), summary: d.summary.trim() })}>{saveLabel}</Button>
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancelar</Button>
       </div>
     </div>

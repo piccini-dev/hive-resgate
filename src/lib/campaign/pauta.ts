@@ -24,7 +24,7 @@ export async function confirmPlan(cycle: CampaignCycle, plan: CyclePlan, acj?: {
 
 // Gera a pauta inteira (full) ou uma nova seleção (refresh — guarda as propostas anteriores no banco de ideias).
 export async function generatePauta(cycle: CampaignCycle, mode: 'full' | 'refresh', current: Idea[] = []): Promise<{ cycle: CampaignCycle; ideas: Idea[] }> {
-  const r = await edge.cyclePauta({ cycle_id: cycle.id, mode });
+  const r = await edge.cyclePauta({ cycle_id: cycle.id, mode, purpose: 'knowledge_pauta' });
   // Nova seleção preserva propostas anteriores como backlog; as ideias da pessoa ficam.
   const replaced = mode === 'refresh' ? current.filter((i) => i.status === 'proposed' && i.origin === 'hive') : [];
   if (replaced.length) await ideaApi.updateMany(replaced.map((i) => i.id), { status: 'backlog' });
@@ -36,14 +36,13 @@ export async function generatePauta(cycle: CampaignCycle, mode: 'full' | 'refres
     summary: i.summary,
     strategic_function: i.strategic_function,
     editorial_slug: i.editorial_slug,
-    channels: i.channels,
-    suggested_pieces: i.suggested_pieces,
+    channels: [], suggested_pieces: 0, source_base_version_id: i.source_base_version_id ?? null,
     rationale: i.rationale,
     acj_primary: i.acj_primary ?? null,
     acj_secondary: i.acj_secondary ?? null,
     acj_role: i.acj_role || null,
     acj_rationale: i.acj_rationale || null,
-    repeat_of: i.repeat_of ?? null,
+    repeat_of: null,
     origin: 'hive' as const,
     status: 'proposed' as const,
     position: kept.length + idx,
@@ -54,14 +53,14 @@ export async function generatePauta(cycle: CampaignCycle, mode: 'full' | 'refres
 
 // Troca UMA ideia mantendo função, canais e posição.
 export async function swapIdea(cycle: CampaignCycle, idea: Idea): Promise<Idea> {
-  const r = await edge.cyclePauta({ cycle_id: cycle.id, mode: 'swap', idea_id: idea.id });
+  const r = await edge.cyclePauta({ cycle_id: cycle.id, mode: 'swap', idea_id: idea.id, purpose: 'knowledge_pauta' });
   const n = r.ideas[0];
   if (!n) throw new Error('A Hive não trouxe uma alternativa.');
   return ideaApi.update(idea.id, {
     title: n.title, summary: n.summary, editorial_slug: n.editorial_slug, rationale: n.rationale, origin: 'hive',
     // Troca mantém o movimento (ACJ) da ideia original, como mantém a função.
     acj_primary: idea.acj_primary ?? n.acj_primary ?? null, acj_role: n.acj_role || idea.acj_role || null, acj_rationale: n.acj_rationale || null,
-    repeat_of: n.repeat_of ?? null,
+    repeat_of: null, channels: [], suggested_pieces: 0, source_base_version_id: n.source_base_version_id ?? null,
   });
 }
 

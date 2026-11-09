@@ -366,7 +366,7 @@ export const edge = {
   // Valida um token do LinkedIn no servidor (o browser bloqueia por CORS).
   // --- Campanhas (F2) ---
   // Conteúdos sequenciais (Fase 4): plano recomendado, roteiro, ajuste de páginas e coerência.
-  async sequenceScript<T = Record<string, unknown>>(input: { action: 'recommend_plan' | 'script' | 'adjust_units' | 'coherence'; content_id?: string; post_id?: string; unit_ids?: string[]; instruction?: string; scope?: 'units' | 'sequence' | 'caption'; replace?: boolean }): Promise<T & { success: boolean }> {
+  async sequenceScript<T = Record<string, unknown>>(input: { action: 'production_context' | 'recommend_cycle_plan' | 'recommend_plan' | 'image' | 'script' | 'adjust_units' | 'coherence'; cycle_id?: string; generation_claim?: string; content_id?: string; post_id?: string; unit_ids?: string[]; instruction?: string; scope?: 'units' | 'sequence' | 'caption'; replace?: boolean }): Promise<T & { success: boolean }> {
     return postEdge('sequence-script', input);
   },
   // Minha identidade (Fase 3): próxima pergunta da conversa guiada / proposta de um bloco.
@@ -397,9 +397,10 @@ export const edge = {
   },
 
   // --- Produção (F3): pauta do ciclo ---
-  async cyclePauta(input: { cycle_id: string; mode?: 'full' | 'refresh' | 'swap'; idea_id?: string }): Promise<{
+  async cyclePauta(input: { purpose?: 'knowledge_pauta'; cycle_id: string; mode?: 'full' | 'refresh' | 'swap'; idea_id?: string }): Promise<{
     success: boolean;
     ideas: Array<{
+      source_base_version_id?: string | null;
       title: string; summary: string;
       strategic_function: 'presenca' | 'posicionamento' | 'autoridade' | 'relacionamento' | 'produtos';
       editorial_slug: string; channels: Array<{ account_id: string; platform: 'linkedin' | 'instagram' }>;

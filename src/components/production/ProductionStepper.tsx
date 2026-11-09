@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 
-export const PRODUCTION_STEPS = ['Campanha', 'Ciclo', 'Planejamento', 'Ideias', 'Desenvolvimento', 'Revisão'] as const;
+export const PRODUCTION_STEPS = ['Campanha', 'Ciclo', 'Planejamento', 'Ideias', 'Conteúdos-base', 'Criar posts'] as const;
 
 // Trilho de etapas da produção (maquete "Produção de Conteúdos").
 // `steps`/`offset`: o conteúdo avulso mostra só Ideia → Desenvolvimento → Revisão

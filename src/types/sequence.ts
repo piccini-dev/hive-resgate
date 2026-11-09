@@ -1,6 +1,8 @@
 // Conteúdos sequenciais (Fase 4 · etapa A): plano de peças, páginas com ID estável e capacidades.
 export type PieceFormat = 'image' | 'carousel' | 'story' | 'reel';
 export interface PiecePlan {
+  source_base_version_id?: string | null; production_batch_id?: string | null; template_family?: string | null; editorial_slug?: string | null;
+  generation_claim?: string | null; generation_until?: string | null; generation_error?: string | null;
   id: string; user_id: string; content_id: string; campaign_id: string | null; cycle_id: string | null; account_id: string | null;
   platform: 'linkedin' | 'instagram'; format: PieceFormat; approach: string | null; purpose: string | null; architecture: string | null;
   origin: 'default' | 'hive' | 'user'; status: 'planned' | 'produced' | 'removed'; post_id: string | null; position: number; created_at: string;

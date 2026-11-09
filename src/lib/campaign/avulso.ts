@@ -29,8 +29,8 @@ export async function startAvulso(d: AvulsoDraft, accounts: SocialAccount[], pro
   }]);
   const idea = await ideaApi.create({
     campaign_id: campaign.id, cycle_id: cycle.id, title: d.title, summary: d.summary || null,
-    strategic_function: d.strategic_function, editorial_slug: d.editorial_slug, channels: d.channels,
-    suggested_pieces: d.channels.length, origin: 'user', status: 'approved', position: 0,
+    strategic_function: d.strategic_function, editorial_slug: d.editorial_slug, channels: [],
+    suggested_pieces: 0, origin: 'user', status: 'approved', position: 0,
     // Perfil de comunicação escolhido na criação avulsa (o contêiner avulso é compartilhado).
     ...(profileId ? { profile_id: profileId } : {}),
   });

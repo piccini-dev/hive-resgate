@@ -185,7 +185,7 @@ function VisualStage({ piece, units, busy, run, progress, setProgress, reloadUni
   const [sel, setSel] = useState<string[]>([]);
   const [templates, setTemplates] = useState<Array<{ id: string; nome: string }>>([]);
   const [draftDir, setDraftDir] = useState<SequenceDirection>(dir);
-  useEffect(() => { loadHiveDesign().then((d) => setTemplates((d.variacoes as Array<{ id: string; nome: string; manifestacao_id: string }>).filter((v) => ['M01', 'M02'].includes(v.manifestacao_id)))).catch(() => {}); }, []);
+  useEffect(() => { loadHiveDesign().then((d) => setTemplates((d.variacoes as Array<{ id: string; nome: string; manifestacao_id: string }>).filter((v) => ['M01', 'M02', 'M03'].includes(v.manifestacao_id)))).catch(() => {}); }, []);
   const u = units[Math.min(current, units.length - 1)];
   const story = piece.format === 'story';
   const allOk = units.length > 0 && units.every((x) => !needsRender(x) && x.review_status === 'approved') && (story || !!(piece.caption ?? '').trim());

@@ -118,6 +118,7 @@ export interface CyclePlanSlot { account_id: string; platform: 'linkedin' | 'ins
 export interface CyclePlanDay { date: string; slots: CyclePlanSlot[] }
 
 export interface CyclePlan {
+  production?: { version: 2; status: 'approved'; batch_id: string; approved_at: string; count: number; replaced_posts: string[] };
   needs: CyclePlanNeed[];
   channels: CyclePlanChannel[];
   calendar: CyclePlanDay[];
