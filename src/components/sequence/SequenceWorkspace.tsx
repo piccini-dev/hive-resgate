@@ -22,6 +22,7 @@ import {
 } from '@/lib/sequence/service';
 import type { SequenceDirection } from '@/lib/hive/composeSequence';
 import { PublishPanel } from './PublishPanel';
+import { SequenceVisualReview } from './SequenceVisualReview';
 import type { FormatCapability, PostUnit, UserPost } from '@/types';
 
 const VSTATUS: Record<PostUnit['visual_status'], { label: string; cls: string }> = {
@@ -38,6 +39,7 @@ export function SequenceWorkspace({ piece, onChange, onApproved }: { piece: User
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [cand, setCand] = useState<(UnitCandidate & { coherence?: string }) | null>(null);
   const [notes, setNotes] = useState<Array<{ aspect: string; position: number | null; note: string }> | null>(null);
+  const [showTools,setShowTools]=useState(false);
   const cap = capOf(caps, piece.platform, piece.format);
 
   const reloadUnits = useCallback(async () => setUnits(await unitApi.list(piece.id)), [piece.id]);
@@ -52,9 +54,11 @@ export function SequenceWorkspace({ piece, onChange, onApproved }: { piece: User
   if (!units) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>;
   const md = (piece.metadata ?? {}) as { coherence_review?: boolean; source_outdated?: boolean; script_notes?: string; scheduled_outdated?: boolean; published_manually?: boolean };
   const stage = piece.status === 'published' ? 'published' : piece.script_status !== 'approved' ? 'script' : ['approved', 'scheduled'].includes(piece.status) ? 'export' : 'visual';
+  if(piece.metadata?.production_flow==='base_v2'&&!showTools)return <div data-testid="sequence" data-stage="preview"><SequenceVisualReview piece={piece} units={units} onReload={async()=>{await reloadUnits();await reloadPiece();}} onApproved={onApproved} onTools={()=>setShowTools(true)}/></div>;
 
   return (
     <div className="space-y-4" data-testid="sequence" data-stage={stage}>
+      {piece.metadata?.production_flow==='base_v2'&&<Button variant="link" onClick={()=>setShowTools(false)}>Voltar às imagens</Button>}
       <ol className="flex flex-wrap gap-1.5 text-xs">
         {[['script', '1. Roteiro'], ['visual', '2. Direção visual e páginas'], ['export', '3. Aprovação e exportação']].map(([k, l]) => (
           <li key={k} className={`rounded-full border px-2.5 py-1 ${stage === k ? 'border-accent bg-accent/15 font-semibold' : ''}`}>{l}</li>

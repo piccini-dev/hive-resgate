@@ -15,7 +15,14 @@ import { recordReviewSafely } from '@/lib/measurement';
 import { db } from '@/lib/db';
 import { cycleApi } from '@/lib/campaignApi';
 import { getPhotoGeneration, reviewMarcosPhoto } from '@/lib/hive/marcosPhoto';
-import type { AiVariation, CampaignCycle, Content, Idea, IdeaChannel, PiecePlan, SocialAccount, UserPost } from '@/types';
+import type { AiVariation, CampaignCycle, Content, Idea, IdeaChannel, PiecePlan, PostUnit, SocialAccount, UserPost } from '@/types';
+import { sequenceVisualTodo } from '@/lib/sequence/visual-state';
+
+export async function loadProductionVisuals(pieces: UserPost[], plans: PiecePlan[], batch?: string) {
+  const sequences = batch ? pieces.filter(p=>p.status!=='archived'&&['carousel','story'].includes(p.format)&&p.metadata?.production_batch_id===batch) : [];
+  const units = sequences.length ? await db.select<PostUnit>('post_units',{post_id:`in.(${sequences.map(p=>p.id).join(',')})`,order:'position.asc'}) : [];
+  return { units, todo:sequenceVisualTodo(pieces,plans,units,batch) };
+}
 
 export const AI_IMAGE_VARIANT = (v?: string) => v === 'M01-D' || v === 'M01-E' || (v?.startsWith('M02-') ?? false);
 
@@ -175,6 +182,7 @@ export async function produceCycle(
   // Canal apontando pra conta que não existe mais (ex.: reconexão apagou a antiga):
   // usa a conta padrão da mesma rede em vez de falhar com 23503 na gravação da peça.
   const batchId = cycle.plan?.production?.batch_id;
+  const visuals = await loadProductionVisuals(data.pieces,data.plans??[],batchId);
   const accounts = batchId ? [] : await db.select<SocialAccount>('social_accounts', { select: 'id,platform,is_default,status' });
   const fixChannel = (ch: IdeaChannel): IdeaChannel => {
     if (!ch.account_id || accounts.some((a) => a.id === ch.account_id)) return ch;
@@ -193,6 +201,12 @@ export async function produceCycle(
       const { producePlannedPiece } = await import('./planned-produce');
       return [await producePlannedPiece(userId, t.plan!)];
     }) : []),
+    ...visuals.todo.map(p=>async()=>{
+      const { renderPending }=await import('@/lib/sequence/service');
+      const r=await renderPending(p,visuals.units.filter(u=>u.post_id===p.id),undefined,{draftPreview:true});
+      if(r.failed)throw new Error(`${r.failed} imagem(ns) da sequência não foram produzidas. As prontas foram preservadas; retome as imagens pendentes.`);
+      return [(await db.selectOne<UserPost>('user_posts',{id:`eq.${p.id}`}))??p];
+    }),
   ];
   const total = tasks.length;
   let done = 0;

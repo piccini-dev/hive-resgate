@@ -31,6 +31,10 @@ export async function producePlannedPiece(userId: string,plan: PiecePlan): Promi
       return productionApi.save(plan,claim,{},true);
     }
     await edge.sequenceScript({action:'script',post_id:p.id,generation_claim:claim});
+    p=(await db.selectOne<UserPost>('user_posts',{id:`eq.${p.id}`}))??p;
+    const { renderPending }=await import('@/lib/sequence/service');
+    const visual=await renderPending(p,[],undefined,{draftPreview:true});
+    if(visual.failed)throw new Error(`${visual.failed} imagem(ns) da sequência falharam. O roteiro e as imagens prontas estão preservados; retome as pendentes.`);
     return (await db.selectOne<UserPost>('user_posts',{id:`eq.${p.id}`}))??p;
   } catch(e) {
     await productionApi.fail(plan,claim,(e as Error).message).catch(()=>{});
