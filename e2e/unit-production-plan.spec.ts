@@ -130,3 +130,11 @@ test('recompor texto de uma arte editada mantém posições, cores e rótulos do
   expect(f.objects[0].text).toBe('Antes');
   expect(()=>reflowEditedPage({...u,title:'Um texto que não cabe. '.repeat(100)})).toThrow('não cabe');
 });
+test('altura real de uma linha no Fabric permite corrigir a frase ou apagar só o corpo',async()=>{
+  const {reflowEditedPage}=await import('../src/lib/sequence/editing');
+  const f={objects:[{type:'Textbox',name:'unit-body',text:'Antes',width:864,height:51.98,fontSize:46,lineHeight:1.42,fontFamily:'Inter'}]};
+  const u={title:'Título',body:'Depois',fabric_json:f} as unknown as PostUnit;
+  const r=reflowEditedPage(u) as typeof f;
+  expect(r.objects[0]).toMatchObject({text:'Depois',fontSize:46});
+  expect((reflowEditedPage({...u,body:''}) as typeof f).objects[0].text).toBe('');
+});

@@ -28,6 +28,7 @@ export function pageTextFromCanvas(value: unknown, unit: PostUnit): {title:strin
     return values[0].replace(/\s+/g,' ').trim()===fallback.replace(/\s+/g,' ').trim()?fallback:values[0];
   };
   const original=unit.fabric_json as {objects?:Node[]}|null;
+  if(!original?.objects?.length)throw new Error('Esta página ainda não tem arte editável completa. Produza a imagem antes de editar na arte.');
   const names=new Set<string>();walk(original,n=>{if(n.name)names.add(n.name);});
   let title=unit.title??'',body=unit.body??'';
   if(names.has('unit-title'))title=field('unit-title',title);
@@ -49,12 +50,19 @@ export function reflowEditedPage(unit:PostUnit):object {
     if(!n.name||!(n.name in replacements)||typeof n.text!=='string')return;
     const text=replacements[n.name];
     if(text.replace(/\s+/g,' ').trim()===n.text.replace(/\s+/g,' ').trim())return;
+    if(!text.trim()){n.text='';n.styles={};return;}
     const fs=Number(n.fontSize)||48, min=Math.max(24,Math.round(fs*.72)),lineHeight=Number(n.lineHeight)||1.2;
     const height=Number(n.height)||fs*lineHeight*5;
-    const maxLines=Math.max(1,Math.floor(height/(min*lineHeight)));
-    const layout=layoutText(text,{textWidth:Number(n.width)||800,maxLines,maxFontSize:fs,minFontSize:min,fontFamily:String(n.fontFamily??'Inter'),fontWeight:String(n.fontWeight??'400'),balance:false});
-    if(layout.lines.length*layout.fontSize*lineHeight>height+2)throw new Error('O novo texto não cabe na área da arte editada. Encurte o texto ou amplie o campo no editor visual.');
-    n.text=text.trim()?layout.lines.join('\n'):'';n.fontSize=layout.fontSize;n.styles={};
+    // Fabric: a primeira linha tem a altura da fonte; lineHeight espaça as linhas
+    // seguintes. Multiplicá-lo também na primeira rejeitava até frases de 1 linha.
+    let fitted=false;
+    for(let size=fs;size>=min;size--){
+      const maxLines=Math.max(1,Math.floor(((height+2)/(size*1.13)-1)/lineHeight+1));
+      const layout=layoutText(text,{textWidth:Number(n.width)||800,maxLines,maxFontSize:size,minFontSize:size,fontFamily:String(n.fontFamily??'Inter'),fontWeight:String(n.fontWeight??'400'),balance:false});
+      if(size*1.13*(1+(layout.lines.length-1)*lineHeight)>height+2||layout.lines.length>maxLines)continue;
+      n.text=layout.lines.join('\n');n.fontSize=size;n.styles={};fitted=true;break;
+    }
+    if(!fitted)throw new Error('O novo texto não cabe na área da arte editada. Encurte o texto ou amplie o campo no editor visual.');
   });
   return copy;
 }

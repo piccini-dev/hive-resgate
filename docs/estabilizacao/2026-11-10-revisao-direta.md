@@ -60,6 +60,6 @@ Nenhum conteúdo real é apagado, gerado, aprovado ou publicado para validar a m
 
 ## Verificação
 
-Build e 44 testes puros aprovados na preparação; recompilar após a última edição e registrar a evidência final no PR. Testes novos cobrem estados, sincronização da arte e preservação do desenho. F29 valida edição imediata na arte, ajuste por campo, comparação visual, troca local de fundo, legenda longa, preservação de páginas, aprovação sem agendamento e perda da aprovação somente quando o material muda.
+Build e 45 testes puros aprovados na preparação; recompilar após a última edição e registrar a evidência final no PR. Testes novos cobrem estados, sincronização da arte e preservação do desenho. F29 valida edição imediata na arte, ajuste por campo, comparação visual, troca local de fundo, legenda longa, preservação de páginas, aprovação sem agendamento e perda da aprovação somente quando o material muda.
 
-Rodar F29 de produção, F18 e F20 no GitHub primeiro; corrigir falhas se houver. Depois rodar regressão completa sobre o mesmo commit, sem outra suíte concorrente. Publicar somente após os resultados aprovados. Retornar por correção via Git, sem apagar conteúdos.
+Rodar o cenário de edição direta de F29 no GitHub primeiro; corrigir falhas se houver. Depois rodar a regressão completa, incluindo F18, F20 e todos os casos de F29 sobre o mesmo commit, sem outra suíte concorrente. Publicar somente após os resultados aprovados. Retornar por correção via Git, sem apagar conteúdos.
