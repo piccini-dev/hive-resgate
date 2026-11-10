@@ -87,9 +87,15 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
       const pid=reservation.piece.id;parents.push(pid);
       const sequence=plan.format!=='image';
       const saved=await client.rpc('save_production_progress',{p_plan:plan.id,p_claim:reservation.claim,p_done:true,
-        p_patch:{caption:plan.format==='story'?'':`Legenda exclusiva ${plan.format}`,carousel_text:{quote:`Capa ${plan.format}`},...(!sequence?{rendered_slides:{slide1:`https://example.test/${pid}.jpg`},visual_decision:{variant:'M01-A'}}:{})},
+        // Incidente 10/11: o salvamento real envia metadata.script_notes; sem isso a regressão não exercitava o erro de precedência JSON.
+        p_patch:{caption:plan.format==='story'?'':`Legenda exclusiva ${plan.format}`,carousel_text:{quote:`Capa ${plan.format}`},metadata:{script_notes:`Progressão ${plan.format}`,production_flow:'indevido',source_base_version_id:'indevido',destinations_confirmed:true},...(!sequence?{rendered_slides:{slide1:`https://example.test/${pid}.jpg`},visual_decision:{variant:'M01-A'}}:{})},
         p_units:sequence?[{layout:'cover',title:`Capa ${plan.format}`,body:''},{layout:'text',title:'Desenvolvimento',body:`Contribuição ${plan.format}`},{layout:'closing',title:'Encerramento',body:'Pergunta para observar.'}]:null});
       expect(saved.status).toBe(200);
+      const [stored]=await sql<{metadata:Record<string,unknown>}>(`select metadata from user_posts where id='${pid}'`);
+      expect(stored.metadata.script_notes).toBe(`Progressão ${plan.format}`);
+      expect(stored.metadata.production_flow).toBe('base_v2');
+      expect(stored.metadata.source_base_version_id).not.toBe('indevido');
+      expect(stored.metadata.destinations_confirmed).not.toBe(true);
       if(sequence){
         await sql(`update post_units set rendered_url='https://example.test/'||id||'.jpg',visual_status='ready',review_status='approved',rendered_text_version=text_version where post_id='${pid}'; update user_posts set script_status='approved' where id='${pid}';`);
       }
