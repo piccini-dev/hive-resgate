@@ -10,6 +10,7 @@ import {
 import type * as fabric from 'fabric';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { EditorApi } from './useEditor';
@@ -44,6 +45,8 @@ function layerName(o: fabric.Object): string {
     case 'background': return 'Fundo';
     case 'headline':
     case 'quote': return 'Texto principal';
+    case 'unit-title': return 'Título da página';
+    case 'unit-body': return 'Texto da página';
     case 'subtitle': return 'Subtítulo';
     case 'line': return 'Linha (detalhe)';
     case 'bee-spiral':
@@ -169,6 +172,9 @@ export function PropertiesPanel({ api, templateMode = false }: { api: EditorApi;
       {/* --------- TEXTO --------- */}
       {isText && (
         <>
+          <label className="space-y-1 text-[11px]">Texto selecionado
+            <Textarea aria-label="Texto selecionado" rows={4} value={tb.text??''} onChange={e=>api.updateActive({text:e.target.value})}/>
+          </label>
           <div className="space-y-1">
             <Label className="text-[11px]">Fonte</Label>
             <select

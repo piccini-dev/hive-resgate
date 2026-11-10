@@ -46,6 +46,8 @@ interface CanvasStudioProps {
    */
   templateMode?: boolean;
   initialTitle?: string;
+  /** Revisão de uma página: mantém dimensões e não oferece templates de outro catálogo. */
+  sequenceMode?: boolean;
 }
 
 export function CanvasStudio({
@@ -58,6 +60,7 @@ export function CanvasStudio({
   embedded = false,
   templateMode = false,
   initialTitle,
+  sequenceMode = false,
 }: CanvasStudioProps) {
   const [preset, setPreset] = useState(initialPreset);
   const size = CANVAS_PRESETS[preset] ?? CANVAS_PRESETS['linkedin-portrait'];
@@ -68,6 +71,7 @@ export function CanvasStudio({
   );
   const [saving, setSaving] = useState(false);
   const [lastState, setLastState] = useState<CanvasStudioChangeState | null>(null);
+  const [loadError,setLoadError]=useState<string|null>(null);
   // Modo template: enquanto o preview esta ligado o canvas mostra o texto de
   // exemplo hidratado, mas o desenho de verdade fica aqui — e e ele que salva.
   const [previewing, setPreviewing] = useState(false);
@@ -101,9 +105,9 @@ export function CanvasStudio({
     if (!initialFabricJson) { readyEpochRef.current = api.canvasEpoch; return; }
     loadedEpochRef.current = api.canvasEpoch;
     readyEpochRef.current = -1;
-    void api.loadFromJson(initialFabricJson).then(() => {
+    void api.loadFromJson(initialFabricJson,{strict:sequenceMode}).then(() => {
       if (api.fabric.current === canvas) readyEpochRef.current = api.canvasEpoch;
-    }).catch(() => { /* Captura permanece bloqueada se a hidratação falhar. */ });
+    }).catch((e) => { if(sequenceMode)setLoadError((e as Error).message); /* Captura bloqueada. */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFabricJson, api.canvasEpoch]);
 
@@ -136,8 +140,9 @@ export function CanvasStudio({
 
   return (
     <div className={embedded ? 'flex h-full flex-col bg-background' : 'flex h-screen flex-col bg-background'}>
+      {loadError&&<p role="alert" className="p-3 text-sm text-destructive">{loadError}</p>}
       {embedded ? (
-        <EmbeddedToolbar api={api} preset={preset} onPresetChange={setPreset} />
+        <EmbeddedToolbar api={api} preset={preset} onPresetChange={setPreset} lockPreset={sequenceMode} />
       ) : (
         <Toolbar
           api={api}
@@ -163,7 +168,7 @@ export function CanvasStudio({
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        <SidebarLeft active={activePanel} onChange={setActivePanel} templateMode={templateMode} />
+        <SidebarLeft active={activePanel} onChange={setActivePanel} templateMode={templateMode} hideTemplates={sequenceMode} />
 
         {/* Painel ativo (slide-in) */}
         {activePanel && (

@@ -75,7 +75,7 @@ export function ProductionHub(props: Props) {
     </details>
     {pieces.some(p=>p.status!=='archived'&&!p.metadata?.delivery_of)&&<section className="space-y-2 rounded-xl border bg-card p-4">
       <p className="text-sm">{pending.length} rascunhos de posts aguardam revisão. Seus conteúdos-base estão preservados. Peças aprovadas, agendadas e publicadas permanecem no histórico.</p>
-      <Button variant="outline" size="sm" onClick={()=>setView('legacy')}>Ver produção existente</Button>
+      <Button variant="outline" size="sm" onClick={()=>setView(cycle.plan?.production?'review':'legacy')}>Ver produção existente</Button>
       {cycle.plan?.production&&<Button variant="outline" size="sm" onClick={()=>setView('review')}>Retomar plano aprovado</Button>}
     </section>}
     <div className="flex flex-wrap gap-2"><Button variant="accent" disabled={busy||!bases.length} onClick={()=>void recommend()}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}{proposal?'Pedir outra proposta à Hive':'Propor produção com a Hive'}</Button>

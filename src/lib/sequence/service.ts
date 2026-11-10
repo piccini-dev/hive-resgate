@@ -18,6 +18,7 @@ import { MEDIA_BUCKET, supabase } from '@/lib/supabase';
 import { imageKind } from '@/lib/campaign/produce';
 import type { CampaignCycle, Content, FormatCapability, PiecePlan, PostUnit, SequenceExport, UserPost } from '@/types';
 import { registerManualPublication } from '@/lib/approval';
+import { pageTextFromCanvas, reflowEditedPage } from './editing';
 
 export const ARCHITECTURE_LABELS: Record<string, string> = {
   historia: 'História e aprendizagem', perspectiva: 'Mudança de perspectiva', conceito: 'Exploração de conceito',
@@ -114,8 +115,9 @@ export const reopenScript = (p: UserPost) => patchPost(p.id, {
 });
 
 // ---------------- produção visual ----------------
-const seedForVariant = (variant: string): HiveSeed => ({
-  variant, manifestation: variant.split('-')[0], highlight: null, subtitle: null, poles: null, image_scene_hint: '',
+const seedForVariant = (variant: string, decision?: Record<string, unknown>): HiveSeed => ({
+  variant, manifestation: variant.split('-')[0], highlight: (decision?.highlight as HiveSeed['highlight'])??null, subtitle: (decision?.subtitle as string)??null,
+  poles: decision?.diagram ? {a:(decision.diagram as {poleA?:string}).poleA,b:(decision.diagram as {poleB?:string}).poleB}:null, image_scene_hint: '',
   human_presence_adds_meaning: variant.startsWith('M02-'), mode_reason: '', variant_reason: 'capa da sequência',
 });
 const needsRender = needsSequenceRender;
@@ -126,6 +128,13 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
   // Stories (9:16): todas as telas, inclusive a capa, pelo compositor da sequência no tamanho da capacidade.
   const story = post.format === 'story';
   const canvas = story ? { w: 1080, h: 1920 } : { w: 1080, h: 1350 };
+  if(u.assets?.manual_canvas&&u.fabric_json&&!opts.coverVariant&&!opts.newImage){
+    const slide=reflowEditedPage(u);
+    const dataUrl=await renderFabricToDataUrl(slide,{width:canvas.w,height:canvas.h,format:'jpeg'});
+    if(!dataUrl)throw new Error('Não foi possível renderizar a arte editada.');
+    const {publicUrl}=await uploadAssetImage({immutable:true,userId:post.user_id,assetId:post.id,dataUrl,filename:`unit-${u.id}-${opts.fileTag}.jpg`});
+    return {fabric_json:slide,rendered_url:publicUrl,assets:{...u.assets}};
+  }
   if (u.layout === 'cover' && (!story || post.metadata?.production_flow === 'base_v2')) {
     const variant = opts.coverVariant ?? u.assets?.variant ?? dir.cover_variant ?? null;
     const asset = (u.assets?.asset ?? null) as { url?: string; width?: number; height?: number; espaco_texto?: string; texto_cor?: string; origin?: string; photo_generation_id?: string } | null;
@@ -138,7 +147,7 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
     const r = await generateHiveImage({
       userId: post.user_id, postId: post.id, canvas, text: [u.title, u.body].filter(Boolean).join(' — ').slice(0, 200) || post.title || '',
       platform: post.platform as 'linkedin' | 'instagram', editorialSlug: post.metadata?.editorial_slug as string | undefined,
-      seed: variant ? seedForVariant(variant) : undefined, forceBg: !!opts.newImage, keepAsset: keep, persistDecision: false,
+      seed: variant ? seedForVariant(variant, u.assets?.decision as Record<string,unknown>|undefined) : undefined, forceBg: !!opts.newImage, keepAsset: keep, persistDecision: false,
       context: post.caption ?? undefined, fileName: `unit-${u.id}-${opts.fileTag}.jpg`,
     });
     const d = r.decision as Record<string, unknown>;
@@ -146,7 +155,8 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
       assets: { variant: (d.variant as string) ?? variant, image_ref: (d.image_ref as string | null) ?? null, asset: (d.asset as Record<string, unknown>) ?? null, decision: d } };
   }
   const design = await loadHiveDesign();
-  const slide = composeSequencePage({ layout: u.layout, title: u.title ?? '', body: u.body ?? '', position: u.position, total, direction: dir, colors: design.colors, spiralUrl: design.spiralUrl, canvas });
+  const localDir={...dir,...((u.assets?.page_direction??{}) as Partial<SequenceDirection>)};
+  const slide = composeSequencePage({ layout: u.layout, title: u.title ?? '', body: u.body ?? '', position: u.position, total, direction: localDir, colors: design.colors, spiralUrl: design.spiralUrl, canvas });
   const dataUrl = await renderFabricToDataUrl(slide, { width: canvas.w, height: canvas.h, format: 'jpeg' });
   if (!dataUrl) throw new Error(`Falha ao renderizar a página ${u.position}.`);
   const { publicUrl } = await uploadAssetImage({ immutable: true, userId: post.user_id, assetId: post.id, dataUrl, filename: `unit-${u.id}-${opts.fileTag}.jpg` });
@@ -270,6 +280,35 @@ export async function applyUnitCandidate(c: UnitCandidate): Promise<UserPost> {
   }
 }
 export const discardUnitCandidate = (c: UnitCandidate) => db.update('piece_candidates', { id: `eq.${c.id}` }, { status: 'discarded' });
+
+export async function proposeSequenceText(post:UserPost,units:PostUnit[],texts:Array<{id:string;title:string;body:string}>):Promise<UnitCandidate>{
+  if(texts.length!==units.length||new Set(texts.map(u=>u.id)).size!==units.length||texts.some(u=>!units.some(x=>x.id===u.id)||!(u.title.trim()||u.body.trim())))throw new Error('Mantenha todas as páginas com texto antes de conferir o roteiro.');
+  return insertCandidate(post,{action:'adjust_text',scope:'sequence',unit_ids:units.map(u=>u.id),mutable_paths:['text'],instruction:'Reformulação do roteiro pelo produtor',proposal:{units:texts},impact:'Revise o roteiro e o conjunto antes de aprovar. Imagens e legenda serão preservadas; somente páginas cujo texto mudou precisam de nova renderização.'});
+}
+
+// Edição na arte usa o mesmo contrato de candidatos: uma página, versão esperada,
+// histórico e aprovação invalidada. Nenhuma gravação paralela em rendered_slides.
+export async function savePageCanvas(post: UserPost, unit: PostUnit, state: {fabricJson:object;dataUrl:string}): Promise<UserPost> {
+  if(['scheduled','published'].includes(post.status))throw new Error('Este material já está na agenda ou publicado. Abra o fluxo específico de revisão para alterá-lo.');
+  const text=pageTextFromCanvas(state.fabricJson,unit);
+  if(!state.dataUrl)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');
+  const canvas=post.format==='story'?{width:1080,height:1920}:{width:1080,height:1350};
+  const jpeg=await renderFabricToDataUrl(state.fabricJson,{...canvas,format:'jpeg'});
+  if(!jpeg)throw new Error('Não foi possível finalizar a arte com todos os elementos. Reabra a página e tente salvar novamente.');
+  const {publicUrl}=await uploadAssetImage({immutable:true,userId:post.user_id,assetId:post.id,dataUrl:jpeg,filename:`unit-${unit.id}-edit-${crypto.randomUUID()}.jpg`});
+  const candidate=await insertCandidate(post,{action:'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:['text','visual'],instruction:'Edição direta na arte',proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact:'Somente esta página muda. Revise a nova versão antes de aprovar.'});
+  return applyUnitCandidate(candidate);
+}
+
+export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro'}):Promise<UnitCandidate>{
+  const dir={...directionOf(post),...(next.theme?{theme:next.theme}:{})};
+  const from=unit.assets?.variant??null,to=next.variant??from;
+  const incompatible=!!to&&!!from&&imageKind(from)!==imageKind(to);
+  if(next.variant&&unit.layout!=='cover')throw new Error('As famílias de capa não se aplicam a páginas de leitura. Use a edição da arte para ajustar a composição.');
+  const input={...unit,assets:{...unit.assets,manual_canvas:false,...(next.theme?{page_direction:{theme:next.theme}}:{})}};
+  const r=await renderOne(post,input,units.length,dir,{fileTag:`preview-${crypto.randomUUID()}`,coverVariant:next.variant,newImage:incompatible});
+  return insertCandidate(post,{action:'swap_template',scope:'units',unit_ids:[unit.id],mutable_paths:incompatible?['visual','image']:['visual'],instruction:'Escolha visual da página',proposal:{units:[{id:unit.id,...r,fabric_json:r.fabric_json as PostUnit['fabric_json'],assets:{...r.assets,...(next.theme?{page_direction:{theme:next.theme}}:{})}}]},impact:incompatible?'Este modelo usa outro tipo de imagem. Confira a proposta antes de aplicar.':'As demais páginas, o texto e a legenda serão preservados.'});
+}
 
 // ---------------- exportação (mesmo pacote aprovado) ----------------
 async function fetchBlob(url: string): Promise<Blob> {

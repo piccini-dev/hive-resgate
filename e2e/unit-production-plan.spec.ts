@@ -88,3 +88,45 @@ test('entrega para outra conta não multiplica a revisão editorial; histórico 
   expect(editorialPieces(ps).map(p=>p.id)).toEqual(['a','b','c','d']);
   expect(pendingProduction(ps).map(p=>p.id)).toEqual(['d']);
 });
+
+// Revisão direta: arte e fonte canônica permanecem coerentes; estado visual não é confundido com roteiro pronto.
+test('sequência sem páginas ou com imagem desatualizada não está pronta para revisar',async()=>{
+  const {visualReviewState}=await import('../src/lib/sequence/editing');
+  const p={format:'story',status:'pending_approval'} as UserPost;
+  const u={visual_status:'ready',rendered_url:'x.jpg',text_version:2,rendered_text_version:2} as PostUnit;
+  expect(visualReviewState(p,[])).toBe('pending');
+  expect(visualReviewState(p,[u])).toBe('ready');
+  expect(visualReviewState(p,[{...u,rendered_text_version:1}])).toBe('pending');
+  expect(visualReviewState(p,[{...u,visual_status:'rendering'}])).toBe('producing');
+  expect(visualReviewState(p,[{...u,visual_status:'failed'}])).toBe('failed');
+  expect(visualReviewState({...p,status:'approved'},[u])).toBe('approved');
+});
+test('edição na arte sincroniza os campos principais sem incluir assinatura ou textos do diagrama no roteiro',async()=>{
+  const {pageTextFromCanvas,editablePage}=await import('../src/lib/sequence/editing');
+  const fabric={objects:[{type:'Textbox',name:'unit-title',text:'Título'},{type:'Textbox',name:'unit-body',text:'Uma\nleitura'},{type:'Textbox',name:'signature',text:'Autor',selectable:false},{type:'Textbox',text:'Polo A',selectable:false}]};
+  const u={title:'Título',body:'Uma leitura',fabric_json:fabric} as unknown as PostUnit;
+  expect(pageTextFromCanvas(fabric,u)).toEqual({title:'Título',body:'Uma leitura'});
+  const edited=editablePage(fabric) as typeof fabric;
+  edited.objects[0].text='Novo título';edited.objects[3].text='Planejamento';
+  expect(pageTextFromCanvas(edited,u)).toEqual({title:'Novo título',body:'Uma leitura'});
+  expect(edited.objects[3].selectable).toBe(true);
+  expect(edited.objects[2].selectable).toBe(false);
+  expect(fabric.objects[0].text).toBe('Título');
+});
+test('não salva arte que perdeu ou duplicou um campo principal',async()=>{
+  const {pageTextFromCanvas}=await import('../src/lib/sequence/editing');
+  const n={type:'Textbox',name:'unit-title',text:'Título'};
+  const u={title:'Título',body:'',fabric_json:{objects:[n]}} as unknown as PostUnit;
+  expect(()=>pageTextFromCanvas({objects:[]},u)).toThrow('removido');
+  expect(()=>pageTextFromCanvas({objects:[n,n]},u)).toThrow('duplicados');
+});
+test('recompor texto de uma arte editada mantém posições, cores e rótulos do diagrama',async()=>{
+  const {reflowEditedPage}=await import('../src/lib/sequence/editing');
+  const f={background:'#fefefe',objects:[{name:'unit-title',type:'Textbox',text:'Antes',left:100,top:80,width:800,height:200,fontSize:60,fontFamily:'Inter',lineHeight:1.2},{type:'Textbox',text:'Planejamento',left:200,fill:'#123456'}]};
+  const u={title:'Depois',body:'',fabric_json:f} as unknown as PostUnit;
+  const r=reflowEditedPage(u) as typeof f;
+  expect(r.objects[0]).toMatchObject({text:'Depois',left:100,top:80});
+  expect(r.objects[1]).toEqual(f.objects[1]);
+  expect(f.objects[0].text).toBe('Antes');
+  expect(()=>reflowEditedPage({...u,title:'Um texto que não cabe. '.repeat(100)})).toThrow('não cabe');
+});

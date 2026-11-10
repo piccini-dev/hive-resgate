@@ -15,12 +15,13 @@ interface EmbeddedToolbarProps {
   api: EditorApi;
   preset: string;
   onPresetChange: (s: string) => void;
+  lockPreset?: boolean;
 }
 
-export function EmbeddedToolbar({ api, preset, onPresetChange }: EmbeddedToolbarProps) {
+export function EmbeddedToolbar({ api, preset, onPresetChange, lockPreset }: EmbeddedToolbarProps) {
   return (
     <div className="flex items-center gap-1 border-b border-border bg-card/60 px-2 py-1.5 backdrop-blur">
-      <Select value={preset} onValueChange={onPresetChange}>
+      <Select value={preset} onValueChange={onPresetChange} disabled={lockPreset}>
         <SelectTrigger className="h-7 w-40 text-[11px]">
           <SelectValue />
         </SelectTrigger>

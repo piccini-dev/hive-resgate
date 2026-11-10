@@ -9,6 +9,7 @@ interface SidebarLeftProps {
   active: PanelKey;
   onChange: (key: PanelKey) => void;
   templateMode?: boolean;
+  hideTemplates?: boolean;
 }
 
 type Item = { key: Exclude<PanelKey, null>; icon: typeof Type; label: string };
@@ -28,8 +29,8 @@ const TEMPLATE_ITEMS: Item[] = [
   ...ITEMS.filter((i) => i.key !== 'templates'),
 ];
 
-export function SidebarLeft({ active, onChange, templateMode = false }: SidebarLeftProps) {
-  const items = templateMode ? TEMPLATE_ITEMS : ITEMS;
+export function SidebarLeft({ active, onChange, templateMode = false, hideTemplates = false }: SidebarLeftProps) {
+  const items = (templateMode ? TEMPLATE_ITEMS : ITEMS).filter(i=>!hideTemplates||i.key!=='templates');
   return (
     <nav className="flex h-full w-[72px] shrink-0 flex-col items-center gap-1 border-r border-border bg-card/40 py-3">
       {items.map((item) => {

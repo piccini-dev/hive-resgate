@@ -11,7 +11,7 @@ export type UnitLayout = 'cover' | 'text' | 'closing';
 export interface PostUnit {
   id: string; user_id: string; post_id: string; position: number; function: string | null; title: string | null; body: string | null;
   visual_direction: string | null; layout: UnitLayout; media_type: 'static_image' | 'photo' | 'video';
-  assets: { image_ref?: string | null; variant?: string | null; decision?: Record<string, unknown> | null; asset?: Record<string, unknown> | null };
+  assets: { image_ref?: string | null; variant?: string | null; decision?: Record<string, unknown> | null; asset?: Record<string, unknown> | null; page_direction?: {theme?:'claro'|'escuro'}; manual_canvas?: boolean };
   fabric_json: unknown | null; rendered_url: string | null; text_version: number; rendered_text_version: number | null;
   visual_status: 'pending' | 'rendering' | 'ready' | 'failed' | 'stale'; review_status: 'pending' | 'approved' | 'needs_review'; error: string | null;
   duration_ms?: number | null; narration?: string | null; alt_text?: string | null;
