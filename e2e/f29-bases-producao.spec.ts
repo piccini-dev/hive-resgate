@@ -237,7 +237,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(page.getByTestId('visual-sequence-approve')).toBeEnabled();
     await page.getByTestId('visual-sequence-approve').click();
     await expect(page.getByTestId('gallery')).toBeVisible();await expect(page.getByTestId('unit-status')).toHaveText('Aprovado');
-    expect((await sql<{n:number}>(`select count(*)::int n from user_posts where id='${pid}' and scheduled_for is not null`))[0].n).toBe(0);
+    expect((await sql<{status:string;scheduled_date:string|null;scheduled_package_id:string|null}>(`select status,scheduled_date,scheduled_package_id from user_posts where id='${pid}'`))[0]).toEqual({status:'approved',scheduled_date:null,scheduled_package_id:null});
     // Uma correção posterior desfaz só a aprovação do post, mantendo páginas não alteradas.
     await page.getByRole('button',{name:'Ver peça aprovada',exact:true}).click();
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Ajustar texto',exact:true}).click();
