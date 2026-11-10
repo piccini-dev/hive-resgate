@@ -4,7 +4,7 @@ Decisões de produto de Marcos Piccini — 10/11/2026.
 
 **Estado: especificação para implementação. Este documento não altera o aplicativo, o banco, as funções nem os conteúdos reais.**
 
-Referência técnica inicial: árvore publicada pelo PR #46, integrada em `6a9c8b55dfad11fd2f1b243692fe6ea51989d92f`. A implementação deve conferir o estado mais recente antes de começar. Este plano refina a separação entre conhecimento reutilizável e execução de campanha; não substitui as garantias de aprovação, destinos e publicação já entregues.
+Referência técnica inicial: árvore publicada pelo PR #46, integrada em `6a9c8b55dfad11fd2f1b243692fe6ea51989d92f`. Preparação ampliada em 10/11/2026 para incluir Reels e o encadeamento das próximas entregas. A implementação deve conferir o estado mais recente e incorporar a correção de geração/repetição do PR #48 depois de aprovada. Este plano refina a separação entre conhecimento reutilizável e execução de campanha; não substitui as garantias de aprovação, destinos e publicação já entregues.
 
 ## 1. Resultado esperado
 
@@ -170,8 +170,13 @@ Não fixar nomes de novas tabelas/RPCs/rotas neste plano. Definir contratos apó
 | A1 — Acervo e pautas distintos | Acessa bases existentes, cria/salva/valida uma base fora da campanha; a campanha recupera versões e propõe recortes próprios. | Primeiro definir/inspecionar contratos e compatibilidade. Entregar o percurso completo, incluindo criação de base por necessidade da campanha e retorno. |
 | A2 — Produção acompanhada | Vê cards de pautas e um post concreto por vez; ajusta texto/visual e pode optar por produzir os demais. | Usa A1 e preserva portões da entrega #46. Não liberar interface que perca o comando de plano aprovado ou encaminhe ao gerador legado. |
 | A3 — Acervo propositivo | Recebe sugestões justificadas no Acervo/home, pode desenvolver ou adiar e não recebe alertas repetidos. | Usa A1; pode ser entregue separadamente de A2. Começar com avaliação sob demanda/por evento; só anunciar periodicidade quando implementada e verificada. |
+| A4 — Reels na jornada | A Hive propõe roteiro, orienta a produção ou aproveita um vídeo do produtor; ele revisa o vídeo final, capa e legenda antes dos destinos e agenda. | Usa A2 e contratos de mídia/revisão próprios. Somente habilitar a capacidade publicável quando o caminho completo estiver validado. |
 
 Uma entrega por PR de implementação. Este documento é a referência única desta evolução; não reabrir todas as decisões de produto a cada pacote. Perguntar apenas sobre decisões maiores ainda não cobertas ou impactos materiais inesperados. Cancelamento de campanha segue iniciativa independente, sem ser incluído silenciosamente.
+
+**Ordem recomendada: A1 → A2 → A4 → A3.** Primeiro organizar o conhecimento e a criação, depois completar o formato em vídeo e ampliar as recomendações da home. A criação guiada com sugestões da Hive já faz parte de A1; não depende do monitoramento periódico de A3.
+
+Enquanto o PR #48 estiver em regressão, este trabalho permanece restrito a documentação e inspeções de leitura. Não editar `src/`, alterar banco/funções ou iniciar outra suíte de banco para antecipar estes pacotes.
 
 ## 14. Critérios de aceite
 
@@ -193,6 +198,10 @@ Uma entrega por PR de implementação. Este documento é a referência única de
 | C14 | Marca/cliente não acessa acervo/oportunidades alheios; geração não revela caso real nem trata fonte sensível como exemplo publicável. |
 | C15 | Usuário novo sem materiais recebe entrevista guiada; não aparecem supostos resultados ou fontes inexistentes. |
 | C16 | Avulso mantém a mesma separação de acervo, pauta de uso e peça, sem exigir criar campanha real. |
+| C17 | Reel tem roteiro, vídeo final reproduzível, capa e legenda identificados separadamente; aprovar roteiro não aprova vídeo nem agenda uma peça incompleta. |
+| C18 | Trocar vídeo, capa ou legenda invalida as aprovações correspondentes; a agenda mantém os bytes da versão aprovada até substituição explícita e revalidada. |
+| C19 | Envio/validação de vídeo sobrevive a falha e retomada sem duplicar peças nem aceitar arquivo de outro cliente. A prévia mostra o formato efetivo, sem tratar vídeo como imagem. |
+| C20 | Reels no Instagram é oferecido só quando executável; LinkedIn não recebe o rótulo Reels nem usa um publicador de imagem para vídeo. Limites de plataforma vêm de capacidade verificada. |
 
 Os testes de implementação devem verificar esses comportamentos e os contratos reaproveitados, sem publicar em redes reais. Build e testes puros apropriados; regressão completa no GitHub antes de merge de código de aplicação. Apenas uma suíte com banco por vez. Documento não comprova funcionalidade implementada.
 
@@ -210,4 +219,45 @@ Cada entrega registra lista detalhada no mesmo diretório e nota breve ao produt
 - Mapa técnico inicial baseado em inspeção local da árvore publicada.
 - Funcionalidades novas: **não implementadas** por este registro.
 - Dados reais, funções remotas e banco: **não alterados**.
-- Próximo passo: A1, começando pela inspeção dos contratos de base independente e pauta de campanha; implementar em branch própria, testar e entregar para uso antes dos pacotes seguintes.
+- Próximo passo: concluir o portão do PR #48 e iniciar A1 pela inspeção dos contratos de base independente e pauta de campanha; implementar em branch própria, testar e entregar para uso antes dos pacotes seguintes. O detalhamento das tarefas e dependências está em [EXECUCAO.md](EXECUCAO.md).
+
+## 17. Reels: percurso do produtor
+
+Reels entram como uma possibilidade de expressão de uma pauta aprovada. Não exigir vídeo para todos os temas e não interpretar preferência por variedade como obrigação de usar todos os formatos.
+
+| Momento | O que a Hive faz | O que o produtor valida |
+|---|---|---|
+| Recomendar | Explica por que uma fala, demonstração ou percurso em vídeo pode servir melhor à pauta. | Direção e formato, com opção de trocar. |
+| Preparar roteiro | Entrega abertura, progressão, fala sugerida, cenas/apoios quando úteis, fechamento e duração estimada. | Fidelidade, naturalidade e contribuição do recorte. |
+| Obter vídeo | Oferece “Vou gravar” e “Já tenho um vídeo”. Ajuda a gravar com orientações simples ou a localizar material próprio autorizado. | O arquivo a utilizar. A base continua sendo conhecimento, não um vídeo final. |
+| Conferir material | Reproduz o vídeo recebido, confere áudio e requisitos técnicos; compara o que foi dito com a pauta/roteiro. Propõe legenda, capa e correções pertinentes. | Vídeo completo e elementos de apoio. O produtor pode manter adaptações feitas na gravação. |
+| Aprovar | Apresenta vídeo, capa e legenda como uma peça concreta, com edição/ajuda da Hive por componente. | Material final; não apenas texto do roteiro. |
+| Distribuir | Reutiliza escolha tardia de contas, verificação, agendamento e histórico. | Destinos e agenda da versão aprovada. |
+
+Estados de trabalho visíveis: **Roteiro em criação**, **Roteiro para revisar**, **Aguardando vídeo**, **Processando vídeo**, **Vídeo para revisar**, **Aprovado**. Falha e retomada informam o passo afetado. Esses rótulos de processo não substituem silenciosamente os estados canônicos de aprovação/publicação já existentes.
+
+Primeiro percurso completo: vídeo próprio gravado/enviado ou material próprio existente. Reaproveitar o que já funciona no upload/análise; não criar um editor de vídeo paralelo inteiro para habilitar o formato. Se a Hive sugerir cortes, legendas na imagem ou montagem, distinguir sugestão de edição realmente aplicada. O arquivo precisa ser reenviado ou produzido por ferramenta integrada antes de receber aprovação final.
+
+Produção automática de vídeo é uma extensão planejada, dependente de motor de edição/renderização efetivamente integrado, com direitos de uso, custo e qualidade conhecidos. Não prometer que um roteiro vira vídeo automaticamente sem esse motor. Também não supor autorização para clonar voz, criar avatar sintético ou contratar serviço adicional.
+
+A duração estimada é recomendação editorial. Codec, contêiner, proporção, duração máxima e tamanho de upload são regras técnicas que devem ser verificadas na implementação. Não fixar números desatualizados neste plano.
+
+## 18. Garantias específicas de vídeo
+
+- O vídeo final é um recurso versionado e imutável. Guardar proprietário, origem, caminho/versão, tipo, tamanho, duração e integridade verificável; uma URL isolada ou igualdade de tamanho não prova igualdade de material.
+- O pacote agendado referencia exatamente esse recurso e suas versões de capa/legenda. Um novo upload não sobrescreve o objeto já aprovado/agendado. Rever retenção/limpeza para não remover vídeos ainda referenciados por agenda ou histórico.
+- A revisão verifica vídeo, capa e legenda. Não reutilizar a aprovação da imagem única como se ela comprovasse revisão do vídeo.
+- O publicador atual já tem ramo de Reel, mas a capacidade completa exige revisar preparação do arquivo, versão da API, permissões, processamento, obtenção de resultado, retomada e reconciliação de publicação incerta.
+- Uploads devem respeitar escopo e limites; validar conteúdo e acesso ao arquivo, não só extensão. Não fazer download arbitrário de qualquer URL fornecida. Acesso temporário à mídia deve durar o necessário para processamento, sem conceder acesso ao acervo inteiro.
+- Biblioteca audiovisual original e vídeo pronto de post não são o mesmo objeto: reutilizar uma aula não a transforma em postagem, nem altera o original.
+- O Reel pode render referências internas ao conhecimento, sem expor casos reais de alunos/clientes. A mesma restrição vale para transcrição, legendas, cenas, imagens e sugestões de cortes.
+
+## 19. Coerência entre Acervo, campanha e formatos
+
+O estoque visível deve distinguir **fontes**, **bases aprovadas**, **bases em elaboração**, **pautas guardadas**, **posts em produção**, **posts prontos** e **publicações**. Não somar tudo como “conteúdos” nem multiplicar conhecimento pelo número de contas.
+
+Cada estágio deve permitir retomar e abrir sua origem. Exemplo: um card de pauta mostra de quais bases parte; uma peça mostra a pauta e sua contribuição; uma campanha informa onde parou e qual próximo movimento a Hive recomenda.
+
+Preservar preferências de formato do produtor, como carrosséis/Stories e foto própria quando fizer sentido. A Hive calibra a recomendação conforme objetivo, voz, público, material disponível e capacidades, com possibilidade de ajuste humano. Não hard-code preferências da Bee para outros clientes nem escolher família visual por simples rodízio.
+
+Os dados de uso/desempenho retornam como evidências para oportunidades, sem reescrever automaticamente identidade, voz, editorias ou bases. Desempenho baixo de uma peça não comprova falta de valor de um tema; a Hive precisa considerar contexto e qualidade dos dados.
