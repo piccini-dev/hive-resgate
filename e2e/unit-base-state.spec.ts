@@ -57,3 +57,18 @@ test('resposta do servidor antigo não é aceita silenciosamente como conteúdo-
   expect(() => requireKnowledgeResponse({ frase: 'Síntese', texto: ' ', meta: { purpose: 'knowledge_base' } })).toThrow('completo');
   expect(() => requireKnowledgeResponse({ frase: 'Síntese', texto: 'Argumentos e lacunas', meta: { purpose: 'knowledge_base' } })).not.toThrow();
 });
+
+
+test('contexto exibido acompanha a versão congelada, mesmo quando o acervo muda de perfil', () => {
+  const original = content({ context_snapshot_id: 'contexto-atual' });
+  const [r] = resolveBases([], [use({ content: original, version: version({ context_snapshot_id: 'contexto-validado' }) })], [], 'cycle');
+  expect(r.context_snapshot_id).toBe('contexto-validado');
+  const [unknown] = resolveBases([], [use({ content: original, version: version({ context_snapshot_id: null }) })], [], 'cycle');
+  expect(unknown.context_snapshot_id).toBeNull();
+});
+
+test('rascunho preserva seu contexto sem buscar o perfil atual da base canônica', () => {
+  const [r] = resolveBases([], [use({ content: content({ context_snapshot_id: 'contexto-atual' }) })],
+    [version({ id: 'draft', status: 'draft', draft_cycle_id: 'cycle', context_snapshot_id: 'contexto-rascunho' })], 'cycle');
+  expect(r.context_snapshot_id).toBe('contexto-rascunho');
+});

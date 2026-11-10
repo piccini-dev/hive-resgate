@@ -99,6 +99,8 @@ test.describe('F15 · identidade e contextos (Fase 1)', () => {
     await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
     await page.getByRole('button', { name: /Desenvolver conteúdos/ }).click();
     await expect(page.getByTestId('content-context')).toContainText('Marcos Piccini · Bee Consulting · Organizações');
+    await page.getByTestId('base-card').getByRole('button').click();
+    await expect(page.getByTestId('content-context')).toContainText('Marcos Piccini · Bee Consulting · Organizações');
     const [c] = await sql<{ profile_id: string; context_snapshot_id: string }>(`select profile_id, context_snapshot_id from contents where cycle_id='${camp.cycleIds[0]}'`);
     expect(c).toEqual({ profile_id: CONSULTING, context_snapshot_id: snap.id });
   });

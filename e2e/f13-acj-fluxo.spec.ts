@@ -219,7 +219,7 @@ test.describe('F13 · ACJ — fluxo', () => {
     expect(r.movement_evidence).toBe('partial');
   });
 
-  test('anti-repetição: ideia que ainda parece repetida aparece com aviso na pauta', async ({ page }) => {
+  test('pauta reutilizável: tema já abordado não é tratado como duplicação de post', async ({ page }) => {
     const { mockEdge } = await import('./helpers/mocks');
     const acc = await seedAccounts();
     const camp = await seedCampaign({ weeks: 4, accountIds: [acc.linkedin], cadence: [2] });
@@ -230,10 +230,11 @@ test.describe('F13 · ACJ — fluxo', () => {
     ] }));
     await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
     await page.getByRole('button', { name: /Confirmar planejamento e gerar ideias/ }).click();
-    await expect(page.getByTestId('idea-repeat')).toHaveCount(1);
-    await expect(page.getByTestId('idea-repeat')).toContainText('Buscamos ferramentas complexas');
+    await expect(page.getByTestId('idea-card')).toHaveCount(2);
+    await expect(page.getByTestId('idea-repeat')).toHaveCount(0);
+    await expect(page.getByTestId('idea-origin').filter({hasText:'Nova proposta'})).toHaveCount(2);
     const rows = await sql<{ title: string; repeat_of: { reason: string } | null }>(`select title, repeat_of from ideas where cycle_id='${camp.cycleIds[0]}' order by position`);
-    expect(rows.find((r) => r.title === 'Ideia repetida')?.repeat_of?.reason).toBe('Mesma tese com sinônimos.');
+    expect(rows.find((r) => r.title === 'Ideia repetida')?.repeat_of).toBeNull();
     expect(rows.find((r) => r.title === 'Ideia nova')?.repeat_of).toBeNull();
   });
 

@@ -1,4 +1,5 @@
 // Conteúdos-base: desenvolver o pensamento e preservar versões antes de criar posts.
+import { BaseContextSummary } from './BaseContextSummary';
 import { AcjContractSummary } from '@/components/acj/AcjContractSummary';
 import { acjContractApi } from '@/lib/acj/api';
 import type { AcjContentContract } from '@/types';
@@ -78,6 +79,7 @@ export function DevelopStep({ campaign, cycle, ideas, editorials, onIdeasChange,
         {live.map((c) => <section key={c.id} className="flex items-center justify-between gap-4 rounded-xl border bg-card p-4" data-testid="base-card">
           <div className="min-w-0">
             <p className="font-semibold">{c.title}</p>
+            <BaseContextSummary snapshotId={c.context_snapshot_id} />
             <p className="mt-1 text-xs text-muted-foreground">{c.metadata?.base_origin === 'archive' ? 'Do acervo' : 'Desenvolvimento desta pauta'} · {c.status === 'validated' ? 'Base validada' : 'Em elaboração'}{c.editorial_slug ? ' · ' + (editorials.find((e) => e.slug === c.editorial_slug)?.name ?? c.editorial_slug) : ''}</p>
           </div>
           <Button variant="outline" disabled={!!busy} onClick={() => open(c)}>{c.status === 'validated' ? 'Ver base' : 'Desenvolver / revisar'}</Button>
@@ -111,6 +113,7 @@ export function DevelopStep({ campaign, cycle, ideas, editorials, onIdeasChange,
       <div>
         <p className="text-xs uppercase tracking-wider text-muted-foreground">Conteúdos-base · {live.indexOf(c) + 1} de {live.length}</p>
         <h1 className="mt-1 font-display text-2xl font-bold">{c.title}</h1>
+        <BaseContextSummary snapshotId={c.context_snapshot_id} />
         <p className="mt-2 text-sm text-muted-foreground">Uma base de pensamento reutilizável. Formatos, templates e destinos serão definidos ao criar os posts.</p>
       </div>
       {editing ? <section className="space-y-4 rounded-xl border bg-card p-5">

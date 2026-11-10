@@ -18,13 +18,13 @@ export function resolveBases(originals: Content[], uses: BaseUse[], drafts: Base
     if (!u.content || !u.version || u.version.status !== 'validated' || u.version.content_id !== u.content_id || u.version.id !== u.version_id || u.content.user_id !== u.user_id || u.version.user_id !== u.user_id) throw new Error('Não foi possível conferir a versão utilizada nesta campanha.');
     all.set(u.content_id, {
       ...u.content, campaign_id: u.campaign_id, cycle_id: u.cycle_id, idea_id: u.idea_id ?? u.content.idea_id,
-      body: u.version.body, considered: u.version.considered, status: 'validated', position: u.position,
+      body: u.version.body, considered: u.version.considered, context_snapshot_id: u.version.context_snapshot_id, status: 'validated', position: u.position,
       metadata: { ...u.content.metadata, base_version_id: u.version_id, base_origin: u.origin, base_use_id: u.id },
     });
   }
   return [...all.values()].map((c) => {
     const d = drafts.filter((v) => v.content_id === c.id && v.draft_cycle_id === cycleId && v.status === 'draft').sort((a, b) => b.ordinal - a.ordinal)[0];
-    return d ? { ...c, body: d.body, considered: d.considered ?? c.considered, status: 'pending_validation' as const, metadata: { ...c.metadata, draft_version_id: d.id } } : c;
+    return d ? { ...c, body: d.body, considered: d.considered ?? c.considered, context_snapshot_id: d.context_snapshot_id, status: 'pending_validation' as const, metadata: { ...c.metadata, draft_version_id: d.id } } : c;
   }).sort((a, b) => a.position - b.position);
 }
 
