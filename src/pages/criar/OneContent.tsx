@@ -47,7 +47,7 @@ export function OneContent() {
       <WizardShell eyebrow="Um conteúdo" title="Que tipo de conteúdo?" subtitle="Uma ideia pontual, fora de campanha." onBack={() => navigate('/criar')}>
         <div className="grid gap-3">
           <ChoiceCard testId="one-image" onClick={() => setKind('image')} icon={<ImageIcon className="h-5 w-5" />}
-            title="Imagem e texto" description="A Hive desenvolve o pensamento, você valida e ela produz as peças para LinkedIn e Instagram." />
+            title="Conteúdo com a Hive" description="Desenvolva uma ideia e depois escolha os formatos e as plataformas das peças." />
           <ChoiceCard testId="one-video" onClick={() => navigate('/podcasts/novo')} icon={<Video className="h-5 w-5" />}
             title="Vídeo" description="Vídeo pronto ou roteiro — o fluxo de vídeos de sempre." />
         </div>
@@ -56,17 +56,14 @@ export function OneContent() {
   }
 
   const first = editorials[0]?.slug ?? '';
-  const defaults = (accounts ?? []).filter((a) => a.is_default);
   return (
     <WizardShell eyebrow="Um conteúdo" title="Qual é a ideia?" subtitle="Conte o pensamento que você quer desenvolver. A Hive transforma em conteúdo na sua voz." onBack={() => setKind(null)}>
-      {!accounts ? <Loader2 className="h-5 w-5 animate-spin text-accent" /> : accounts.length === 0 ? (
-        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Conecte uma conta em Configurações › Contas para escolher onde publicar.</p>
-      ) : (
+      {!accounts ? <Loader2 className="h-5 w-5 animate-spin text-accent" /> : (
         <div className="space-y-4">
         <ProfilePicker value={profileId} onChange={setProfileId} label="Por qual perfil este conteúdo fala?" />
         <IdeaEditor
           key={first}
-          initial={{ title: '', summary: '', strategic_function: 'posicionamento', editorial_slug: first, channels: (defaults.length ? defaults : accounts).map((a) => ({ account_id: a.id, platform: a.platform })) }}
+          initial={{ title: '', summary: '', strategic_function: 'posicionamento', editorial_slug: first, channels: [] }}
           editorials={editorials} accounts={accounts}
           saveLabel={saving ? 'Criando…' : 'Desenvolver com a Hive'} busy={saving}
           onSave={start} onCancel={() => navigate('/criar')}

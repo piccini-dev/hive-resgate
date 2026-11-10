@@ -16,7 +16,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { contentApi, ideaApi, pieceApi } from '@/lib/campaignApi';
+import { baseApi } from '@/lib/campaign/bases';
+import { editorialPieces } from '@/lib/campaign/production-plan';
+import { ideaApi, pieceApi } from '@/lib/campaignApi';
 import { formatRange } from '@/lib/campaign/dates';
 import {
   AI_IMAGE_VARIANT, approvePiece, choosePiece, createAlternatives, reschedulePiece, finishProduction, imageKind, produceCycle, productionTodo,
@@ -50,12 +52,13 @@ function Preview({ piece, className = '' }: { piece: UserPost; className?: strin
   );
 }
 
-export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCycleChange }: {
+export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCycleChange, allowAutoProduction = true, productionBatchId, onPreparePublication }: {
   campaign: Campaign; cycle: CampaignCycle; ideas: Idea[]; editorials: BeeEditorial[]; accounts: SocialAccount[];
-  onCycleChange: (c: CampaignCycle) => void;
+  onCycleChange: (c: CampaignCycle) => void; allowAutoProduction?: boolean; productionBatchId?: string; onPreparePublication?: () => void;
 }) {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [contents, setContents] = useState<Content[] | null>(null);
   const [pieces, setPieces] = useState<UserPost[]>([]);
   const [plans, setPlans] = useState<PiecePlan[]>([]);
@@ -71,16 +74,16 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   const [photoRequest, setPhotoRequest] = useState<ExternalRequest | null>(null);
 
   const edName = useCallback((slug?: string | null) => editorials.find((e) => e.slug === slug)?.name, [editorials]);
-  const accountLabel = (id?: string | null) => accounts.find((a) => a.id === id)?.label ?? '';
+  const accountLabel = (id?: string | null) => accounts.find((a) => a.id === id)?.label ?? 'Contas após aprovação';
 
   // Ideias vêm do BANCO junto com conteúdos e peças: a decisão do que produzir não
   // pode depender da lista da página ainda carregando (sem ideia → sem canais →
   // nenhum desdobramento produzido; era uma corrida intermitente).
   const load = useCallback(async () => {
-    const [c, p, i, pl] = await Promise.all([contentApi.listByCycle(cycle.id), pieceApi.listByCycle(cycle.id), ideaApi.listByCycle(cycle.id), planApi.byCycle(cycle.id).catch(() => [] as PiecePlan[])]);
-    setContents(c); setPieces(p); setPlans(pl);
+    const [c, p, i, pl] = await Promise.all([baseApi.listByCycle(cycle.id, false), pieceApi.listByCycle(cycle.id), ideaApi.listByCycle(cycle.id), planApi.byCycle(cycle.id)]);
+    setLoadError(null); setContents(c); setPieces(editorialPieces(p).filter(x => !productionBatchId || x.metadata?.production_batch_id === productionBatchId)); setPlans(pl);
     return { c, p, i, pl };
-  }, [cycle.id]);
+  }, [cycle.id, productionBatchId]);
 
   useEffect(() => {
     loadHiveDesign().then((d) => setVariantNames(Object.fromEntries(d.variacoes.map((v) => [v.id, v.nome])))).catch(() => {});
@@ -94,10 +97,11 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
       const running = RUNS.get(cycle.id);
       if (running) { running.listeners.add(listener); setProgress(running.progress); await load(); setChecked(true); return; }
       const { c, p, i, pl } = await load();
+      if (!allowAutoProduction) { setChecked(true); return; }
       if (!alive || !currentUser) return;
       const again = RUNS.get(cycle.id);
       if (again) { again.listeners.add(listener); setProgress(again.progress); setChecked(true); return; }
-      const todo = productionTodo(c, i, p, pl);
+      const todo = productionTodo(c, i, p, pl, productionBatchId);
       const n = todo.validation.length + todo.unfold.length + todo.sequences.length;
       if (n === 0) { setChecked(true); return; }
       const run = { progress: { done: 0, total: n } as Prog, listeners: new Set([listener]) };
@@ -113,10 +117,10 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
         RUNS.delete(cycle.id);
         emit(null);
       }
-    })();
+    })().catch(e => { if (alive) { setLoadError((e as Error).message); setChecked(true); } });
     return () => { alive = false; RUNS.get(cycle.id)?.listeners.delete(listener); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cycle.id, runNonce]);
+  }, [cycle.id, runNonce, allowAutoProduction, productionBatchId]);
 
   const units: Unit[] = useMemo(() => {
     const out: Unit[] = [];
@@ -185,6 +189,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
     );
   }
 
+  if (loadError) return <div className="space-y-3"><p role="alert">Não foi possível carregar a produção.</p><Button variant="outline" onClick={() => { setLoadError(null); setRunNonce(n => n + 1); }}>Tentar novamente</Button></div>;
   if (!contents || !checked) return <div className="flex h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>;
 
   // ---------------- TELA 12 — produção (em andamento ou resumo) ----------------
@@ -194,7 +199,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> Conteúdos validados</p>
           <h1 className="mt-1 font-display text-2xl font-bold">{progress ? 'A Hive está produzindo os desdobramentos.' : 'Seus conteúdos estão prontos para ganhar novas formas.'}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">A Hive analisou cada conteúdo, os canais e contas da campanha, a identidade visual e o histórico de produção para desenvolver os desdobramentos recomendados.</p>
+          <p className="mt-1 text-sm text-muted-foreground">A produção segue as bases e a proposta aprovada. Revise cada peça uma vez; depois escolha em quais contas ela será usada.</p>
         </div>
         {progress ? (
           <div className="space-y-2 rounded-2xl border bg-card p-5" data-testid="produce-progress">
@@ -205,9 +210,14 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
           <>
             <div className="grid grid-cols-3 gap-3" data-testid="production-summary">
               <div className="rounded-2xl border bg-card p-4"><p className="font-display text-3xl font-bold">{units.length}</p><p className="text-xs text-muted-foreground">peças previstas</p></div>
-              <div className="rounded-2xl border bg-card p-4"><p className="font-display text-3xl font-bold">{fromValidation}</p><p className="text-xs text-muted-foreground">já aprovadas (da validação)</p></div>
+              <div className="rounded-2xl border bg-card p-4"><p className="font-display text-3xl font-bold">{productionBatchId ? approvedCount : fromValidation}</p><p className="text-xs text-muted-foreground">já aprovadas nesta revisão</p></div>
               <div className="rounded-2xl border bg-card p-4"><p className="font-display text-3xl font-bold">{pending.length}</p><p className="text-xs text-muted-foreground">novas peças para revisar</p></div>
             </div>
+            {productionBatchId && plans.some(p => p.production_batch_id === productionBatchId && p.status === 'planned') && <section className="space-y-2 rounded-xl border border-amber-500/30 p-4">
+              <p className="text-sm">Há peças cuja produção ainda não terminou. O que já foi gerado será preservado.</p>
+              {plans.filter(p => p.production_batch_id === productionBatchId && p.generation_error).map(p => <p key={p.id} className="text-xs text-muted-foreground">{p.approach}: {p.generation_error}</p>)}
+              <Button variant="outline" disabled={!!progress} onClick={() => setRunNonce(n => n+1)}>Retomar peças pendentes</Button>
+            </section>}
             <div className="flex justify-end"><Button variant="accent" size="lg" onClick={() => setView({ kind: 'gallery' })}>Revisar produção <ArrowRight className="h-4 w-4" /></Button></div>
           </>
         )}
@@ -217,7 +227,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
 
   // ---------------- TELA 12A — galeria ----------------
   if (view.kind === 'gallery') {
-    const allDone = units.length > 0 && pending.length === 0;
+    const allDone = units.length > 0 && pending.length === 0 && !plans.some(p => p.production_batch_id === productionBatchId && p.status === 'planned');
     return (
       <div className="space-y-5" data-testid="gallery">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -233,10 +243,11 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
               <p className="text-sm text-muted-foreground">{approvedCount} de {units.length} peças aprovadas. {isAvulso(campaign) ? 'Tudo pronto para programar.' : 'Todos os conteúdos previstos para este ciclo estão prontos.'}</p>
             </div>
             <Button variant="accent" onClick={() => act('finish', async () => {
+              if (onPreparePublication) { onPreparePublication(); return; }
               const c = cycle.status === 'ready' ? cycle : await finishProduction(cycle);
               onCycleChange(c);
               navigate(isAvulso(campaign) ? '/agenda' : `/agenda?campaign=${campaign.id}`);
-            })} disabled={!!busy}>Seguir para programação <ArrowRight className="h-4 w-4" /></Button>
+            })} disabled={!!busy}>{onPreparePublication ? 'Escolher contas e preparar publicação' : 'Seguir para programação'} <ArrowRight className="h-4 w-4" /></Button>
           </div>
         )}
         {(contents ?? []).filter((c) => c.status === 'validated').sort((a, b) => a.position - b.position).map((c, n) => {
@@ -258,9 +269,9 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
                   </div>
                 ))}
               </div>
-              <PiecePlanPanel content={c} plans={plans.filter((pl) => pl.content_id === c.id)} pieces={pieces.filter((x) => x.content_id === c.id)}
+              {allowAutoProduction && !productionBatchId && !cycle.plan?.production && <PiecePlanPanel content={c} plans={plans.filter((pl) => pl.content_id === c.id)} pieces={pieces.filter((x) => x.content_id === c.id)}
                 accounts={accounts.filter((a) => (campaign.account_ids ?? []).includes(a.id) || !(campaign.account_ids ?? []).length)}
-                onChanged={async (produce) => { await load(); if (produce) { setChecked(false); setRunNonce((x) => x + 1); setView({ kind: 'overview' }); } }} />
+                onChanged={async (produce) => { await load(); if (produce) { setChecked(false); setRunNonce((x) => x + 1); setView({ kind: 'overview' }); } }} />}
             </section>
           );
         })}
@@ -414,7 +425,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
             <p className="line-clamp-6 whitespace-pre-line text-sm text-muted-foreground" data-testid="piece-caption">{piece.caption}</p>
             {(piece.version ?? 1) > 1 && <p className="text-[11px] text-muted-foreground" data-testid="piece-version">Versão v{piece.version}</p>}
           </section>
-          {isApproved && piece.status !== 'published' && (
+          {isApproved && piece.status !== 'published' && piece.metadata?.production_flow !== 'base_v2' && (
             <section className="space-y-2 rounded-2xl border bg-card p-4" data-testid="piece-schedule">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{piece.scheduled_date ? 'Reprogramar (data e hora)' : 'Agendar (data e hora)'}</p>
               <Input type="datetime-local" aria-label="Data e hora da publicação" min={nowLocalInput()} value={isoToLocalInput(piece.scheduled_date)}

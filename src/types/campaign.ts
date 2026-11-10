@@ -118,6 +118,7 @@ export interface CyclePlanSlot { account_id: string; platform: 'linkedin' | 'ins
 export interface CyclePlanDay { date: string; slots: CyclePlanSlot[] }
 
 export interface CyclePlan {
+  production?: { version: 2; status: 'approved'; batch_id: string; approved_at: string; count: number; replaced_posts: string[] };
   needs: CyclePlanNeed[];
   channels: CyclePlanChannel[];
   calendar: CyclePlanDay[];
@@ -153,6 +154,7 @@ export interface Idea {
   strategic_function?: StrategicFunction | null;
   editorial_slug?: string | null;
   channels: IdeaChannel[];
+  source_base_version_id?: string | null;
   suggested_pieces: number;
   origin: 'hive' | 'user' | 'result';
   status: IdeaStatus;

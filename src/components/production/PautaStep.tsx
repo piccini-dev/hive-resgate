@@ -14,11 +14,6 @@ import {
   type AcjCyclePlan, type BeeEditorial, type Campaign, type CampaignCycle, type Idea, type SocialAccount,
 } from '@/types';
 
-const platformsLabel = (idea: Idea) => {
-  const set = new Set(idea.channels.map((c) => (c.platform === 'linkedin' ? 'LinkedIn' : 'Instagram')));
-  return [...set].join(' · ');
-};
-
 export function PautaStep({ campaign, cycle, ideas, editorials, accounts, onChange, onApproved }: {
   campaign: Campaign; cycle: CampaignCycle; ideas: Idea[]; editorials: BeeEditorial[]; accounts: SocialAccount[];
   onChange: (ideas: Idea[], cycle?: CampaignCycle) => void; onApproved: (cycle: CampaignCycle) => void;
@@ -30,8 +25,8 @@ export function PautaStep({ campaign, cycle, ideas, editorials, accounts, onChan
   const live = ideas.filter((i) => i.status !== 'discarded' && i.status !== 'backlog');
   const saved = ideas.filter(i => i.status === 'backlog');
   const approved = cycle.status !== 'pauta_ready' && cycle.status !== 'planned';
-  const pieces = live.reduce((a, i) => a + i.channels.length, 0);
-  const accountsUsed = new Set(live.flatMap((i) => i.channels.map((c) => c.account_id))).size;
+
+
   const edName = (slug?: string | null) => editorials.find((e) => e.slug === slug)?.name ?? slug ?? '';
   const campaignAccounts = accounts.filter((a) => campaign.account_ids.includes(a.id));
 
@@ -54,11 +49,11 @@ export function PautaStep({ campaign, cycle, ideas, editorials, accounts, onChan
 
   const save = (idea: Idea | null, d: IdeaDraft) => run('save', async () => {
     if (idea) {
-      const updated = await ideaApi.update(idea.id, { ...d, suggested_pieces: d.channels.length });
+      const updated = await ideaApi.update(idea.id, { ...d, channels: [], suggested_pieces: 0 });
       onChange(ideas.map((i) => (i.id === idea.id ? updated : i)));
     } else {
       const created = await ideaApi.create({
-        ...d, suggested_pieces: d.channels.length, campaign_id: cycle.campaign_id, cycle_id: cycle.id,
+        ...d, channels: [], suggested_pieces: 0, campaign_id: cycle.campaign_id, cycle_id: cycle.id,
         origin: 'user', status: 'proposed', position: live.length,
       });
       onChange([...ideas, created]);
@@ -99,7 +94,7 @@ export function PautaStep({ campaign, cycle, ideas, editorials, accounts, onChan
 
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border bg-card p-4"><p className="font-display text-2xl font-bold" data-testid="pauta-count">{live.length} ideias</p><p className="text-xs text-muted-foreground">Pauta recomendada</p></div>
-        <div className="rounded-2xl border bg-card p-4"><p className="font-display text-2xl font-bold" data-testid="pauta-pieces">{pieces} peças</p><p className="text-xs text-muted-foreground">Potencial de desdobramento</p></div>
+        <div className="rounded-2xl border bg-card p-4"><p className="font-display text-2xl font-bold" data-testid="pauta-pieces">Formatos depois</p><p className="text-xs text-muted-foreground">Primeiro, validar o conhecimento</p></div>
       </div>
 
       {saved.length > 0 && <section className="rounded-2xl border bg-card p-4" data-testid="saved-ideas">
@@ -132,15 +127,10 @@ export function PautaStep({ campaign, cycle, ideas, editorials, accounts, onChan
                 <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                   {idea.strategic_function && <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: FUNCTION_COLORS[idea.strategic_function] }} />Função estratégica: <b>{FUNCTION_SHORT[idea.strategic_function]}</b></span>}
                   {idea.editorial_slug && <span className="text-muted-foreground">Editorial: {edName(idea.editorial_slug)}</span>}
-                  <span className="text-muted-foreground">Potencial: {platformsLabel(idea)}</span>
-                  <span className="text-muted-foreground" data-testid="idea-pieces">{idea.channels.length} peça{idea.channels.length > 1 ? 's' : ''} sugerida{idea.channels.length > 1 ? 's' : ''}</span>
+                  <span className="rounded bg-secondary px-1.5 py-0.5" data-testid="idea-origin">{idea.source_base_version_id ? 'Do acervo' : 'Nova proposta'}</span>
+
                   {idea.origin === 'user' && <span className="rounded bg-secondary px-1.5 py-0.5">Sua ideia</span>}
                 </p>
-                {idea.repeat_of && (
-                  <p className="mt-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-300" data-testid="idea-repeat">
-                    Parecida com um post de {idea.repeat_of.said_at ? new Date(idea.repeat_of.said_at).toLocaleDateString('pt-BR') : 'antes'}: “{idea.repeat_of.text.split(' — ')[0].slice(0, 140)}”. {idea.repeat_of.reason} Considere trocar a ideia.
-                  </p>
-                )}
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" data-testid="idea-acj">
                   <AcjChip id={idea.acj_primary} />
                   {idea.acj_secondary && <AcjChip id={idea.acj_secondary} secondary size="xs" />}
@@ -199,7 +189,7 @@ export function PautaStep({ campaign, cycle, ideas, editorials, accounts, onChan
             return <li key={f} className="flex justify-between"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: FUNCTION_COLORS[f] }} />{FUNCTION_SHORT[f]}</span>
               <span>{n} ideia{n > 1 ? 's' : ''}{planned !== undefined && planned !== n ? <span className="ml-1 text-xs text-muted-foreground">(plano: {planned})</span> : null}</span></li>;
           })}
-          <li className="flex justify-between border-t pt-1.5 font-medium"><span>Potencial de desdobramento</span><span>{pieces} peças · {accountsUsed} conta{accountsUsed > 1 ? 's' : ''}</span></li>
+          <li className="flex justify-between border-t pt-1.5 font-medium"><span>Primeiro, validar o conhecimento</span><span>{live.length} pauta{live.length > 1 ? 's' : ''}</span></li>
         </ul>
       </section>
 

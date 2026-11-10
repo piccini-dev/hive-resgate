@@ -1,3 +1,4 @@
+import {prepareLegacyReview,openLegacyReview} from './helpers/legacy-production';
 import { test, expect } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
 import { mockProduction } from './helpers/mocks';
@@ -77,11 +78,11 @@ test.describe('F16 · ajustes de peças (candidatos e versões)', () => {
     const acc = await seedAccounts();
     const camp = await seedCampaign({ weeks: 8, name: 'Presença Marcos', accountIds: [acc.linkedin, acc.instagram] });
     await seedValidatedContents(camp.id, camp.cycleIds[0], [{ title: 'Liderar é sustentar a pergunta', channels: [{ account_id: acc.instagram, platform: 'instagram' }] }]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
+    await prepareLegacyReview(page,camp.id,camp.cycleIds[0]);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
     const [p] = await sql<{ id: string }>(`select id from user_posts where cycle_id='${camp.cycleIds[0]}' and piece_role='unfold' and status<>'archived' limit 1`);
     await sql(`update user_posts set status='scheduled', scheduled_date=now() + interval '2 days' where id='${p.id}'`);
-    await page.reload();
+    await page.reload(); await openLegacyReview(page);
     await page.getByRole('button', { name: /Revisar produção/ }).click();
     await page.getByTestId('gallery-unit').first().getByRole('button').first().click();
     await expect(page.getByTestId('edit-view')).toBeVisible();
@@ -103,7 +104,7 @@ test.describe('F16 · ajustes de peças (candidatos e versões)', () => {
     expect(cur.caption).not.toBe('Legenda da proposta velha');
 
     // novo ajuste sobre a versão atual → agendamento fica na versão programada
-    await page.reload();
+    await page.reload(); await openLegacyReview(page);
     await page.getByRole('button', { name: /Revisar produção/ }).click();
     await page.getByTestId('gallery-unit').first().getByRole('button').first().click();
     await page.getByTestId('action-adjust_text').click();

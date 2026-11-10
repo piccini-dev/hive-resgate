@@ -28,7 +28,7 @@ test.describe('F3 · planejamento e pauta', () => {
 
     await expect(page.getByTestId('pauta-step')).toBeVisible();
     await expect(page.getByTestId('idea-card')).toHaveCount(4);
-    await expect(page.getByTestId('pauta-pieces')).toHaveText('5 peças');
+    await expect(page.getByTestId('pauta-pieces')).toHaveText('Formatos depois');
     expect(calls[0]).toMatchObject({ cycle_id: camp.cycleIds[0], mode: 'full' });
     const [cy] = await sql<{ status: string; plan: { totals: { contents: number; pieces: number } } }>(`select status, plan from campaign_cycles where id='${camp.cycleIds[0]}'`);
     expect(cy.status).toBe('pauta_ready');
@@ -54,7 +54,7 @@ test.describe('F3 · planejamento e pauta', () => {
     await expect(page.getByText('Sua ideia')).toBeVisible();
 
     await page.getByRole('button', { name: /Aprovar pauta e desenvolver conteúdos/ }).click();
-    await expect(page.getByTestId('develop-intro')).toBeVisible();
+    await expect(page.getByTestId('base-overview')).toBeVisible();
 
     const ideas = await sql<{ title: string; status: string; origin: string }>(`select title, status, origin from ideas where cycle_id='${camp.cycleIds[0]}' order by position, created_at`);
     expect(ideas.filter((i) => i.status === 'approved')).toHaveLength(4);
@@ -129,9 +129,7 @@ test.describe('F3 · planejamento e pauta', () => {
     const ideas = await sql<{ title: string; strategic_function: string; channels: Array<{ account_id: string }> }>(`select title, strategic_function, channels from ideas where cycle_id='${camp.cycleIds[0]}' and status='proposed'`);
     expect(ideas).toHaveLength(cy.plan.totals.contents);
     for (const n of cy.plan.needs) expect(ideas.filter((i) => i.strategic_function === n.function)).toHaveLength(n.count);
-    const perAccount = (id: string) => ideas.filter((i) => i.channels.some((c) => c.account_id === id)).length;
-    expect(perAccount(acc.linkedin)).toBe(2);
-    expect(perAccount(acc.instagram)).toBe(3);
-    for (const i of ideas) expect(i.title.length).toBeGreaterThan(10);
+    expect(ideas.every(i=>i.channels.length===0)).toBe(true); // destinos só após aprovação dos posts
+
   });
 });

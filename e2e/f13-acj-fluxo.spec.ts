@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { cleanupE2EData, sql } from './helpers/admin';
+import {prepareLegacyBase} from './helpers/legacy-production';
+import { cleanupE2EData, seed, sql } from './helpers/admin';
 import { e2eUser } from './helpers/env';
 import { mockAcj, mockCampaignAI, mockDevelop, mockPauta, mockProduction } from './helpers/mocks';
 import { seedAccounts, seedAcjPlan, seedApprovedPauta, seedCampaign } from './helpers/fixtures';
@@ -132,8 +133,7 @@ test.describe('F13 · ACJ — fluxo', () => {
       { title: 'Onde isso aparece no seu time?', fn: 'relacionamento', channels: [{ account_id: acc.linkedin, platform: 'linkedin' }] },
     ]);
     await sql(`update ideas set acj_primary='ACJ-02' where id='${ideaId}'`);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
-    await page.getByRole('button', { name: /Desenvolver conteúdos/ }).click();
+    await prepareLegacyBase(page,camp.id,camp.cycleIds[0]);
 
     const box = page.getByTestId('acj-contract');
     await expect(box.getByTestId('acj-chip')).toContainText('ACJ-02 Identificação');
@@ -152,14 +152,16 @@ test.describe('F13 · ACJ — fluxo', () => {
     expect(fb.marcos_feedback.realized).toBe('partial');
 
     // nova versão do texto reaproveita o contrato (movimento preservado) e reavalia o portão
-    await page.getByRole('button', { name: 'Nova versão' }).click();
+    await page.getByRole('button', { name: 'Nova versão da base' }).click();
     await expect(page.getByTestId('content-frase')).toContainText('(nova versão)');
     expect(calls.at(-1)).toMatchObject({ mode: 'new_version', content_id: c.content_id });
     expect(await sql(`select 1 from acj_content_contracts where content_id='${c.content_id}'`)).toHaveLength(1);
 
-    // aprovar → a peça LinkedIn nasce herdando a ACJ do conteúdo-mãe
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
+    // A base não cria peça; uma peça posterior herda o contrato legado preservado.
+    await page.getByRole('button', { name: 'Validar conteúdo-base' }).click();
     await expect(page.getByTestId('content-approved')).toBeVisible();
+    expect(await sql(`select id from user_posts where content_id='${c.content_id}'`)).toHaveLength(0);
+    await seed('user_posts',{platform:'linkedin',format:'image',status:'pending_approval',content_id:c.content_id,campaign_id:camp.id,cycle_id:camp.cycleIds[0]});
     const [piece] = await sql<{ acj_primary: string; acj_status: string; acj_snapshot: { contract_id: string } }>(
       `select acj_primary, acj_status, acj_snapshot from user_posts where content_id='${c.content_id}'`);
     expect(piece).toMatchObject({ acj_primary: 'ACJ-02', acj_status: 'inherited' });
@@ -217,7 +219,7 @@ test.describe('F13 · ACJ — fluxo', () => {
     expect(r.movement_evidence).toBe('partial');
   });
 
-  test('anti-repetição: ideia que ainda parece repetida aparece com aviso na pauta', async ({ page }) => {
+  test('pauta reutilizável: tema já abordado não é tratado como duplicação de post', async ({ page }) => {
     const { mockEdge } = await import('./helpers/mocks');
     const acc = await seedAccounts();
     const camp = await seedCampaign({ weeks: 4, accountIds: [acc.linkedin], cadence: [2] });
@@ -228,10 +230,11 @@ test.describe('F13 · ACJ — fluxo', () => {
     ] }));
     await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
     await page.getByRole('button', { name: /Confirmar planejamento e gerar ideias/ }).click();
-    await expect(page.getByTestId('idea-repeat')).toHaveCount(1);
-    await expect(page.getByTestId('idea-repeat')).toContainText('Buscamos ferramentas complexas');
+    await expect(page.getByTestId('idea-card')).toHaveCount(2);
+    await expect(page.getByTestId('idea-repeat')).toHaveCount(0);
+    await expect(page.getByTestId('idea-origin').filter({hasText:'Nova proposta'})).toHaveCount(2);
     const rows = await sql<{ title: string; repeat_of: { reason: string } | null }>(`select title, repeat_of from ideas where cycle_id='${camp.cycleIds[0]}' order by position`);
-    expect(rows.find((r) => r.title === 'Ideia repetida')?.repeat_of?.reason).toBe('Mesma tese com sinônimos.');
+    expect(rows.find((r) => r.title === 'Ideia repetida')?.repeat_of).toBeNull();
     expect(rows.find((r) => r.title === 'Ideia nova')?.repeat_of).toBeNull();
   });
 

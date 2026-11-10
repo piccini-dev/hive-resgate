@@ -73,7 +73,8 @@ export function buildPipeline(d: {
     const idea = d.ideas.find((i) => i.id === c.idea_id);
     const pieces = (byContent.get(c.id) ?? []).sort((a, b) => a.created_at.localeCompare(b.created_at));
     const channels = idea?.channels?.length ? idea.channels : pieces.map((p) => ({ account_id: p.account_id ?? undefined, platform: p.platform as IdeaChannel['platform'] }));
-    const missing = c.status === 'validated' ? channels.filter((ch) => !pieces.some((p) => covers(p, ch))) : [];
+    const hasV2 = pieces.some(p => p.metadata?.production_flow === 'base_v2');
+    const missing = c.status === 'validated' && !hasV2 ? channels.filter((ch) => !pieces.some((p) => covers(p, ch))) : [];
     // Conteúdo é trabalho editorial. Peças prontas nunca ficam escondidas pelo
     // estágio de uma irmã. Mantemos o conteúdo só quando há trabalho pendente.
     if (c.status === 'validated' && pieces.length && !missing.length) continue;
@@ -89,13 +90,14 @@ export function buildPipeline(d: {
 
   // Cada peça tem coluna, conta, data e ação próprias, inclusive as legadas.
   for (const p of live) {
+    if (p.metadata?.delivery_of && !['scheduled','published'].includes(p.status)) continue;
     const content = p.content_id ? contentById.get(p.content_id) : undefined;
     const idea = content?.idea_id ? d.ideas.find(i => i.id === content.idea_id) : undefined;
     cards.push({
       id: `post:${p.id}`, kind: 'post', title: (p.carousel_text?.quote as string | undefined) || p.title || p.caption?.slice(0, 80) || 'Post',
       column: stageOfPost(p), campaignId: camp(p.campaign_id ?? content?.campaign_id), cycleId: p.cycle_id ?? content?.cycle_id ?? null, fn: content?.strategic_function ?? null,
       editorialSlug: (p.metadata?.editorial_slug as string | undefined) ?? content?.editorial_slug ?? null,
-      channels: [{ account_id: p.account_id ?? undefined, platform: p.platform as IdeaChannel['platform'] }], pieces: [p],
+      channels: [p, ...live.filter(x => x.metadata?.delivery_of === p.id && !['scheduled','published'].includes(x.status))].map(x => ({ account_id: x.account_id ?? undefined, platform: x.platform as IdeaChannel['platform'] })), pieces: [p],
       pendingPieces: p.status === 'pending_approval' ? 1 : 0, missingChannels: [], nextDate: p.status === 'scheduled' ? p.scheduled_date ?? null : null,
       publishedAt: p.published_at ?? null, updatedAt: p.updated_at, content, idea,
     });

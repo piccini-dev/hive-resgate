@@ -170,7 +170,7 @@ test.describe('F7 · home, pipeline e navegação', () => {
       await page.getByTestId('one-image').click();
       await page.getByLabel('Título da ideia').fill(title);
       await page.getByLabel('Direção do pensamento').fill('Quem lidera sistemas enxerga padrões antes de pessoas.');
-      await expect(page.getByRole('button', { name: /LinkedIn · E2E/ })).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByRole('button', { name: /LinkedIn · E2E/ })).toHaveCount(0);
       await page.getByRole('button', { name: 'Desenvolver com a Hive' }).click();
       await expect(page).toHaveURL(/\/producao\?campaign=.+&cycle=.+/);
     }
@@ -178,37 +178,35 @@ test.describe('F7 · home, pipeline e navegação', () => {
     await createOne('O líder que não delega, controla');
     await expect(page.getByTestId('avulso-card')).toContainText('O líder que não delega, controla');
     await expect(page.getByTestId('step-3')).toContainText('Ideia');
-    await expect(page.getByTestId('step-5')).toContainText('Revisão');
-    await expect(page.getByTestId('develop-intro')).toContainText('Ideia registrada');
+    await expect(page.getByTestId('step-5')).toContainText('Criar posts');
+    await expect(page.getByTestId('base-overview')).toBeVisible();
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/f7-avulso.png` });
-    await page.getByRole('button', { name: /Desenvolver conteúdos/ }).click();
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 01 de 01');
-    await expect(page.getByTestId('validate-step')).toContainText('Origem: Conteúdo avulso');
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
-    await page.getByRole('button', { name: /^Ver resumo/ }).click();
-    await page.getByRole('button', { name: /Desenvolver desdobramentos/ }).click();
-    await expect(page.getByTestId('review-overview')).toBeVisible({ timeout: 120_000 });
+    await page.getByRole('button',{name:'Desenvolver conteúdos-base',exact:true}).click();
+    await page.getByTestId('base-card').getByRole('button').click();
+    await page.getByRole('button',{name:'Validar conteúdo-base',exact:true}).click();
+    await expect(page.getByTestId('content-approved')).toContainText('Nenhum post foi criado');
+    await page.getByRole('button',{name:'Voltar à visão geral',exact:true}).click();
+    await page.getByRole('button',{name:'Seguir para criação dos posts'}).click();
+    await expect(page.getByTestId('production-plan')).toBeVisible();
 
     const camps = await sql<{ id: string; name: string; start_date: string | null }>(`select id, name, start_date from campaigns where metadata->>'kind'='avulso'`);
     expect(camps).toHaveLength(1);
     expect(camps[0]).toMatchObject({ name: 'Sem campanha', start_date: null });
     const [idea] = await sql<{ origin: string; status: string; channels: unknown[] }>(`select origin, status, channels from ideas where campaign_id='${camps[0].id}'`);
     expect(idea).toMatchObject({ origin: 'user', status: 'developed' });
-    expect(idea.channels).toHaveLength(2);
+    expect(idea.channels).toHaveLength(0);
     const pieces = await sql<{ platform: string; piece_role: string; account_id: string }>(`select platform, piece_role, account_id from user_posts where campaign_id='${camps[0].id}' and status<>'archived' order by piece_role`);
-    expect(pieces.find((p) => p.piece_role === 'validation')).toMatchObject({ platform: 'linkedin', account_id: acc.linkedin });
-    expect(pieces.some((p) => p.piece_role === 'unfold' && p.platform === 'instagram')).toBe(true);
+    expect(pieces).toHaveLength(0); // validar conhecimento não aprova nem produz posts
 
     // Não aparece como campanha; no Pipeline, é "Sem campanha".
     await page.goto('/campanhas');
     await expect(page.getByText('Sem campanha')).toHaveCount(0);
     await page.goto('/pipeline');
     await page.getByLabel('Campanha').selectOption({ label: 'Sem campanha' });
-    // R1 (PR #2): um cartão por peça — a validação (aprovada) e o desdobramento (pendente).
-    const cards = page.getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' });
-    await expect(cards).toHaveCount(2);
-    await expect(page.getByTestId('col-aprovado').getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' })).toBeVisible();
-    await expect(page.getByTestId('col-pendente').getByTestId('pipeline-card').filter({ hasText: 'O líder que não delega, controla' })).toBeVisible();
+    // Conhecimento validado continua disponível para planejar suas peças depois.
+    const cards = page.getByTestId('pipeline-card').filter({hasText:'O líder que não delega, controla'});
+    await expect(cards).toHaveCount(1);
+    await expect(page.getByTestId('col-aprovado').getByTestId('pipeline-card')).toHaveCount(0);
 
     // Um segundo conteúdo reusa o mesmo contêiner (novo "ciclo" só dele).
     await createOne('Reunião boa termina com decisão');

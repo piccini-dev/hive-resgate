@@ -10,7 +10,7 @@ import { CampaignCyclePicker } from '@/components/production/CampaignCyclePicker
 import { PlanStep } from '@/components/production/PlanStep';
 import { PautaStep } from '@/components/production/PautaStep';
 import { DevelopStep } from '@/components/production/DevelopStep';
-import { ReviewStep } from '@/components/production/ReviewStep';
+import { ProductionHub } from '@/components/production/ProductionHub';
 import { accountApi, campaignApi, cycleApi, ideaApi } from '@/lib/campaignApi';
 import { beeApi } from '@/lib/api';
 import { isAvulso } from '@/lib/campaign/avulso';
@@ -134,7 +134,7 @@ export function Production() {
   return (
     <div className="flex min-h-full flex-col">
       <ProductionStepper current={step} reached={statusStep} onSelect={(i) => { if (!solo || i >= 4) setViewStep(i === statusStep ? null : i); }}
-        {...(solo ? { steps: ['Ideia', 'Desenvolvimento', 'Revisão'], offset: 3 } : {})} />
+        {...(solo ? { steps: ['Ideia', 'Conteúdos-base', 'Criar posts'], offset: 3 } : {})} />
       <div className="mx-auto grid w-full max-w-7xl flex-1 gap-6 p-4 lg:grid-cols-[340px_1fr] lg:p-6">
         <aside>
           {solo ? (
@@ -171,7 +171,7 @@ export function Production() {
             <DevelopStep key={`${cycle.id}:${contentId ?? ''}`} campaign={campaign} cycle={cycle} ideas={ideas} editorials={editorials} accounts={accounts} focusContentId={contentId}
               onIdeasChange={setIdeas} onCycleChange={replaceCycle} onDone={(c) => { replaceCycle(c); setViewStep(null); }} />
           ) : (
-            <ReviewStep campaign={campaign} cycle={cycle} ideas={ideas} editorials={editorials} accounts={accounts} onCycleChange={replaceCycle} />
+            <ProductionHub key={cycle.id} campaign={campaign} cycle={cycle} ideas={ideas} editorials={editorials} accounts={accounts} onCycleChange={replaceCycle} />
           )}
         </main>
       </div>

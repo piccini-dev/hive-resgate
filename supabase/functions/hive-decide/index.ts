@@ -226,12 +226,19 @@ Deno.serve(async (req: Request) => {
     const text = input.text?.trim();
     if (!text) return errorResponse('text obrigatorio', 400);
 
+    // A new-flow post carries an explicitly approved family. Legacy requests retain their platform lock.
+    const [plannedPost] = input.post_id ? await fetchRest<Array<{metadata:Record<string,unknown>}>>(`/user_posts?id=eq.${input.post_id}&user_id=eq.${userId}&select=metadata`) : [];
+    const productionV2 = plannedPost?.metadata?.production_flow === 'base_v2';
+    const preferredFamily = productionV2 ? String(input.seed?.variant?.split('-')[0] ?? plannedPost.metadata.template_family ?? '') : '';
+    if(productionV2 && !['M01','M02','M03'].includes(preferredFamily)) return errorResponse('A proposta não tem uma família visual disponível.',409);
+    if(preferredFamily && input.seed && input.seed.manifestation !== preferredFamily) input.seed = undefined;
+
     // --- TRAVA LINKEDIN: todo post do LinkedIn usa o M01 BASE (M01-A) exato. ---
     // Regra de negocio (nao editorial): no LinkedIn a forma e FIXA — sem motor,
     // sem variacao, sem destaque. So o Instagram varia. Curto-circuita ANTES do
     // Gemini (deterministico e sem custo). Se um dia quiser voltar a variar,
     // basta remover este bloco.
-    if (input.platform === 'linkedin') {
+    if (input.platform === 'linkedin' && !productionV2) {
       const locked = await lockedLinkedinDecision(input, text, userId);
       return jsonResponse({ success: true, decision: locked, model_used: 'locked:M01-A' });
     }
@@ -251,8 +258,8 @@ Deno.serve(async (req: Request) => {
     if (vars.length === 0) return errorResponse('Esta marca ainda não tem sistema visual (templates) configurado — a Hive não usa o de outra marca.', 409);
     // So manifestacoes de AUTO-SELECAO entram no motor (M04 depende de dados de
     // evento do usuario -> e acionado pela tela /hive/convite, nunca aqui).
-    const autoManis = new Set(manis.filter((m) => m.auto_select !== false).map((m) => m.id));
-    vars = vars.filter((v) => autoManis.has(v.manifestacao_id));
+    const autoManis = new Set(manis.filter((m) => m.auto_select !== false || (productionV2 && m.id === 'M03')).map((m) => m.id));
+    vars = vars.filter((v) => autoManis.has(v.manifestacao_id) && (!preferredFamily || v.manifestacao_id === preferredFamily));
     if (vars.length === 0) return errorResponse('Nenhuma variacao auto-selecionavel', 409);
     const maniById: Record<string, Manifestacao> = {};
     for (const m of manis) maniById[m.id] = m;

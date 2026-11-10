@@ -1,42 +1,12 @@
-// Desenvolvimento e validação do conteúdo-mãe (Telas 10–11).
-// Ciclo de aprendizado preservado: cada versão gerada pela IA vira uma
-// ai_variation PRISTINA; na validação, ai_reviews mede quanto o humano editou.
-import { db } from '@/lib/db';
-import { aiApi } from '@/lib/api';
+// Desenvolvimento de conhecimento. Revisões da base são versionadas no acervo;
+// aprendizado de post e variações visuais pertencem à produção das peças.
 import { edge } from '@/lib/edge';
 import { contentApi, cycleApi, ideaApi } from '@/lib/campaignApi';
-import { acjContractApi } from '@/lib/acj/api';
+import { baseApi } from './bases';
+import { requireKnowledgeResponse } from './base-state';
 import type {
-  AiVariation, Campaign, CampaignCycle, Content, ContentBody, Idea, UserPost,
+  Campaign, CampaignCycle, Content, ContentBody, Idea, UserPost,
 } from '@/types';
-
-type DevResult = Awaited<ReturnType<typeof edge.contentDevelop>>;
-
-// Contrato ACJ (fonte canônica no conteúdo-mãe): novo → grava versão; reaproveitado →
-// só atualiza o portão. Falha aqui não perde o conteúdo (a ACJ avisa, não bloqueia).
-async function persistAcj(contentId: string, r: DevResult): Promise<void> {
-  const a = r.acj;
-  if (!a?.contract) return;
-  try {
-    if (a.reused && a.contract.id) await acjContractApi.update(a.contract.id, { validation: a.validation ?? null });
-    else await acjContractApi.create(contentId, a.contract, { campaign_plan_id: a.campaign_plan_id, cycle_plan_id: a.cycle_plan_id, validation: a.validation ?? null });
-  } catch (e) {
-    console.warn('[acj] contrato não salvo:', (e as Error).message);
-  }
-}
-
-async function registerAiVersion(idea: Idea, r: DevResult): Promise<{ generation_id: string; variation_id: string }> {
-  const generation = await aiApi.createGeneration({
-    editorial_slug: idea.editorial_slug ?? undefined, platform: 'linkedin', target_avatar: 'ambos',
-    briefing: `Ideia-mãe: ${idea.title}`, variations_count: 1,
-  });
-  const [variation] = await aiApi.createVariations(generation.id, [{
-    idx: 0, quote: r.frase, caption: r.texto,
-    headline_type: r.meta.headline_type ?? undefined, analogy: r.meta.analogy ?? undefined,
-    virality_score: r.meta.virality_score, virality_reason: r.meta.virality_reason,
-  }]);
-  return { generation_id: generation.id, variation_id: variation.id };
-}
 
 // Desenvolve em paralelo (3 por vez) as ideias aprovadas que ainda não têm conteúdo.
 export async function developIdeas(
@@ -51,22 +21,26 @@ export async function developIdeas(
   async function worker() {
     while (queue.length) {
       const idea = queue.shift()!;
-      const r = await edge.contentDevelop({ idea_id: idea.id, mode: 'develop' });
-      const ids = await registerAiVersion(idea, r);
+      if (idea.source_base_version_id) {
+        await baseApi.adopt(idea.source_base_version_id, cycle.id, idea.id);
+        const reused = (await baseApi.listByCycle(cycle.id)).find((c) => c.idea_id === idea.id);
+        if (!reused) throw new Error('Não foi possível recuperar a base selecionada.');
+        created.push(reused); done++; onProgress?.(done, todo.length, reused); continue;
+      }
+      const r = await edge.contentDevelop({ idea_id: idea.id, mode: 'develop', purpose: 'knowledge_base' });
+      requireKnowledgeResponse(r);
       const content = await contentApi.create({
         idea_id: idea.id, campaign_id: cycle.campaign_id, cycle_id: cycle.id,
-        title: idea.title, strategic_function: idea.strategic_function ?? null, editorial_slug: idea.editorial_slug ?? null,
+        validation_format: 'knowledge_base', title: idea.title, strategic_function: idea.strategic_function ?? null, editorial_slug: idea.editorial_slug ?? null,
         // Perfil/contexto: as peças herdam (trigger) e QA/edições usam o mesmo snapshot.
         ...(r.context ? { profile_id: r.context.profile_id, context_snapshot_id: r.context.snapshot_id } : {}),
         body: { frase: r.frase, texto: r.texto }, considered: r.considered, status: 'pending_validation',
         versions: [{ at: new Date().toISOString(), body: { frase: r.frase, texto: r.texto }, note: 'Hive' }],
         position: idea.position,
         metadata: {
-          ...ids, ai_rounds: 0, manual_edits: 0, qa_score: r.meta.qa_score, virality_score: r.meta.virality_score,
-          virality_reason: r.meta.virality_reason, headline_type: r.meta.headline_type, analogy: r.meta.analogy, repeat: r.meta.repeat ?? null,
+          purpose: 'knowledge_base', sources: r.meta.sources ?? [], gaps: r.meta.gaps ?? [],
         },
       });
-      await persistAcj(content.id, r);
       await ideaApi.update(idea.id, { status: 'developed' });
       created.push(content);
       done++;
@@ -77,77 +51,27 @@ export async function developIdeas(
   return { contents: created, cycle: updatedCycle };
 }
 
-// "Ajustar com a Hive" / "Nova versão": nova versão da IA = nova variação pristina.
+// Ajustar a base cria rascunho versionado; a versão em uso permanece congelada.
 export async function reviseWithHive(content: Content, idea: Idea, mode: 'adjust' | 'new_version', instruction?: string): Promise<Content> {
-  const r = await edge.contentDevelop({ idea_id: idea.id, content_id: content.id, mode, current: content.body, instruction });
-  await persistAcj(content.id, r);
-  const ids = await registerAiVersion(idea, r);
+  const r = await edge.contentDevelop({ idea_id: idea.id, content_id: content.id, mode, current: content.body, instruction, purpose: 'knowledge_base' });
+  requireKnowledgeResponse(r);
   const body = { frase: r.frase, texto: r.texto };
-  return contentApi.update(content.id, {
-    body, considered: r.considered,
-    versions: [...content.versions, { at: new Date().toISOString(), body, note: mode === 'adjust' ? `Ajuste: ${instruction}` : 'Nova versão' }],
-    metadata: {
-      ...content.metadata, ...ids, ai_rounds: (content.metadata?.ai_rounds ?? 0) + 1, qa_score: r.meta.qa_score,
-      virality_score: r.meta.virality_score, virality_reason: r.meta.virality_reason, headline_type: r.meta.headline_type, analogy: r.meta.analogy,
-      repeat: r.meta.repeat ?? null,
-    },
-  });
+  const draft = await baseApi.saveDraft(content, body, mode === 'adjust' ? `Ajuste: ${instruction}` : 'Nova versão com a Hive', r.considered);
+  return { ...draft, considered: r.considered, metadata: { ...draft.metadata, purpose: 'knowledge_base', sources: r.meta.sources ?? [], gaps: r.meta.gaps ?? [] } };
 }
 
-// "Editar diretamente": edição humana (não cria variação — a validação mede o drift).
+// Edição humana cria rascunho, sem sobrescrever a base já utilizada.
 export async function editContent(content: Content, body: ContentBody): Promise<Content> {
-  return contentApi.update(content.id, {
-    body,
-    versions: [...content.versions, { at: new Date().toISOString(), body, note: 'Edição manual' }],
-    metadata: { ...content.metadata, manual_edits: (content.metadata?.manual_edits ?? 0) + 1 },
-  });
+  return baseApi.saveDraft(content, body, 'Edição manual');
 }
 
 // O codigo BEE-DDMMAA-G{n}-D{n} é gerado no banco (trigger) — único mesmo em paralelo.
 
-// Aprovar o conteúdo: valida a linha de pensamento. Se a ideia tem LinkedIn
-// (formato de validação do Marcos), a peça do LinkedIn nasce com o texto
-// aprovado (text_approved) — o visual M01-A é produzido na etapa seguinte.
+// Validação do conhecimento: servidor versiona a base; nenhuma peça é criada.
 export async function validateContent(
-  content: Content, idea: Idea | undefined, campaign: Campaign, editorialName?: string,
+  content: Content, _idea: Idea | undefined, _campaign: Campaign, _editorialName?: string,
 ): Promise<{ content: Content; piece: UserPost | null }> {
-  const li = idea?.channels.find((c) => c.platform === 'linkedin');
-  let piece: UserPost | null = null;
-  if (li) {
-    const meta = content.metadata ?? {};
-    const rows = await db.insert<UserPost>('user_posts', {
-      user_id: campaign.user_id,
-      platform: 'linkedin', format: 'image', status: 'pending_approval',
-      title: editorialName ?? content.title,
-      caption: content.body.texto ?? '',
-      carousel_text: {
-        quote: content.body.frase ?? '', headline_type: meta.headline_type ?? null, analogy: meta.analogy ?? null,
-        virality_score: meta.virality_score ?? null, virality_reason: meta.virality_reason ?? null,
-      },
-      virality_score: meta.virality_score ?? null, virality_reason: meta.virality_reason ?? null,
-      ai_edit_rounds: meta.ai_rounds ?? 0, manual_edits: meta.manual_edits ?? 0,
-      text_approved: true,
-      content_id: content.id, campaign_id: content.campaign_id, cycle_id: content.cycle_id, account_id: li.account_id ?? null,
-      piece_role: 'validation',
-      metadata: {
-        editorial_slug: content.editorial_slug, target_avatar: 'ambos', review_stage: 'design',
-        titulo_status: 'approved', legenda_status: 'approved', batch_id: meta.generation_id,
-      },
-    });
-    piece = rows[0] ?? null;
-    if (piece && meta.variation_id) {
-      await aiApi.linkVariationToPost(meta.variation_id, piece.id);
-      const variation = await db.selectOne<AiVariation>('ai_variations', { id: `eq.${meta.variation_id}` });
-      if (variation) {
-        void aiApi.recordReview({ post_id: piece.id, variation, quote_final: content.body.frase ?? '', caption_final: content.body.texto ?? '' })
-          .catch(console.error);
-      }
-    }
-  }
-  const updated = await contentApi.update(content.id, {
-    status: 'validated', metadata: { ...content.metadata, ...(piece ? { validation_post_id: piece.id } : {}) },
-  });
-  return { content: updated, piece };
+  return { content: await baseApi.validate(content), piece: null };
 }
 
 export async function discardContent(content: Content): Promise<Content> {

@@ -31,6 +31,7 @@ export interface HiveVisualResult {
 
 export async function generateHiveImage(params: {
   userId: string;
+  canvas?: { w: number; h: number };
   postId: string;
   text: string;                          // texto aprovado (frase da imagem)
   platform?: 'linkedin' | 'instagram';
@@ -57,6 +58,7 @@ export async function generateHiveImage(params: {
   // Sequências: arquivo próprio por página (ex.: unit-<id>-v3.jpg).
   fileName?: string;
 }): Promise<HiveVisualResult> {
+  const canvas = params.canvas ?? CANVAS;
   const text = params.text.trim();
   if (!text) throw new Error('Sem texto pra compor a imagem.');
 
@@ -85,7 +87,7 @@ export async function generateHiveImage(params: {
   if (recipe.manifestacao_id === 'M03') {
     slide = composeM03({
       recipe, colors: design.colors, spiralUrl: design.spiralUrl,
-      text, highlight, canvas: CANVAS, diagram: decision.diagram ?? null,
+      text, highlight, canvas, diagram: decision.diagram ?? null,
     });
   } else if (recipe.manifestacao_id === 'M02') {
     // MOTOR FOTOGRÁFICO DO MARCOS (docs/fotografia/01–06): estilo F01–F04,
@@ -123,7 +125,7 @@ export async function generateHiveImage(params: {
     }
     slide = composeM02({
       recipe, colors: design.colors, spiralUrl: design.spiralUrl,
-      text, subtitle: decision.subtitle ?? null, highlight, canvas: CANVAS, asset,
+      text, subtitle: decision.subtitle ?? null, highlight, canvas, asset,
     });
     (decision as Record<string, unknown>).asset = { ...asset, ...photoMeta };
     (decision as Record<string, unknown>).image_ref = asset.url;
@@ -155,12 +157,12 @@ export async function generateHiveImage(params: {
     const layout = bgUrl ? await analyzeTextZone(bgUrl) : null;
     slide = composeM01({
       recipe, colors: design.colors, spiralUrl: design.spiralUrl, assets,
-      text, highlight, canvas: CANVAS, layout,
+      text, highlight, canvas, layout,
     });
   }
 
   // 3) Render (full-res, JPEG p/ publicar — Instagram exige, LinkedIn aceita) + upload.
-  const dataUrl = await renderFabricToDataUrl(slide, { width: CANVAS.w, height: CANVAS.h, format: 'jpeg' });
+  const dataUrl = await renderFabricToDataUrl(slide, { width: canvas.w, height: canvas.h, format: 'jpeg' });
   if (!dataUrl) throw new Error('Falha ao renderizar a imagem da Hive.');
 
   const { publicUrl } = await uploadAssetImage({ immutable: true,

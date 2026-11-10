@@ -1,3 +1,4 @@
+import {prepareLegacyReview,openLegacyReview} from './helpers/legacy-production';
 import { test, expect } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
 import { e2eUser } from './helpers/env';
@@ -55,7 +56,7 @@ test.describe('F14 · correções', () => {
     const camp = await seedCampaign({ weeks: 2, accountIds: [acc.linkedin, acc.instagram], cadence: [2, 3] });
     const ghost = '845749ed-57fe-45df-a09f-ab72ab0f0f42';
     await seedValidatedContents(camp.id, camp.cycleIds[0], [{ title: 'Conteúdo com conta antiga', channels: [{ account_id: ghost, platform: 'instagram' }] }]);
-    await page.goto(`/producao?campaign=${camp.id}&cycle=${camp.cycleIds[0]}`);
+    await prepareLegacyReview(page,camp.id,camp.cycleIds[0]);
     await expect(page.getByTestId('production-summary')).toBeVisible({ timeout: 120_000 });
     const [p] = await sql<{ account_id: string }>(`select account_id from user_posts where cycle_id='${camp.cycleIds[0]}' and piece_role='unfold'`);
     expect(p.account_id).toBe(acc.instagram);
@@ -76,24 +77,20 @@ test.describe('F14 · correções', () => {
       ids.push(c.id);
       await sql(`update ideas set status='developed' where id='${ideaIds[n]}'`);
     }
-    // Link direto (Pipeline) para o TERCEIRO: antes sempre caía no primeiro pendente.
+    // Link direto continua abrindo a base certa, sem escolher implicitamente outra.
     await page.goto(`/producao?campaign=${camp.id}&cycle=${cyc}&content=${ids[2]}`);
     await expect(page.getByTestId('content-frase')).toHaveText('Frase Terceiro');
-    await expect(page.getByTestId('validate-counter')).toHaveText('Conteúdo 03 de 03');
-    // seletor → segundo
-    await page.getByTestId('content-nav-item').nth(1).click();
+    await page.getByRole('button',{name:'Voltar à visão geral',exact:true}).click();
+    await page.getByTestId('base-card').filter({hasText:'Segundo'}).getByRole('button').click();
     await expect(page.getByTestId('content-frase')).toHaveText('Frase Segundo');
-    // primeiro (já aprovado) → só leitura, sem botões de ação
-    await page.getByTestId('content-nav-item').nth(0).click();
-    await expect(page.getByTestId('content-frase')).toHaveText('Frase Primeiro');
-    await expect(page.getByTestId('content-readonly')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Aprovar conteúdo' })).toHaveCount(0);
-    // aprovar o segundo segue para o próximo pendente (não volta ao mesmo)
-    await page.getByTestId('content-nav-item').nth(1).click();
-    await page.getByRole('button', { name: 'Aprovar conteúdo' }).click();
+    await page.getByRole('button',{name:'Validar conteúdo-base',exact:true}).click();
     await expect(page.getByTestId('content-approved')).toBeVisible();
-    await page.getByRole('button', { name: /Próximo conteúdo/ }).click();
+    await page.getByRole('button',{name:'Desenvolver próxima base'}).click();
     await expect(page.getByTestId('content-frase')).toHaveText('Frase Terceiro');
+    await page.getByRole('button',{name:'Voltar à visão geral',exact:true}).click();
+    await page.getByTestId('base-card').filter({hasText:'Primeiro'}).getByRole('button').click();
+    await expect(page.getByRole('button',{name:'Editar diretamente',exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Validar conteúdo-base',exact:true})).toHaveCount(0);
   });
 
   test('agenda: peça programada marcada como repetição aparece e a auditoria pode ser rodada', async ({ page }) => {
