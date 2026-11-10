@@ -8,7 +8,7 @@ import { SequenceWorkspace } from '@/components/sequence/SequenceWorkspace';
 import { planApi } from '@/lib/sequence/service';
 import { isoToLocalInput, localInputToIso, nowLocalInput } from '@/lib/schedule';
 import { isAvulso } from '@/lib/campaign/avulso';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -21,11 +21,12 @@ import { canReviewProduction, editorialPieces } from '@/lib/campaign/production-
 import { ideaApi, pieceApi } from '@/lib/campaignApi';
 import { formatRange } from '@/lib/campaign/dates';
 import {
-  AI_IMAGE_VARIANT, approvePiece, choosePiece, createAlternatives, reschedulePiece, finishProduction, imageKind, produceCycle, productionTodo,
+  AI_IMAGE_VARIANT, approvePiece, choosePiece, createAlternatives, reschedulePiece, finishProduction, imageKind, loadProductionVisuals, produceCycle, productionTodo,
 } from '@/lib/campaign/produce';
 import { loadHiveDesign } from '@/lib/hive/loadDesign';
 import { useAuthStore } from '@/store/authStore';
-import type { BeeEditorial, Campaign, CampaignCycle, Content, Idea, PiecePlan, SocialAccount, UserPost } from '@/types';
+import type { BeeEditorial, Campaign, CampaignCycle, Content, Idea, PiecePlan, PostUnit, SocialAccount, UserPost } from '@/types';
+import { needsSequenceRender } from '@/lib/sequence/visual-state';
 
 // Uma produção por ciclo, com ASSINANTES: se a tela remontar no meio (StrictMode,
 // troca de etapa, navegação), a nova montagem se inscreve na produção em curso —
@@ -41,8 +42,15 @@ interface Unit { key: string; content: Content; pieces: UserPost[]; main: UserPo
 
 const PlatformIcon = ({ p, className = 'h-4 w-4' }: { p: string; className?: string }) =>
   p === 'linkedin' ? <Linkedin className={`${className} text-[#0A66C2]`} /> : <Instagram className={`${className} text-[#E1306C]`} />;
+function ProductionDetails({compact,children}:{compact:boolean;children:ReactNode}) {
+  return compact?<details className="text-xs text-muted-foreground"><summary className="cursor-pointer py-2">Ver detalhes da proposta</summary><div className="space-y-2">{children}</div></details>:<div>{children}</div>;
+}
 
-function Preview({ piece, className = '' }: { piece: UserPost; className?: string }) {
+function Preview({ piece, className = '', units = [] }: { piece: UserPost; className?: string; units?: PostUnit[] }) {
+  if(['carousel','story'].includes(piece.format)) {
+    const pages=units.length?[...units].sort((a,b)=>a.position-b.position).map(u=>({position:u.position,url:u.rendered_url})):Object.entries(piece.rendered_slides??{}).sort(([a],[b])=>Number(a.replace('slide',''))-Number(b.replace('slide',''))).map(([,url],i)=>({position:i+1,url}));
+    return <div className="flex w-full gap-3 overflow-x-auto pb-2" data-testid="gallery-pages-strip">{pages.length?pages.map(p=><div key={p.position} className="w-48 shrink-0 space-y-1"><div className={`overflow-hidden rounded-lg border bg-secondary/40 ${piece.format==='story'?'aspect-[9/16]':'aspect-[4/5]'}`}>{p.url?<img src={p.url} alt={`Página ${p.position}`} className="h-full w-full object-contain" loading="lazy"/>:<div className="flex h-full items-center justify-center text-xs text-muted-foreground">Imagem a produzir</div>}</div><p className="text-xs text-muted-foreground">{p.position} / {pages.length}</p></div>):<span className="p-5 text-sm text-muted-foreground">As páginas ainda precisam ser produzidas.</span>}</div>;
+  }
   const src = piece.rendered_slides?.slide1;
   return (
     <div className={`overflow-hidden rounded-xl border bg-secondary/40 ${className}`}>
@@ -62,6 +70,8 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   const [contents, setContents] = useState<Content[] | null>(null);
   const [pieces, setPieces] = useState<UserPost[]>([]);
   const [plans, setPlans] = useState<PiecePlan[]>([]);
+  const [pageUnits,setPageUnits]=useState<PostUnit[]>([]);
+  const [visualPending,setVisualPending]=useState(0);
   const [runNonce, setRunNonce] = useState(0);
   const [view, setView] = useState<View>({ kind: 'overview' });
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -81,8 +91,10 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   // nenhum desdobramento produzido; era uma corrida intermitente).
   const load = useCallback(async () => {
     const [c, p, i, pl] = await Promise.all([baseApi.listByCycle(cycle.id, false), pieceApi.listByCycle(cycle.id), ideaApi.listByCycle(cycle.id), planApi.byCycle(cycle.id)]);
+    const visuals=await loadProductionVisuals(p,pl,productionBatchId);
+    setPageUnits(visuals.units);setVisualPending(visuals.todo.length);
     setLoadError(null); setContents(c); setPieces(editorialPieces(p).filter(x => !productionBatchId || x.metadata?.production_batch_id === productionBatchId)); setPlans(pl);
-    return { c, p, i, pl };
+    return { c, p, i, pl, visuals };
   }, [cycle.id, productionBatchId]);
 
   useEffect(() => {
@@ -96,13 +108,13 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
     void (async () => {
       const running = RUNS.get(cycle.id);
       if (running) { running.listeners.add(listener); setProgress(running.progress); await load(); setChecked(true); return; }
-      const { c, p, i, pl } = await load();
+      const { c, p, i, pl, visuals } = await load();
       if (!allowAutoProduction) { setChecked(true); return; }
       if (!alive || !currentUser) return;
       const again = RUNS.get(cycle.id);
       if (again) { again.listeners.add(listener); setProgress(again.progress); setChecked(true); return; }
       const todo = productionTodo(c, i, p, pl, productionBatchId);
-      const n = todo.validation.length + todo.unfold.length + todo.sequences.length;
+      const n = todo.validation.length + todo.unfold.length + todo.sequences.length + visuals.todo.length;
       if (n === 0) { setChecked(true); return; }
       const run = { progress: { done: 0, total: n } as Prog, listeners: new Set([listener]) };
       RUNS.set(cycle.id, run);
@@ -146,7 +158,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   }, [contents, pieces]);
 
   const approvedCount = units.filter((u) => u.approved).length;
-  const pending = units.filter((u) => !u.approved && canReviewProduction(u.main,plans,productionBatchId));
+  const pending = units.filter((u) => !u.approved && canReviewProduction(u.main,plans,productionBatchId) && (!productionBatchId || !['carousel','story'].includes(u.main.format) || (pageUnits.some(p=>p.post_id===u.main.id)&&!pageUnits.some(p=>p.post_id===u.main.id&&needsSequenceRender(p)))));
   const unfinishedPlans = productionBatchId ? plans.filter(p=>p.production_batch_id===productionBatchId&&p.status==='planned') : [];
   const fromValidation = units.filter((u) => u.main.piece_role === 'validation').length;
   const pieceById = (id: string) => pieces.find((p) => p.id === id);
@@ -200,7 +212,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
       <div className="space-y-5" data-testid="review-overview">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> Conteúdos validados</p>
-          <h1 className="mt-1 font-display text-2xl font-bold">{progress ? 'A Hive está produzindo os desdobramentos.' : unfinishedPlans.length ? 'Parte da produção ainda precisa ser concluída.' : 'Seus conteúdos estão prontos para ganhar novas formas.'}</h1>
+          <h1 className="mt-1 font-display text-2xl font-bold">{progress ? 'A Hive está produzindo os posts e suas imagens.' : unfinishedPlans.length||visualPending ? 'Parte da produção ainda precisa ser concluída.' : 'Seus posts estão disponíveis para revisão.'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">A produção segue as bases e a proposta aprovada. Revise cada peça uma vez; depois escolha em quais contas ela será usada.</p>
         </div>
         {progress ? (
@@ -215,11 +227,11 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
               <div className="rounded-2xl border bg-card p-4"><p className="font-display text-3xl font-bold">{productionBatchId ? approvedCount : fromValidation}</p><p className="text-xs text-muted-foreground">já aprovadas nesta revisão</p></div>
               <div className="rounded-2xl border bg-card p-4"><p className="font-display text-3xl font-bold">{pending.length}</p><p className="text-xs text-muted-foreground">novas peças para revisar</p></div>
             </div>
-            {productionBatchId && plans.some(p => p.production_batch_id === productionBatchId && p.status === 'planned') && <section className="space-y-2 rounded-xl border border-amber-500/30 p-4">
+            {productionBatchId && (unfinishedPlans.length>0||visualPending>0) && <section className="space-y-2 rounded-xl border border-amber-500/30 p-4">
               <p className="text-sm">Há peças cuja produção ainda não terminou. O que já foi gerado será preservado.</p>
-              <p className="text-sm">{unfinishedPlans.length} peças aguardam produção; {pending.length} já estão disponíveis para revisar.</p>
+              <p className="text-sm">{unfinishedPlans.length} peças aguardam conteúdo; {visualPending} sequências têm imagens pendentes. {pending.length} posts já estão disponíveis para revisar.</p>
               {plans.filter(p => p.production_batch_id === productionBatchId && p.generation_error).map(p => <p key={p.id} className="text-xs text-muted-foreground">{p.format==='carousel'?'Carrossel':p.format==='story'?'Stories':'Imagem única'} · {p.approach}: {p.generation_error}</p>)}
-              <Button variant="outline" disabled={!!progress} onClick={() => setRunNonce(n => n+1)}>Retomar peças pendentes</Button>
+              <Button variant="outline" disabled={!!progress} onClick={() => setRunNonce(n => n+1)}>Retomar produção pendente</Button>
             </section>}
             <div className="flex justify-end"><Button variant="accent" size="lg" onClick={() => setView({ kind: 'gallery' })}>Revisar produção <ArrowRight className="h-4 w-4" /></Button></div>
           </>
@@ -230,7 +242,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
 
   // ---------------- TELA 12A — galeria ----------------
   if (view.kind === 'gallery') {
-    const allDone = units.length > 0 && pending.length === 0 && !plans.some(p => p.production_batch_id === productionBatchId && p.status === 'planned');
+    const allDone = units.length > 0 && pending.length === 0 && !visualPending && !plans.some(p => p.production_batch_id === productionBatchId && p.status === 'planned');
     return (
       <div className="space-y-5" data-testid="gallery">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -260,13 +272,13 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
               <p className="text-sm font-semibold"><span className="mr-2 text-muted-foreground">{String(n + 1).padStart(2, '0')}.</span>{c.title}</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {us.map((u) => (
-                  <div key={u.key} className="space-y-2" data-testid="gallery-unit">
-                    <button type="button" disabled={!canReviewProduction(u.main,plans,productionBatchId)} onClick={() => openUnit(u)} className="block w-full text-left"><Preview piece={u.main} className="aspect-[4/5]" /></button>
+                  <div key={u.key} className={`space-y-2 ${['carousel','story'].includes(u.main.format)?'sm:col-span-2 lg:col-span-3':''}`} data-testid="gallery-unit">
+                    <button type="button" disabled={!canReviewProduction(u.main,plans,productionBatchId)} onClick={() => openUnit(u)} className="block w-full min-w-0 text-left"><Preview piece={u.main} units={pageUnits.filter(p=>p.post_id===u.main.id)} className="aspect-[4/5]" /></button>
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="flex items-center gap-1.5"><PlatformIcon p={u.main.platform} className="h-3.5 w-3.5" />{u.main.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {accountLabel(u.main.account_id)}
-                        {(u.main.format === 'carousel' || u.main.format === 'story') && <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px]" data-testid="unit-format">{u.main.format === 'story' ? 'Stories' : 'Carrossel'}{u.main.script_status === 'draft' ? ' · roteiro' : ''}</span>}</span>
+                        {(u.main.format === 'carousel' || u.main.format === 'story') && <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px]" data-testid="unit-format">{u.main.format === 'story' ? 'Stories' : 'Carrossel'}{u.main.script_status === 'draft'&&u.main.metadata?.production_flow!=='base_v2' ? ' · roteiro' : ''}</span>}</span>
                       {u.approved ? <span className="flex items-center gap-1 font-semibold text-emerald-600" data-testid="unit-status"><Check className="h-3.5 w-3.5" /> Aprovado</span>
-                        : <span className="font-semibold text-accent" data-testid="unit-status">{canReviewProduction(u.main,plans,productionBatchId)?`Para revisar${u.pieces.length > 1 ? ` · ${u.pieces.length} propostas` : ''}`:'Produção pendente'}</span>}
+                        : <span className="font-semibold text-accent" data-testid="unit-status">{canReviewProduction(u.main,plans,productionBatchId)?pageUnits.some(p=>p.post_id===u.main.id&&needsSequenceRender(p))?'Imagens pendentes':`Para revisar${u.pieces.length > 1 ? ` · ${u.pieces.length} propostas` : ''}`:'Produção pendente'}</span>}
                     </div>
                     {!u.approved && <Button size="sm" variant="outline" className="w-full" disabled={!canReviewProduction(u.main,plans,productionBatchId)} onClick={() => openUnit(u)}>{canReviewProduction(u.main,plans,productionBatchId)?'Revisar propostas':'Aguardando produção'} <ArrowRight className="h-3.5 w-3.5" /></Button>}
                   </div>
@@ -344,7 +356,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
         <div className="flex items-center gap-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5">
           <CheckCircle2 className="h-10 w-10 shrink-0 text-emerald-600" />
           <div><p className="font-display text-xl font-semibold">Peça aprovada!</p>
-            <p className="text-sm text-muted-foreground">{piece.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · Imagem — {unit?.content.title}</p></div>
+            <p className="text-sm text-muted-foreground">{piece.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {piece.format==='carousel'?'Carrossel':piece.format==='story'?'Stories':'Imagem'} — {unit?.content.title}</p></div>
         </div>
         <div className="space-y-2 rounded-2xl border bg-card p-4">
           <p className="text-sm font-medium">{isAvulso(campaign) ? 'Progresso' : 'Progresso do ciclo'}</p>
@@ -366,7 +378,8 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
         <button type="button" onClick={() => setView({ kind: 'gallery' })} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Voltar</button>
         <div>
           <h1 className="font-display text-2xl font-bold">{unit?.content.title}</h1>
-          <p className="text-sm text-muted-foreground">{piece.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {accountLabel(piece.account_id)} · {piece.format === 'story' ? 'Stories' : 'Carrossel'}{plans.find((pl) => pl.post_id === piece.id)?.approach ? ` · ${plans.find((pl) => pl.post_id === piece.id)?.approach}` : ''}</p>
+          <p className="text-sm text-muted-foreground">{piece.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {piece.format === 'story' ? 'Stories' : 'Carrossel'}</p>
+          <ProductionDetails compact={piece.metadata?.production_flow==='base_v2'}>{plans.find(pl=>pl.post_id===piece.id)?.approach}</ProductionDetails>
         </div>
         <SequenceWorkspace piece={piece} onChange={replacePiece} onApproved={(a) => { replacePiece(a); setView({ kind: 'approved', pieceId: a.id }); }} />
       </div>
@@ -399,7 +412,8 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
       )}
       <div>
         <h1 className="font-display text-2xl font-bold">{unit?.content.title}</h1>
-        <p className="text-sm text-muted-foreground">{piece.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {accountLabel(piece.account_id)} · Imagem{variant ? ` · ${variant}${variantNames[variant] ? ` ${variantNames[variant]}` : ''}` : ''}{isApproved ? ' · Aprovada' : ''}</p>
+        <p className="text-sm text-muted-foreground">{piece.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · Imagem{isApproved ? ' · Aprovada' : ''}</p>
+        <ProductionDetails compact={piece.metadata?.production_flow==='base_v2'}><p>{accountLabel(piece.account_id)}{variant ? ` · ${variant}${variantNames[variant] ? ` ${variantNames[variant]}` : ''}` : ''}</p>
         {(piece.metadata as { repeat?: { verdict?: string; of_text?: string; of_date?: string; reason?: string } } | null)?.repeat?.verdict === 'repeat' && (() => {
           const r = (piece.metadata as { repeat: { of_text?: string; of_date?: string; reason?: string } }).repeat;
           return (
@@ -416,6 +430,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
             )}
           </p>
         )}
+        </ProductionDetails>
       </div>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
         <div className="space-y-2">

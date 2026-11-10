@@ -7,6 +7,7 @@
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { db } from '@/lib/db';
+import { needsSequenceRender, sequenceReviewSnapshot } from './visual-state';
 import { edge, type HiveSeed } from '@/lib/edge';
 import { generateHiveImage } from '@/lib/hive/runVisual';
 import { loadHiveDesign } from '@/lib/hive/loadDesign';
@@ -117,7 +118,7 @@ const seedForVariant = (variant: string): HiveSeed => ({
   variant, manifestation: variant.split('-')[0], highlight: null, subtitle: null, poles: null, image_scene_hint: '',
   human_presence_adds_meaning: variant.startsWith('M02-'), mode_reason: '', variant_reason: 'capa da sequência',
 });
-const needsRender = (u: PostUnit) => !u.rendered_url || u.visual_status !== 'ready' || u.rendered_text_version !== u.text_version;
+const needsRender = needsSequenceRender;
 
 interface Rendered { fabric_json: unknown; rendered_url: string; assets: PostUnit['assets'] }
 
@@ -153,10 +154,11 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
 }
 
 // Produz SÓ o que falta (pendente, desatualizado ou com falha); páginas prontas não são refeitas.
-export async function renderPending(post0: UserPost, _units: PostUnit[], onProgress?: (done: number, total: number) => void): Promise<{ units: PostUnit[]; failed: number }> {
+export async function renderPending(post0: UserPost, _units: PostUnit[], onProgress?: (done: number, total: number) => void, opts: { draftPreview?: boolean } = {}): Promise<{ units: PostUnit[]; failed: number }> {
   // Fonte de verdade = banco (a tela pode estar um passo atrás logo depois de aplicar uma proposta).
   const [post, units] = await Promise.all([db.selectOne<UserPost>('user_posts', { id: `eq.${post0.id}` }).then((p) => p ?? post0), unitApi.list(post0.id)]);
-  if (post.script_status !== 'approved') throw new Error('Aprove o roteiro antes de produzir as páginas.');
+  const preview = opts.draftPreview && post.metadata?.production_flow === 'base_v2' && post.status === 'pending_approval' && post.script_status === 'draft';
+  if (post.script_status !== 'approved' && !preview) throw new Error('Aprove o roteiro antes de produzir as páginas.');
   const dir = directionOf(post);
   const todo = units.filter(needsRender);
   let done = 0, failed = 0;
@@ -187,6 +189,10 @@ export const approveUnit = (u: PostUnit, ok = true) => unitApi.update(u.id, { re
 export async function approveSequence(post: UserPost): Promise<UserPost> {
   const r = await db.rpc<UserPost | UserPost[]>('approve_sequence', { pid: post.id });
   return (Array.isArray(r) ? r[0] : r) as UserPost;
+}
+export async function approveVisualSequence(post: UserPost, units: PostUnit[]): Promise<UserPost> {
+  const r=await db.rpc<UserPost|UserPost[]>('approve_sequence_review', { pid:post.id, p_expected:sequenceReviewSnapshot(post,units) });
+  return Array.isArray(r)?r[0]:r;
 }
 
 // ---------------- candidatos de páginas/sequência (serviço comum de ajustes) ----------------

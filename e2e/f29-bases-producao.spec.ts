@@ -2,8 +2,10 @@ import {test,expect} from '@playwright/test';
 import {cleanupE2EData,cleanupE2EStorage,seed,sql} from './helpers/admin';
 import {seedAccounts,seedCampaign,seedValidatedContents,seedIdentityBrand} from './helpers/fixtures';
 import {e2eUser} from './helpers/env';
-import {loginAs} from './helpers/tenant';
+import {createTenant,deleteTenant,loginAs} from './helpers/tenant';
 import {mockEdge,mockProduction} from './helpers/mocks';
+import {sequenceReviewSnapshot} from '../src/lib/sequence/visual-state';
+import type {PostUnit,UserPost} from '../src/types';
 
 test.describe('F29 · base reutilizável → proposta → post → destinos',()=>{
   test.beforeEach(async()=>{await cleanupE2EData();});
@@ -97,9 +99,29 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
       expect(stored.metadata.source_base_version_id).not.toBe('indevido');
       expect(stored.metadata.destinations_confirmed).not.toBe(true);
       if(sequence){
-        await sql(`update post_units set rendered_url='https://example.test/'||id||'.jpg',visual_status='ready',review_status='approved',rendered_text_version=text_version where post_id='${pid}'; update user_posts set script_status='approved' where id='${pid}';`);
+        const draft=(await client.rest<UserPost[]>(`/user_posts?id=eq.${pid}`)).data[0];
+        const notRendered=(await client.rest<PostUnit[]>(`/post_units?post_id=eq.${pid}&order=position.asc`)).data;
+        expect((await client.rpc('approve_sequence_review',{pid,p_expected:sequenceReviewSnapshot(draft,notRendered)})).status).toBe(422);
+        await sql(`update post_units set rendered_url='https://example.test/'||id||'.jpg',visual_status='ready',review_status='pending',rendered_text_version=text_version where post_id='${pid}';`);
       }
-      const ap=await client.rpc(sequence?'approve_sequence':'approve_piece',sequence?{pid}:{p_post:pid,p_rendered:`https://example.test/${pid}.jpg`,p_approve_ai:false});
+      let ap;
+      if(sequence){
+        const post=(await client.rest<UserPost[]>(`/user_posts?id=eq.${pid}`)).data[0];
+        const pages=(await client.rest<PostUnit[]>(`/post_units?post_id=eq.${pid}&order=position.asc`)).data;
+        const snapshot=sequenceReviewSnapshot(post,pages);
+        const stale=await client.rpc('approve_sequence_review',{pid,p_expected:{...snapshot,caption:'Outra versão'}});
+        expect(stale.status).toBe(409);
+        const [unchanged]=await sql<{script_status:string;n:number}>(`select script_status,(select count(*)::int from post_units where post_id='${pid}' and review_status='approved') n from user_posts where id='${pid}'`);
+        expect(unchanged).toEqual({script_status:'draft',n:0});
+        if(plan.format==='carousel'){
+          const stranger=await createTenant(`sequence-review-${Date.now()}`);
+          try{
+            expect((await stranger.rpc('approve_sequence_review',{pid,p_expected:snapshot})).status).toBe(404);
+            expect((await stranger.rpc('sequence_review_material',{pid})).data).toBeNull();
+          }finally{await deleteTenant(stranger);}
+        }
+        ap=await client.rpc('approve_sequence_review',{pid,p_expected:snapshot});
+      }else ap=await client.rpc('approve_piece',{p_post:pid,p_rendered:`https://example.test/${pid}.jpg`,p_approve_ai:false});
       expect(ap.status).toBe(200);
       const material=await client.rpc<{hash:string}>('publication_material',{p_post:pid});
       const destinations=await client.rpc('prepare_piece_destinations',{p_post:pid,p_expected_hash:material.data.hash,p_accounts:[f.accounts.instagram,f.other]});
@@ -121,6 +143,41 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect(source.body).toEqual(base.body);
   });
 
+  test('roteiro concluído retoma imagens, preserva as prontas e abre revisão visual lado a lado',async({page})=>{
+    test.setTimeout(240000);
+    const f=await setup(),user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
+    await mockProduction(page);
+    const [cycle]=await sql<{updated_at:string}>(`select updated_at from campaign_cycles where id='${f.cycle}'`);
+    const [base]=await sql<{body:object}>(`select body from contents where id='${f.base.contentId}'`);
+    expect((await client.rpc('approve_cycle_production',{p_cycle:f.cycle,p_command:crypto.randomUUID(),p_expected_updated:cycle.updated_at,p_bases:[{id:f.base.contentId,body:base.body}],p_items:[{content_id:f.base.contentId,platform:'instagram',format:'carousel',approach:'Aplicação diferente',purpose:'Percorrer uma situação',template_family:'M01',editorial_slug:'diagnostico-sistemico'}],p_replace:[]})).status).toBe(200);
+    const [plan]=await sql<{id:string}>(`select id from content_piece_plans where cycle_id='${f.cycle}'`);
+    const reserved=await client.rpc<{claim:string;piece:{id:string}}>('reserve_production_piece',{p_plan:plan.id});
+    const pid=reserved.data.piece.id;
+    expect((await client.rpc('save_production_progress',{p_plan:plan.id,p_claim:reserved.data.claim,p_done:true,p_patch:{caption:'Um percurso para observar a situação.',metadata:{script_notes:'Texto em três páginas.'}},p_units:[{layout:'cover',title:'Um novo olhar',body:''},{layout:'text',title:'A situação',body:'Texto longo demais para uma página legível. '.repeat(40)},{layout:'closing',title:'O que você observa?',body:'Uma pergunta para continuar.'}]})).status).toBe(200);
+    await page.goto(`/producao?campaign=${f.camp.id}&cycle=${f.cycle}`);
+    await expect(page.getByTestId('production-summary')).toBeVisible({timeout:120000});
+    await expect(page.getByText('1 sequências têm imagens pendentes.',{exact:false})).toBeVisible();
+    const before=await sql<{position:number;rendered_url:string|null;visual_status:string}>(`select position,rendered_url,visual_status from post_units where post_id='${pid}' order by position`);
+    expect(before.map(u=>u.visual_status)).toEqual(['ready','failed','ready']);
+    await sql(`update post_units set body='Uma aplicação curta e concreta.' where post_id='${pid}' and position=2`);
+    await page.getByRole('button',{name:'Retomar produção pendente'}).click();
+    await expect.poll(async()=>(await sql<{n:number}>(`select count(*)::int n from post_units where post_id='${pid}' and visual_status<>'ready'`))[0].n,{timeout:120000}).toBe(0);
+    await expect(page.getByTestId('produce-progress')).toHaveCount(0);
+    const after=await sql<{position:number;rendered_url:string}>(`select position,rendered_url from post_units where post_id='${pid}' order by position`);
+    expect(after[0].rendered_url).toBe(before[0].rendered_url);expect(after[2].rendered_url).toBe(before[2].rendered_url);
+    await page.getByRole('button',{name:'Revisar produção'}).click();
+    await expect(page.getByTestId('gallery-pages-strip').getByRole('img')).toHaveCount(3);
+    await page.getByTestId('gallery-unit').getByRole('button').first().click();
+    await expect(page.getByTestId('visual-review-page')).toHaveCount(3);
+    await expect(page.getByTestId('script-units')).toHaveCount(0);
+    expect((await sql<{script_status:string}>(`select script_status from user_posts where id='${pid}'`))[0].script_status).toBe('draft');
+    await expect(page.getByTestId('visual-sequence-approve')).toBeDisabled();
+    await page.getByRole('checkbox',{name:'Revisei o texto e todas as imagens desta sequência.'}).check();
+    await page.getByTestId('visual-sequence-approve').click();
+    await expect(page.getByTestId('piece-approved')).toBeVisible();
+    const [approved]=await sql<{status:string;script_status:string}>(`select status,script_status from user_posts where id='${pid}'`);
+    expect(approved).toEqual({status:'approved',script_status:'approved'});
+  });
   test('servidor captura a voz da campanha sem IA e preserva snapshots quando a voz muda',async()=>{
     const brand=await seedIdentityBrand(),camp=await seedCampaign({weeks:1}),user=e2eUser();
     const client=await loginAs(user.email,user.password,user.id);
