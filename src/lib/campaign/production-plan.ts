@@ -1,4 +1,4 @@
-import type { Content, FormatCapability, PieceFormat, UserPost } from '@/types';
+import type { Content, FormatCapability, PieceFormat, PiecePlan, UserPost } from '@/types';
 export type TemplateFamily = 'M01' | 'M02' | 'M03';
 export interface ProductionItem {
   content_id: string; platform: 'instagram' | 'linkedin'; format: PieceFormat; approach: string; purpose: string;
@@ -27,3 +27,5 @@ export function productionProblems(items: ProductionItem[], bases: Content[], ca
 export const pendingProduction = (pieces: UserPost[]) => pieces.filter(p => ['idea', 'draft', 'pending_approval'].includes(p.status) && !p.metadata?.delivery_of);
 export const editorialPieces = (pieces: UserPost[]) => pieces.filter(p => !p.metadata?.delivery_of);
 export const samePlan = (a: ProductionItem[], b: ProductionItem[]) => JSON.stringify(a) === JSON.stringify(b);
+export const canReviewProduction = (piece: UserPost, plans: PiecePlan[], batch?: string): boolean => !batch || ['approved','scheduled','published'].includes(piece.status)
+  || plans.some(p=>p.id===piece.plan_id && p.production_batch_id===batch && p.status==='produced');

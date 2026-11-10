@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { baseApi } from '@/lib/campaign/bases';
-import { editorialPieces } from '@/lib/campaign/production-plan';
+import { canReviewProduction, editorialPieces } from '@/lib/campaign/production-plan';
 import { ideaApi, pieceApi } from '@/lib/campaignApi';
 import { formatRange } from '@/lib/campaign/dates';
 import {
@@ -146,7 +146,8 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   }, [contents, pieces]);
 
   const approvedCount = units.filter((u) => u.approved).length;
-  const pending = units.filter((u) => !u.approved);
+  const pending = units.filter((u) => !u.approved && canReviewProduction(u.main,plans,productionBatchId));
+  const unfinishedPlans = productionBatchId ? plans.filter(p=>p.production_batch_id===productionBatchId&&p.status==='planned') : [];
   const fromValidation = units.filter((u) => u.main.piece_role === 'validation').length;
   const pieceById = (id: string) => pieces.find((p) => p.id === id);
   const replacePiece = (p: UserPost) => setPieces((ps) => ps.map((x) => (x.id === p.id ? p : x)));
@@ -157,6 +158,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   }
 
   function openUnit(u: Unit) {
+    if(!canReviewProduction(u.main,plans,productionBatchId))return;
     setPhotoRequest(null);
     if (u.pieces.length > 1 && !u.approved) setView({ kind: 'choose', group: u.key });
     else setView({ kind: 'edit', pieceId: u.main.id });
@@ -198,7 +200,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
       <div className="space-y-5" data-testid="review-overview">
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-600"><CheckCircle2 className="h-4 w-4" /> Conteúdos validados</p>
-          <h1 className="mt-1 font-display text-2xl font-bold">{progress ? 'A Hive está produzindo os desdobramentos.' : 'Seus conteúdos estão prontos para ganhar novas formas.'}</h1>
+          <h1 className="mt-1 font-display text-2xl font-bold">{progress ? 'A Hive está produzindo os desdobramentos.' : unfinishedPlans.length ? 'Parte da produção ainda precisa ser concluída.' : 'Seus conteúdos estão prontos para ganhar novas formas.'}</h1>
           <p className="mt-1 text-sm text-muted-foreground">A produção segue as bases e a proposta aprovada. Revise cada peça uma vez; depois escolha em quais contas ela será usada.</p>
         </div>
         {progress ? (
@@ -215,7 +217,8 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
             </div>
             {productionBatchId && plans.some(p => p.production_batch_id === productionBatchId && p.status === 'planned') && <section className="space-y-2 rounded-xl border border-amber-500/30 p-4">
               <p className="text-sm">Há peças cuja produção ainda não terminou. O que já foi gerado será preservado.</p>
-              {plans.filter(p => p.production_batch_id === productionBatchId && p.generation_error).map(p => <p key={p.id} className="text-xs text-muted-foreground">{p.approach}: {p.generation_error}</p>)}
+              <p className="text-sm">{unfinishedPlans.length} peças aguardam produção; {pending.length} já estão disponíveis para revisar.</p>
+              {plans.filter(p => p.production_batch_id === productionBatchId && p.generation_error).map(p => <p key={p.id} className="text-xs text-muted-foreground">{p.format==='carousel'?'Carrossel':p.format==='story'?'Stories':'Imagem única'} · {p.approach}: {p.generation_error}</p>)}
               <Button variant="outline" disabled={!!progress} onClick={() => setRunNonce(n => n+1)}>Retomar peças pendentes</Button>
             </section>}
             <div className="flex justify-end"><Button variant="accent" size="lg" onClick={() => setView({ kind: 'gallery' })}>Revisar produção <ArrowRight className="h-4 w-4" /></Button></div>
@@ -258,14 +261,14 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {us.map((u) => (
                   <div key={u.key} className="space-y-2" data-testid="gallery-unit">
-                    <button type="button" onClick={() => openUnit(u)} className="block w-full text-left"><Preview piece={u.main} className="aspect-[4/5]" /></button>
+                    <button type="button" disabled={!canReviewProduction(u.main,plans,productionBatchId)} onClick={() => openUnit(u)} className="block w-full text-left"><Preview piece={u.main} className="aspect-[4/5]" /></button>
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="flex items-center gap-1.5"><PlatformIcon p={u.main.platform} className="h-3.5 w-3.5" />{u.main.platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} · {accountLabel(u.main.account_id)}
                         {(u.main.format === 'carousel' || u.main.format === 'story') && <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px]" data-testid="unit-format">{u.main.format === 'story' ? 'Stories' : 'Carrossel'}{u.main.script_status === 'draft' ? ' · roteiro' : ''}</span>}</span>
                       {u.approved ? <span className="flex items-center gap-1 font-semibold text-emerald-600" data-testid="unit-status"><Check className="h-3.5 w-3.5" /> Aprovado</span>
-                        : <span className="font-semibold text-accent" data-testid="unit-status">Para revisar{u.pieces.length > 1 ? ` · ${u.pieces.length} propostas` : ''}</span>}
+                        : <span className="font-semibold text-accent" data-testid="unit-status">{canReviewProduction(u.main,plans,productionBatchId)?`Para revisar${u.pieces.length > 1 ? ` · ${u.pieces.length} propostas` : ''}`:'Produção pendente'}</span>}
                     </div>
-                    {!u.approved && <Button size="sm" variant="outline" className="w-full" onClick={() => openUnit(u)}>Revisar propostas <ArrowRight className="h-3.5 w-3.5" /></Button>}
+                    {!u.approved && <Button size="sm" variant="outline" className="w-full" disabled={!canReviewProduction(u.main,plans,productionBatchId)} onClick={() => openUnit(u)}>{canReviewProduction(u.main,plans,productionBatchId)?'Revisar propostas':'Aguardando produção'} <ArrowRight className="h-3.5 w-3.5" /></Button>}
                   </div>
                 ))}
               </div>

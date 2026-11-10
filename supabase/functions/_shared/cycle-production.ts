@@ -3,6 +3,8 @@ import { callGeminiJson, fetchRest } from './gemini.ts';
 import { loadBeeContext, renderBrain } from './bee-context.ts';
 import { contextBlock, emitterHasPhotos, resolveAndSnapshot, userBrandScope } from './context.ts';
 import { logUsage } from './security.ts';
+import { productionHistory, reviewProductionProposal } from './production-repeat.ts';
+import { withNovelContribution } from './production-novelty.ts';
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
 export async function cycleProductionContext(userId: string, cycleId: string) {
@@ -26,7 +28,7 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     fetchRest<Row[]>(`/format_capabilities?select=platform,format,min_units,max_units,notes`),
     fetchRest<Row[]>(`/design_variacoes?status=eq.frozen&ativo=eq.true&select=id,manifestacao_id,nome,operacao${scope}`),
     fetchRest<Row[]>(`/bee_editorials?select=slug,name,description${scope}`),
-    fetchRest<Row[]>(`/user_posts?user_id=eq.${userId}&status=in.(approved,scheduled,published)&select=id,platform,format,title,caption,carousel_text,content_id&order=created_at.desc&limit=80`),
+    productionHistory(userId),
   ]);
   const all = new Map(originals.map(c => [c.id, c]));
   for (const use of uses) {
@@ -53,8 +55,9 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
   const usr = JSON.stringify({ campanha: { name: campaign.name, intent: campaign.intent, strategy: campaign.strategy }, ciclo: { start: cycle.start_date, end: cycle.end_date, plan: cycle.plan },
     bases: bases.map(c => ({ ...c, body: { frase:c.body?.frase, texto:String(c.body?.texto??'').slice(0,6000) } })),
     editorias: editorials, capacidades: supported, familias: families, receitas: variants.filter(v => families.includes(v.manifestacao_id)),
-    historico: existing.map(p=>({ id:p.id,platform:p.platform,title:p.title,quote:p.carousel_text?.quote,caption:String(p.caption??'').slice(0,700) })) });
-  const { data,model_used,usage } = await callGeminiJson<{summary?:string;items?:Row[]}>(apiKey,sys,usr,{temperature:0.4,maxOutputTokens:6000});
+    historico: existing });
+  return withNovelContribution(async (feedback) => {
+  const { data,model_used,usage } = await callGeminiJson<{summary?:string;items?:Row[]}>(apiKey,sys,usr+(feedback?'\n\nAJUSTE NECESSÁRIO: '+feedback:''),{temperature:0.4,maxOutputTokens:6000});
   logUsage({userId,provider:'gemini',product:'text',model:model_used,tokens_input:usage.input,tokens_output:usage.output,metadata:{fn:'sequence-script',action:'recommend_cycle_plan'}});
   if (!Array.isArray(data.items) || !data.items.length || data.items.length>40) throw new Error('A Hive não retornou uma proposta completa. Tente novamente.');
   const seen = new Set<string>();
@@ -66,5 +69,6 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     return {content_id:p.content_id,platform:p.platform,format:p.format,approach:String(p.approach).slice(0,240),purpose:String(p.purpose).slice(0,600),
       editorial_slug:p.editorial_slug,template_family:p.template_family,architecture:p.format==='image'?null:(['conceito','perspectiva','historia','experimento'].includes(p.architecture)?p.architecture:'conceito')};
   });
-  return {success:true,summary:String(data.summary??'').slice(0,1800),items};
+  return {success:true,summary:String(data.summary??'').slice(0,1800)+' A conferência considera até 100 posts recentes disponíveis, incluindo rascunhos e roteiros.',items};
+  }, async (proposal) => reviewProductionProposal(apiKey,userId,proposal.items,existing));
 }
