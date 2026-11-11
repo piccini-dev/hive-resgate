@@ -209,10 +209,19 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     let pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);
     await page.mouse.click(pt.x,pt.y);
     await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Título inicial');
+    pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);
     await page.mouse.dblclick(pt.x,pt.y);
     // O textarea invisível do Fabric precisa ficar dentro do modal e receber foco.
     const input=dialog.locator('textarea[data-fabric="textarea"]');
-    await expect(input).toBeFocused();
+    try{await expect(input).toBeFocused();}catch(error){
+      // Só DOM do usuário isolado: ajuda a distinguir foco perdido de mudança de layout.
+      const details=await dialog.evaluate(el=>({
+        active:document.activeElement?.tagName+':'+(document.activeElement?.getAttribute('aria-label')??document.activeElement?.getAttribute('data-fabric')??''),
+        inputs:el.querySelectorAll('textarea[data-fabric]').length,
+        canvas:el.querySelector('canvas.upper-canvas')?.getBoundingClientRect().toJSON(),
+      }));
+      throw new Error('Foco da arte '+JSON.stringify(details)+' '+String(error));
+    }
     await page.keyboard.press('Control+a');await page.keyboard.insertText('Título editado na arte');
     await page.keyboard.press('Escape');
     // Escape do Fabric sai do texto; não fecha o ajuste e não perde a edição.

@@ -177,6 +177,15 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
       bind(target);
     };
     c.on('object:added',bindTextInput);
+    c.on('text:editing:entered',({target})=>{
+      // O clique nativo e os painéis React ainda podem disputar o foco no frame
+      // da entrada em edição. Reafirma o teclado após esse mesmo ciclo de layout.
+      requestAnimationFrame(()=>{
+        if(fabricRef.current===c&&target.isEditing&&c.getActiveObject()===target){
+          target.hiddenTextarea?.focus({preventScroll:true});
+        }
+      });
+    });
 
     const refreshActive = () => setActiveObject(c.getActiveObject() ?? null);
     c.on('selection:created', refreshActive);
