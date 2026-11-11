@@ -228,14 +228,15 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(dialog).toBeVisible();
     // Forma fina do template: antes só podia ser selecionada pela lista.
     const rule=json.objects.find(o=>o.name==='page-rule')!;
-    pt=await point(rule.left+rule.width/2,rule.top+1.5);
+    pt=await point(rule.left+rule.width*.25,rule.top+1.5);
     await page.mouse.click(pt.x,pt.y);
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
     // Seleção pode recalibrar a área do editor; mede novamente e arrasta para
     // longe dos alinhamentos existentes, sem contrariar o snap das guias.
-    pt=await point(rule.left+rule.width/2,rule.top+1.5);
+    // Em uma linha fina, o meio coincide com a alça de redimensionar; pega fora dela.
+    pt=await point(rule.left+rule.width*.25,rule.top+1.5);
     await page.mouse.move(pt.x,pt.y);await page.mouse.down();
-    const end=await point(rule.left+rule.width/2+240,rule.top+1.5+60);
+    const end=await point(rule.left+rule.width*.25+240,rule.top+1.5+60);
     await page.mouse.move(end.x,end.y,{steps:8});await page.mouse.up();
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
     await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(rule.left+240));
