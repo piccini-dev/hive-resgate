@@ -68,7 +68,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
   });}
   const proposed=candidate?.proposal?.units?.find(u=>u.id===unit.id);
   return <Dialog open onOpenChange={open=>{if(!open)void close();}}>
-    <DialogContent className="flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4" onEscapeKeyDown={e=>{if(busy)e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
+    <DialogContent className="flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4" onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
       <DialogTitle>Página {unit.position} · ajustar conteúdo</DialogTitle>
       <DialogDescription>Você altera esta página. As demais páginas e a legenda permanecem preservadas.</DialogDescription>
       <div className="flex flex-wrap gap-2">
@@ -84,7 +84,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
         {candidate.impact&&<p className="text-sm text-muted-foreground">{candidate.impact}</p>}
         <div className="flex gap-2"><Button variant="accent" disabled={busy} onClick={()=>void apply()}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Aplicar nesta página</Button><Button variant="outline" disabled={busy} onClick={()=>void run(async()=>{await discardUnitCandidate(candidate);setCandidate(null);})}>Descartar proposta</Button></div>
       </section>:mode==='canvas'?<>
-        <p className="text-sm text-muted-foreground">Dê dois cliques no texto para editar. Você também pode selecionar e mover os elementos da arte.</p>
+        <p className="text-sm text-muted-foreground">Clique para selecionar e arraste para mover. Dê dois cliques no texto para editar. Para alcançar uma camada sobreposta, use Alt + clique no mesmo ponto.</p>
         {unit.fabric_json?<div className="h-[65vh] min-h-[420px] overflow-hidden rounded-xl border" data-testid="sequence-page-canvas"><CanvasStudio embedded sequenceMode snapshotRef={capture} initialFabricJson={initial} initialPreset={piece.format==='story'?'instagram-story':'instagram-portrait'}/></div>:<p className="text-sm">Esta página ainda não tem arte editável. Ajuste o texto ou produza a imagem primeiro.</p>}
         <Button variant="accent" disabled={busy||!unit.fabric_json} onClick={()=>void run(async()=>{const s=capture.current?.();if(!s)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');const p=await savePageCanvas(piece,unit,s);await onSaved(p);onClose();})}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Salvar esta página</Button>
       </>:mode==='text'?<div className="space-y-3" data-testid="sequence-page-text">

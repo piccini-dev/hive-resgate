@@ -200,13 +200,50 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('button',{name:'Editar arte da página 2',exact:true}).click();
     const dialog=page.getByRole('dialog');
     await expect(dialog.getByTestId('sequence-page-canvas')).toBeVisible();
-    await dialog.getByRole('button',{name:'Título da página',exact:true}).click();
-    await dialog.getByRole('textbox',{name:'Texto selecionado',exact:true}).fill('Título editado na arte');
+    // Mouse real no canvas escalado: não selecionar a camada pelo menu lateral.
+    await expect(dialog.getByRole('button',{name:'Título da página',exact:true})).toBeVisible();
+    const art=dialog.locator('canvas.upper-canvas');
+    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    const json=before[1].fabric_json as {objects:Array<{name?:string;left:number;top:number;width:number;fontSize?:number}>};
+    const title=json.objects.find(o=>o.name==='unit-title')!;
+    let pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);
+    await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Título inicial');
+    await page.mouse.dblclick(pt.x,pt.y);
+    // O textarea invisível do Fabric precisa ficar dentro do modal e receber foco.
+    const input=dialog.locator('textarea[data-fabric="textarea"]');
+    await expect(input).toBeFocused();
+    await page.keyboard.press('Control+a');await page.keyboard.insertText('Título editado na arte');
+    await page.keyboard.press('Escape');
+    // Escape do Fabric sai do texto; não fecha o ajuste e não perde a edição.
+    await expect(dialog).toBeVisible();
+    // Forma fina do template: antes só podia ser selecionada pela lista.
+    const rule=json.objects.find(o=>o.name==='page-rule')!;
+    pt=await point(rule.left+rule.width/2,rule.top+1.5);
+    await page.mouse.move(pt.x,pt.y);await page.mouse.down();
+    const end=await point(rule.left+rule.width/2+80,rule.top+1.5+60);
+    await page.mouse.move(end.x,end.y,{steps:8});await page.mouse.up();
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(rule.left+80));
+    // Camadas sobrepostas: clique normal seleciona o topo; Alt + clique percorre.
+    await dialog.getByRole('button',{name:'Elementos',exact:true}).click();
+    await dialog.getByRole('button',{name:'Círculo',exact:true}).click();
+    await dialog.getByRole('button',{name:'Retângulo',exact:true}).click();
+    pt=await point(540,675);await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    await page.keyboard.down('Alt');await page.mouse.click(pt.x,pt.y);await page.keyboard.up('Alt');
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Círculo');
+    await dialog.getByRole('button',{name:'Apagar',exact:true}).click();
+    pt=await point(540,675);await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    await dialog.getByRole('button',{name:'Apagar',exact:true}).click();
     // Salvar imediatamente captura a arte viva, sem aguardar o debounce da miniatura.
     await dialog.getByRole('button',{name:'Salvar esta página',exact:true}).click();
     await expect(dialog).toHaveCount(0,{timeout:60000});
     let after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
     expect(after[1].title).toBe('Título editado na arte');expect(after[1].assets.manual_canvas).toBe(true);
+    const savedRule=(after[1].fabric_json as typeof json).objects.find(o=>o.name==='page-rule')!;
+    expect(savedRule.left).toBeCloseTo(rule.left+80,0);expect(savedRule.top).toBeCloseTo(rule.top+60,0);
     expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     expect(after[1].rendered_url).not.toBe(before[1].rendered_url);
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Ajustar texto',exact:true}).click();

@@ -3,7 +3,6 @@ import { layoutText } from '../templates/layout';
 
 type Node = Record<string, unknown> & { objects?: Node[]; name?: string; text?: string };
 const textTypes = ['textbox','i-text','text'];
-const decorative = ['signature','page-number','next-hint'];
 function walk(value: unknown, visit: (n: Node) => void) {
   if (!value || typeof value !== 'object') return;
   const n = value as Node; visit(n); n.objects?.forEach(x=>walk(x,visit));
@@ -12,7 +11,15 @@ function walk(value: unknown, visit: (n: Node) => void) {
 /** Cópia editável; não modifica o Fabric salvo nem transforma a imagem em bitmap. */
 export function editablePage(value: unknown): object {
   const copy = JSON.parse(JSON.stringify(value ?? {}));
-  walk(copy,n=>{if(textTypes.includes(String(n.type).toLowerCase())&&!decorative.includes(n.name??'')){n.selectable=true;n.evented=true;n.editable=true;}});
+  // Os compositores travam objetos para renderização. No editor, cada camada
+  // deve responder ao mouse, inclusive formas, fotos, assinatura e diagramas.
+  walk(copy,n=>{
+    if(!n.type)return;
+    n.selectable=true;n.evented=true;
+    if(textTypes.includes(String(n.type).toLowerCase()))n.editable=true;
+    else n.perPixelTargetFind=true; // um caminho vazado não cobre os textos atrás dele
+    if(String(n.type).toLowerCase()==='group'){n.subTargetCheck=true;n.interactive=true;}
+  });
   return copy;
 }
 
