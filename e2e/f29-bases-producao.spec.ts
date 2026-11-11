@@ -229,11 +229,16 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     // Forma fina do template: antes só podia ser selecionada pela lista.
     const rule=json.objects.find(o=>o.name==='page-rule')!;
     pt=await point(rule.left+rule.width/2,rule.top+1.5);
+    await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    // Seleção pode recalibrar a área do editor; mede novamente e arrasta para
+    // longe dos alinhamentos existentes, sem contrariar o snap das guias.
+    pt=await point(rule.left+rule.width/2,rule.top+1.5);
     await page.mouse.move(pt.x,pt.y);await page.mouse.down();
-    const end=await point(rule.left+rule.width/2+80,rule.top+1.5+60);
+    const end=await point(rule.left+rule.width/2+240,rule.top+1.5+60);
     await page.mouse.move(end.x,end.y,{steps:8});await page.mouse.up();
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
-    await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(rule.left+80));
+    await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(rule.left+240));
     // Camadas sobrepostas: clique normal seleciona o topo; Alt + clique percorre.
     await dialog.getByRole('button',{name:'Elementos',exact:true}).click();
     await dialog.getByRole('button',{name:'Círculo',exact:true}).click();
@@ -252,7 +257,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     let after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
     expect(after[1].title).toBe('Título editado na arte');expect(after[1].assets.manual_canvas).toBe(true);
     const savedRule=(after[1].fabric_json as typeof json).objects.find(o=>o.name==='page-rule')!;
-    expect(savedRule.left).toBeCloseTo(rule.left+80,0);expect(savedRule.top).toBeCloseTo(rule.top+60,0);
+    expect(savedRule.left).toBeCloseTo(rule.left+240,0);expect(savedRule.top).toBeCloseTo(rule.top+60,0);
     expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     expect(after[1].rendered_url).not.toBe(before[1].rendered_url);
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Ajustar texto',exact:true}).click();
