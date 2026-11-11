@@ -91,6 +91,16 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('button',{name:'Revisar peça',exact:true}).click();
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
     const dialog=page.getByRole('dialog');await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
+    const art=dialog.locator('canvas.upper-canvas');
+    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    let selectionPoint=await point(300,150);await page.mouse.click(selectionPoint.x,selectionPoint.y);
+    selectionPoint=await point(400,1238);await page.keyboard.down('Shift');await page.mouse.click(selectionPoint.x,selectionPoint.y);await page.keyboard.up('Shift');
+    await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');
+    await dialog.getByRole('button',{name:'Agrupar',exact:true}).click();await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Grupo');
+    await dialog.getByRole('button',{name:'Desagrupar',exact:true}).click();await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');
+    await dialog.getByRole('button',{name:'Desfazer (Cmd+Z)',exact:true}).click();
+    await dialog.getByRole('button',{name:'Refazer',exact:true}).click();
+    await expect(dialog.getByRole('button',{name:'Texto principal',exact:true})).toBeVisible();
     const calls:Record<string,unknown>[]=[];
     await mockEdge(page,'sequence-visual-adjust',b=>({success:true,plan:{summary:'Organizei as ligações.',operations:[{kind:'repair_diagram'}]}}),calls);
     await dialog.getByRole('button',{name:'Ajustar com a Hive',exact:true}).click();
@@ -114,8 +124,6 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const json=after[0].fabric_json as {objects:Array<Record<string,unknown>>};
     const connector=json.objects.find(o=>o.name==='diagram-connector-0')!;
     const points=connector.path as Array<[string,number,number]>;
-    const art=dialog.locator('canvas.upper-canvas');
-    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
     let pt=await point((points[0][1]+points[1][1])/2,points[0][2]);await page.mouse.click(pt.x,pt.y);
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');
     const end=points.at(-1)!;pt=await point(end[1],end[2]);

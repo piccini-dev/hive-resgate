@@ -72,7 +72,9 @@ export function syncCanvasConnections(canvas:fabric.Canvas,changed?:fabric.Fabri
 }
 
 export function resizeConnectorHandles(canvas:fabric.Canvas,zoom:number):void{
-  canvas.targetFindTolerance=6/Math.max(zoom,.1);
+  // O setter redimensiona também o bitmap usado no hit-test por pixel.
+  // Atribuir só a propriedade fazia formas/linhas parecerem transparentes.
+  canvas.setTargetFindTolerance(6/Math.max(zoom,.1));
   const visit=(o:fabric.FabricObject)=>{
     if(openPath(o))for(const c of Object.values(o.controls)){c.sizeX=14/zoom;c.sizeY=14/zoom;c.touchSizeX=24/zoom;c.touchSizeY=24/zoom;}
     if(o instanceof fabric.Group)o.getObjects().forEach(visit);o.setCoords();
