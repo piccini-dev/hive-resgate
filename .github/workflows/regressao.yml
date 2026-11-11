@@ -25,7 +25,8 @@ permissions:
 
 concurrency:
   group: regressao-usuario-de-teste
-  cancel-in-progress: false
+  # Recuperação temporária: cancela o registro antigo que ficou ativo após o job terminar.
+  cancel-in-progress: true
 
 jobs:
   regressao:
