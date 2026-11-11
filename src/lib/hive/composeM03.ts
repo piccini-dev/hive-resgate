@@ -276,5 +276,5 @@ export function composeM03(input: ComposeM03Input): ComposedSlide {
     fill: onDark ? creme : azul, textAlign: 'center', charSpacing: 360, name: 'signature', selectable: false,
   });
 
-  return kind==='camadas'?organizeLayerDiagram({version:'6.0.0',background,objects},W,H,'M03-B') as ComposedSlide:{ version: '6.0.0', background, objects };
+  return kind==='camadas'&&data.layers?.length===4?organizeLayerDiagram({version:'6.0.0',background,objects},W,H,'M03-B') as ComposedSlide:{ version: '6.0.0', background, objects };
 }

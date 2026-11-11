@@ -72,7 +72,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('button',{name:/Seguir para a agenda/}).click();
     await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
   });
-  test('ajuste visual assistido preserva conteúdo, mostra prévia e permite mover pontas sem redimensionar a linha',async({page})=>{
+  test('organização local do diagrama preserva conteúdo, mostra prévia e permite mover pontas sem redimensionar a linha',async({page})=>{
     test.setTimeout(300000);
     const f=await setup(),user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
     await mockProduction(page);
@@ -101,14 +101,12 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await dialog.getByRole('button',{name:'Desfazer (Cmd+Z)',exact:true}).click();
     await dialog.getByRole('button',{name:'Refazer',exact:true}).click();
     await expect(dialog.getByRole('button',{name:'Texto principal',exact:true})).toBeVisible();
-    const calls:Record<string,unknown>[]=[];
-    await mockEdge(page,'sequence-visual-adjust',b=>({success:true,plan:{summary:'Organizei as ligações.',operations:[{kind:'repair_diagram'}]}}),calls);
-    await dialog.getByRole('button',{name:'Ajustar com a Hive',exact:true}).click();
-    await dialog.getByRole('textbox',{name:'Pedido de ajuste visual'}).fill('Organize os rótulos e ligações.');
-    await dialog.getByRole('button',{name:'Preparar proposta visual'}).click();
+    await expect(dialog.getByRole('button',{name:'Ajustar com a Hive',exact:true})).toHaveCount(0);
+    const visualCalls:string[]=[];page.on('request',request=>{if(request.url().includes('/functions/v1/sequence-visual-adjust'))visualCalls.push(request.url());});
+    await dialog.getByRole('button',{name:'Organizar diagrama',exact:true}).click();
     await expect(dialog.getByTestId('page-edit-candidate')).toBeVisible({timeout:60000});
     expect((await sql<PostUnit>(`select * from post_units where id='${units[0].id}'`))[0]).toEqual(units[0]);
-    expect(calls).toHaveLength(1);expect(calls[0].scope).toBe('page');expect(JSON.stringify(calls[0])).not.toContain('rendered_url');
+    expect(visualCalls).toHaveLength(0);
     await dialog.getByRole('button',{name:'Descartar proposta',exact:true}).click();
     await expect(dialog.getByTestId('sequence-page-canvas')).toBeVisible();
     await dialog.getByRole('button',{name:'Organizar diagrama',exact:true}).click();
@@ -135,16 +133,6 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const movedPoints=movedConnector.path as Array<[string,number,number]>;
     expect(movedPoints[0]).toEqual(points[0]);expect(movedPoints[1]).toEqual(points[1]);
     expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
-  });
-  test('contrato do ajuste visual exige posse, versão atual e escopo válido antes da IA',async()=>{
-    const user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
-    const pid=await seed('user_posts',{platform:'instagram',format:'carousel',status:'pending_approval',title:'Diagrama sintético',caption:''});
-    const uid=await seed('post_units',{post_id:pid,position:1,layout:'cover',title:'Diagrama sintético',body:'',visual_status:'pending'});
-    const [post]=await sql<UserPost>(`select * from user_posts where id='${pid}'`);
-    // Endpoint real: erros de autenticação/posse/versão param antes de chamar IA.
-    expect((await client.fn('sequence-visual-adjust',{post_id:crypto.randomUUID(),unit_id:uid})).status).toBe(404);
-    expect((await client.fn('sequence-visual-adjust',{post_id:pid,unit_id:uid,version:(post.version??1)-1})).status).toBe(409);
-    expect((await client.fn('sequence-visual-adjust',{post_id:pid,unit_id:uid,version:post.version,instruction:'Alinhe',scope:'invalido',elements:[{id:'0',parent:'',kind:'textbox',name:'headline',left:0,top:0,width:100,height:50,angle:0}]})).status).toBe(400);
   });
   test('contratos autenticados: uma base gera imagem/carrossel/Stories; entregas preservam o material e exigem reconfirmação de conta',async()=>{
     test.setTimeout(180000);

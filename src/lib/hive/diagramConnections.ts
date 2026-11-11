@@ -48,5 +48,7 @@ export function organizeLayerDiagram(value:unknown,width:number,height:number,va
   const x=Math.max(width*.66,right+width*.04),w=width*.94-x;
   if(w<width*.18||shapes.some(o=>n(o.angle)!==0))throw new Error('O diagrama não tem espaço suficiente para reorganizar os rótulos. Reduza os círculos ou ajuste o desenho primeiro.');
   labels.forEach((o,i)=>{const y=height*(.43+.38*i/3);Object.assign(o,{left:x,top:y,width:w});const d=os.find(o=>o.name===`diagram-description-${i}`);if(d)Object.assign(d,{left:x,top:y+width*.03,width:w});});
+  // Pedido explícito restaura o trajeto canônico inclusive após um ajuste manual.
+  os.forEach(o=>{const match=o.name?.match(/^diagram-connector-([0-3])$/);if(!match)return;const i=Number(match[1]);o.beeConnector={from:i===3?'diagram-core':`diagram-ring-${i}`,to:`diagram-label-${i}`,angle:[-55,-20,0,65][i],lane:i,route:'elbow',manual:false};});
   updateConnections(os);return copy;
 }

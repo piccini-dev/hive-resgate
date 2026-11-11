@@ -5,7 +5,7 @@
 // CANDIDATOS (apply_unit_candidate valida escopo e preservação no banco); aprovação final só com a
 // sequência completa (approve_sequence); exportação = o MESMO pacote aprovado (versão).
 import JSZip from 'jszip';
-import { applyVisualPlan, visualElements, type VisualPlan } from '@/lib/editorVisualPlan';
+import { organizeLayerDiagram } from '@/lib/hive/diagramConnections';
 import type { EditorSnapshot } from '@/lib/editorSnapshot';
 import { jsPDF } from 'jspdf';
 import { db } from '@/lib/db';
@@ -304,15 +304,11 @@ export async function savePageCanvas(post:UserPost,unit:PostUnit,state:EditorSna
   return applyUnitCandidate(await prepareCanvasCandidate(post,unit,state,'Edição direta na arte','Somente esta página muda. Revise a nova versão antes de aprovar.'));
 }
 
-/** Proposta visual não toca na página: só o contrato de aplicação confirma a versão. */
-export async function proposeCanvasAdjustment(post:UserPost,unit:PostUnit,state:EditorSnapshot,request:{instruction:string;selection:boolean;organize?:boolean}):Promise<UnitCandidate>{
-  const ids=request.selection?state.selectedPaths??[]:null;
-  if(ids&&!ids.length)throw new Error('Selecione na arte os elementos que deseja ajustar ou escolha a página inteira.');
+/** Organização geométrica local: nenhuma chamada de IA e nenhuma mudança antes da prévia. */
+export async function proposeDiagramOrganization(post:UserPost,unit:PostUnit,state:EditorSnapshot):Promise<UnitCandidate>{
   const width=1080,height=post.format==='story'?1920:1350;
-  const plan=request.organize?{summary:'Rótulos alinhados e conexões reorganizadas, preservando as palavras e os círculos.',operations:[{kind:'repair_diagram'}]}:(await edge.sequenceVisualAdjust<{plan:VisualPlan}>({post_id:post.id,unit_id:unit.id,version:post.version??1,instruction:request.instruction,scope:ids?'selection':'page',selected_ids:ids??[],variant:unit.assets?.variant,elements:visualElements(state.fabricJson)})).plan;
-  if(!plan.operations?.length)throw new Error(plan.summary||'A Hive não encontrou um ajuste seguro para este pedido.');
-  const adjusted=applyVisualPlan(state.fabricJson,plan,ids,width,height,unit.assets?.variant as string|undefined);
-  return prepareCanvasCandidate(post,unit,{...state,fabricJson:adjusted.fabricJson},request.instruction,`${adjusted.plan.summary} Confira a prévia. Outras páginas, fotografias e legenda serão preservadas.`);
+  const fabricJson=organizeLayerDiagram(state.fabricJson,width,height,unit.assets?.variant as string|undefined);
+  return prepareCanvasCandidate(post,unit,{...state,fabricJson},'Organizar este diagrama de camadas','Rótulos alinhados e conexões reorganizadas, preservando as palavras e os círculos. Confira a prévia. Outras páginas, fotografias e legenda serão preservadas.');
 }
 
 export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro'}):Promise<UnitCandidate>{

@@ -584,12 +584,6 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     setActiveObject(obj);
   }, []);
 
-  const selectedPaths = useCallback(():string[]=>{
-    const c=fabricRef.current;if(!c)return [];
-    const selected=new Set(c.getActiveObjects()),ids:string[]=[];
-    const walk=(os:fabric.Object[],prefix='')=>os.forEach((o,i)=>{const id=prefix?`${prefix}.${i}`:String(i);if(selected.has(o))ids.push(id);else if(o instanceof fabric.Group)walk(o.getObjects(),id);});
-    walk(c.getObjects());return ids;
-  },[]);
   useEffect(()=>{if(pickAllLayers&&fabricRef.current)resizeConnectorHandles(fabricRef.current,zoom);},[zoom,pickAllLayers,canvasEpoch]);
 
   const exportPng = useCallback((multiplier = 2): string | null => {
@@ -646,7 +640,6 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     setActiveSlot,
     listSlots,
     selectObject,
-    selectedPaths,
     // zoom
     setZoom,
     zoomIn,

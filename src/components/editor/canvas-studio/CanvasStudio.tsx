@@ -118,7 +118,7 @@ export function CanvasStudio({
     const capture = () => {
       if (readyEpochRef.current !== api.canvasEpoch || !api.fabric.current) return null;
       const dataUrl = api.exportPng(1);
-      return dataUrl ? { fabricJson: api.toJson(), dataUrl, selectedPaths: api.selectedPaths() } : null;
+      return dataUrl ? { fabricJson: api.toJson(), dataUrl } : null;
     };
     snapshotRef.current = capture;
     return () => { if (snapshotRef.current === capture) snapshotRef.current = null; };

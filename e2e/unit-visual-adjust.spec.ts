@@ -1,15 +1,13 @@
 import {test,expect} from '@playwright/test';
 import {legacyDiagram} from './helpers/diagram-fixture';
-import {applyVisualPlan,visualElements} from '../src/lib/editorVisualPlan';
-import {organizeLayerDiagram,type DiagramNode,nodeBox} from '../src/lib/hive/diagramConnections';
-const organize={summary:'Organizar ligações',operations:[{kind:'repair_diagram'}]};
+import {organizeLayerDiagram,type DiagramNode,nodeBox,updateConnections} from '../src/lib/hive/diagramConnections';
+type Diagram={objects:DiagramNode[]};
 test('repara diagrama legado com ligações exatas nos anéis e no núcleo; preserva palavras e entrada',()=>{
   const old=legacyDiagram(),snapshot=JSON.stringify(old);
-  const result=applyVisualPlan(old,organize,null,1080,1350,'M03-B');
+  const result=organizeLayerDiagram(old,1080,1350,'M03-B') as Diagram;
   expect(JSON.stringify(old)).toBe(snapshot);
-  expect(visualElements(result.fabricJson).map(e=>e.text)).toEqual(visualElements(old).map(e=>e.text));
-  const os=(result.fabricJson as {objects:DiagramNode[]}).objects;
-  const outer=nodeBox(os.find(o=>o.name==='diagram-ring-0')!);
+  expect(result.objects.map(o=>o.text)).toEqual(old.objects.map(o=>o.text));
+  const os=result.objects,outer=nodeBox(os.find(o=>o.name==='diagram-ring-0')!);
   for(let i=0;i<4;i++){
     const line=os.find(o=>o.name===`diagram-connector-${i}`)!;
     const circle=os.find(o=>o.name===line.beeConnector!.from)!;const b=nodeBox(circle);
@@ -22,34 +20,34 @@ test('repara diagrama legado com ligações exatas nos anéis e no núcleo; pres
   }
   expect(os.find(o=>o.name==='diagram-connector-3')!.beeConnector!.from).toBe('diagram-core');
 });
-test('recusa diagrama ambíguo e reparação fora do escopo',()=>{
+test('recusa diagrama ambíguo ou sem espaço em vez de adivinhar relações',()=>{
   expect(()=>organizeLayerDiagram({objects:[]},1080,1350,'M03-B')).toThrow('reconhecer');
-  expect(()=>applyVisualPlan(legacyDiagram(),organize,['0'],1080,1350,'M03-B')).toThrow('página inteira');
+  const invalid=legacyDiagram();invalid.objects[1].radius=600;
+  expect(()=>organizeLayerDiagram(invalid,1080,1350,'M03-B')).toThrow('espaço');
 });
-test('plano visual não pode reescrever texto, trocar fotos ou executar propriedades extras',()=>{
-  const source=legacyDiagram();
-  for(const op of [{kind:'style',id:'0',text:'Outro texto'},{kind:'transform',id:'0',left:200,src:'https://example.test'},{kind:'delete',id:'0'},{kind:'style',id:'0',fill:'url(javascript:alert(1))'}])expect(()=>applyVisualPlan(source,{summary:'Pedido',operations:[op]},null,1080,1350)).toThrow();
-  expect(()=>applyVisualPlan(source,{summary:'Pedido',operations:[{kind:'transform',id:'1',left:200}]},['0'],1080,1350)).toThrow('fora da seleção');
-});
-test('ajuste selecionado mantém textos, imagens, ordem e todas as demais propriedades',()=>{
-  const source={objects:[{type:'Textbox',name:'unit-title',text:'Palavras intactas',left:100,top:100,width:500,height:100,fontSize:36},{type:'Image',src:'foto-preservada',left:200,top:300,width:300,height:300}]};
-  const {fabricJson}=applyVisualPlan(source,{summary:'Mover título',operations:[{kind:'transform',id:'0',left:150}]},['0'],1080,1350);
-  expect(fabricJson).toEqual({...source,objects:[{...source.objects[0],left:150},source.objects[1]]});
-});
-test('recusa tamanhos/posições inválidos, distribuição sobreposta e proposta sem mudança',()=>{
-  const source=legacyDiagram();
-  for(const op of [{kind:'transform',id:'0',left:Infinity},{kind:'style',id:'0',fontSize:5},{kind:'transform',id:'0',scaleX:0}])expect(()=>applyVisualPlan(source,{summary:'Pedido',operations:[op]},null,1080,1350)).toThrow();
-  expect(()=>applyVisualPlan(source,{summary:'Sem alteração',operations:[]},null,1080,1350)).toThrow('Sem alteração');
+test('organização preserva texto, fotografias, assinatura, círculos e ordem',()=>{
+  const source=legacyDiagram();source.objects.push({type:'Image',src:'foto-preservada',left:50,top:60,width:70,height:80});
+  const result=organizeLayerDiagram(source,1080,1350,'M03-B') as Diagram;
+  expect(result.objects).toHaveLength(source.objects.length);
+  expect(result.objects.map(o=>o.type)).toEqual(source.objects.map(o=>o.type));
+  result.objects.forEach((o,i)=>{expect(o.text).toBe(source.objects[i].text);expect(o.src).toBe(source.objects[i].src);});
+  expect(result.objects.at(-1)).toEqual(source.objects.at(-1));
+  expect(result.objects.find(o=>o.name==='signature')).toEqual(source.objects.find(o=>o.name==='signature'));
 });
 test('rótulo movido atualiza apenas suas conexões; ajuste manual da linha é respeitado',()=>{
-  const source=organizeLayerDiagram(legacyDiagram(),1080,1350,'M03-B') as {objects:DiagramNode[]};
-  const i=source.objects.findIndex(o=>o.name==='diagram-label-1');
-  const before=source.objects.find(o=>o.name==='diagram-connector-1')!.path;
-  const plan={summary:'Mover rótulo',operations:[{kind:'transform',id:String(i),top:730}]};
-  const result=applyVisualPlan(source,plan,[String(i)],1080,1350).fabricJson as typeof source;
-  expect(result.objects.find(o=>o.name==='diagram-connector-1')!.path).not.toEqual(before);
-  expect(result.objects.find(o=>o.name==='diagram-connector-0')).toEqual(source.objects.find(o=>o.name==='diagram-connector-0'));
-  source.objects.find(o=>o.name==='diagram-connector-1')!.beeConnector!.manual=true;
-  const manual=applyVisualPlan(source,plan,[String(i)],1080,1350).fabricJson as typeof source;
-  expect(manual.objects.find(o=>o.name==='diagram-connector-1')!.path).toEqual(before);
+  const source=organizeLayerDiagram(legacyDiagram(),1080,1350,'M03-B') as Diagram;
+  const label=source.objects.find(o=>o.name==='diagram-label-1')!;
+  const line=source.objects.find(o=>o.name==='diagram-connector-1')!;
+  const other=JSON.stringify(source.objects.find(o=>o.name==='diagram-connector-0'));
+  const before=JSON.stringify(line.path);label.top=730;updateConnections(source.objects,new Set([label.name!]));
+  expect(JSON.stringify(line.path)).not.toBe(before);
+  expect(JSON.stringify(source.objects.find(o=>o.name==='diagram-connector-0'))).toBe(other);
+  line.beeConnector!.manual=true;const manual=JSON.stringify(line.path);label.top=760;updateConnections(source.objects,new Set([label.name!]));
+  expect(JSON.stringify(line.path)).toBe(manual);
+});
+test('reorganização repetida mantém o mesmo desenho e restaura ligações manuais só a pedido',()=>{
+  const source=organizeLayerDiagram(legacyDiagram(),1080,1350,'M03-B') as Diagram;
+  expect(organizeLayerDiagram(source,1080,1350,'M03-B')).toEqual(source);
+  const manual=structuredClone(source);const line=manual.objects.find(o=>o.name==='diagram-connector-1')!;line.beeConnector!.manual=true;line.path=[['M',0,0],['L',100,200]];
+  expect(organizeLayerDiagram(manual,1080,1350,'M03-B')).toEqual(source);
 });
