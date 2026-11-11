@@ -148,7 +148,7 @@ export function PropertiesPanel({ api, templateMode = false }: { api: EditorApi;
   return (
     <aside className="flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-card/40 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span data-testid="editor-selected-type" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {prettyType(obj.type)}
         </span>
         <div className="flex items-center gap-0.5">
@@ -318,6 +318,7 @@ export function PropertiesPanel({ api, templateMode = false }: { api: EditorApi;
             <Label className="text-[10px] text-muted-foreground">X</Label>
             <Input
               type="number"
+              aria-label="Posição X"
               value={Math.round(obj.left ?? 0)}
               onChange={(e) => api.updateActive({ left: Number(e.target.value) })}
               className="h-9"
@@ -327,6 +328,7 @@ export function PropertiesPanel({ api, templateMode = false }: { api: EditorApi;
             <Label className="text-[10px] text-muted-foreground">Y</Label>
             <Input
               type="number"
+              aria-label="Posição Y"
               value={Math.round(obj.top ?? 0)}
               onChange={(e) => api.updateActive({ top: Number(e.target.value) })}
               className="h-9"

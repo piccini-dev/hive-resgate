@@ -83,7 +83,7 @@ export function CanvasArea({ api, width, height }: CanvasAreaProps) {
               transform: `scale(${api.zoom})`,
             }}
           >
-            <canvas ref={canvasElRef} />
+            <canvas ref={canvasElRef} aria-label="Arte editável" />
           </div>
         </div>
       </div>

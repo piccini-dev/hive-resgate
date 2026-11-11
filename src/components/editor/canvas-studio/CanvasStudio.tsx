@@ -80,6 +80,7 @@ export function CanvasStudio({
   const api = useEditor({
     width: size.width,
     height: size.height,
+    pickAllLayers: sequenceMode,
     onChange: (s) => {
       setLastState(s);
       onChange?.(s);

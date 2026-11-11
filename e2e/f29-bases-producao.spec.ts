@@ -200,13 +200,70 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('button',{name:'Editar arte da página 2',exact:true}).click();
     const dialog=page.getByRole('dialog');
     await expect(dialog.getByTestId('sequence-page-canvas')).toBeVisible();
-    await dialog.getByRole('button',{name:'Título da página',exact:true}).click();
-    await dialog.getByRole('textbox',{name:'Texto selecionado',exact:true}).fill('Título editado na arte');
+    // Mouse real no canvas escalado: não selecionar a camada pelo menu lateral.
+    await expect(dialog.getByRole('button',{name:'Título da página',exact:true})).toBeVisible();
+    const art=dialog.locator('canvas.upper-canvas');
+    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    const json=before[1].fabric_json as {objects:Array<{name?:string;left:number;top:number;width:number;fontSize?:number}>};
+    const title=json.objects.find(o=>o.name==='unit-title')!;
+    let pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);
+    await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Título inicial');
+    pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);
+    await page.mouse.dblclick(pt.x,pt.y);
+    // O textarea invisível do Fabric precisa ficar dentro do modal e receber foco.
+    const input=dialog.locator('textarea[data-fabric="textarea"]');
+    try{await expect(input).toBeFocused();}catch(error){
+      // Só DOM do usuário isolado: ajuda a distinguir foco perdido de mudança de layout.
+      const details=await dialog.evaluate(el=>({
+        active:document.activeElement?.tagName+':'+(document.activeElement?.getAttribute('aria-label')??document.activeElement?.getAttribute('data-fabric')??''),
+        inputs:el.querySelectorAll('textarea[data-fabric]').length,
+        canvas:el.querySelector('canvas.upper-canvas')?.getBoundingClientRect().toJSON(),
+      }));
+      throw new Error('Foco da arte '+JSON.stringify(details)+' '+String(error));
+    }
+    await page.keyboard.press('Control+a');await page.keyboard.insertText('Título editado na arte');
+    await page.keyboard.press('Escape');
+    // Escape do Fabric sai do texto; não fecha o ajuste e não perde a edição.
+    await expect(dialog).toBeVisible();
+    // Forma fina do template: antes só podia ser selecionada pela lista.
+    const rule=json.objects.find(o=>o.name==='page-rule')!;
+    pt=await point(rule.left+rule.width*.25,rule.top+1.5);
+    await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    // Seleção pode recalibrar a área do editor; mede novamente e arrasta para
+    // longe dos alinhamentos existentes, sem contrariar o snap das guias.
+    // Em uma linha fina, o meio coincide com a alça de redimensionar; pega fora dela.
+    pt=await point(rule.left+rule.width*.25,rule.top+1.5);
+    const dragBox=await art.boundingBox();if(!dragBox)throw new Error('Arte não visível');
+    // MouseEvent usa pixels de tela inteiros. Deriva a posição exata a partir
+    // desse deslocamento, em vez de arredondar dois pontos de cena separados.
+    const start={x:Math.round(pt.x),y:Math.round(pt.y)};
+    const expectedLeft=rule.left+100*1080/dragBox.width;
+    const expectedTop=rule.top+26*1350/dragBox.height;
+    await page.mouse.move(start.x,start.y);await page.mouse.down();
+    await page.mouse.move(start.x+100,start.y+26,{steps:8});await page.mouse.up();
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(Math.round(expectedLeft)));
+    // Camadas sobrepostas: clique normal seleciona o topo; Alt + clique percorre.
+    await dialog.getByRole('button',{name:'Elementos',exact:true}).click();
+    await dialog.getByRole('button',{name:'Círculo',exact:true}).click();
+    await dialog.getByRole('button',{name:'Retângulo',exact:true}).click();
+    pt=await point(540,675);await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    await page.keyboard.down('Alt');await page.mouse.click(pt.x,pt.y);await page.keyboard.up('Alt');
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Círculo');
+    await dialog.getByRole('button',{name:'Apagar',exact:true}).click();
+    pt=await point(540,675);await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    await dialog.getByRole('button',{name:'Apagar',exact:true}).click();
     // Salvar imediatamente captura a arte viva, sem aguardar o debounce da miniatura.
     await dialog.getByRole('button',{name:'Salvar esta página',exact:true}).click();
     await expect(dialog).toHaveCount(0,{timeout:60000});
     let after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
     expect(after[1].title).toBe('Título editado na arte');expect(after[1].assets.manual_canvas).toBe(true);
+    const savedRule=(after[1].fabric_json as typeof json).objects.find(o=>o.name==='page-rule')!;
+    expect(savedRule.left).toBeCloseTo(expectedLeft,0);expect(savedRule.top).toBeCloseTo(expectedTop,0);
     expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     expect(after[1].rendered_url).not.toBe(before[1].rendered_url);
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Ajustar texto',exact:true}).click();

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import * as fabric from 'fabric';
 import { FABRIC_CUSTOM_PROPS, type BeeSlotMeta } from '@/lib/templates/slots';
 import { attachSmartGuides } from './smartGuides';
+import { attachLayerPicking } from './layerPicking';
 
 const HISTORY_LIMIT = 40;
 
@@ -66,10 +67,11 @@ interface UseEditorOptions {
   width: number;
   height: number;
   background?: string;
+  pickAllLayers?: boolean;
   onChange?: (state: { fabricJson: object; dataUrl: string }) => void;
 }
 
-export function useEditor({ width, height, background = '#FFFFFF', onChange }: UseEditorOptions) {
+export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers = false, onChange }: UseEditorOptions) {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -164,6 +166,26 @@ export function useEditor({ width, height, background = '#FFFFFF', onChange }: U
       selection: true,
     });
     fabricRef.current = c;
+    if(pickAllLayers)attachLayerPicking(c);
+    // O teclado do Fabric precisa permanecer dentro do modal (focus trap do Radix).
+    // Vale também para texto novo e para undo/redo, que recriam os objetos.
+    const bindTextInput = ({target}: {target: fabric.Object}) => {
+      const bind = (obj: fabric.Object) => {
+        if(obj instanceof fabric.IText)obj.hiddenTextareaContainer=containerRef.current??undefined;
+        if(obj instanceof fabric.Group)obj.getObjects().forEach(bind);
+      };
+      bind(target);
+    };
+    c.on('object:added',bindTextInput);
+    c.on('text:editing:entered',({target})=>{
+      // O clique nativo e os painéis React ainda podem disputar o foco no frame
+      // da entrada em edição. Reafirma o teclado após esse mesmo ciclo de layout.
+      requestAnimationFrame(()=>{
+        if(fabricRef.current===c&&target.isEditing&&c.getActiveObject()===target){
+          target.hiddenTextarea?.focus({preventScroll:true});
+        }
+      });
+    });
 
     const refreshActive = () => setActiveObject(c.getActiveObject() ?? null);
     c.on('selection:created', refreshActive);
@@ -187,7 +209,7 @@ export function useEditor({ width, height, background = '#FFFFFF', onChange }: U
     pushHistory();
     // Canvas novo em folha: avisa quem precisa (re)carregar conteudo nele.
     setCanvasEpoch((e) => e + 1);
-  }, [width, height, background, pushHistory, notify, bump]);
+  }, [width, height, background, pickAllLayers, pushHistory, notify, bump]);
 
   // dispose final ao desmontar o hook
   useEffect(() => {

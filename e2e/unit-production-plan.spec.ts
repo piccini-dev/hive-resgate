@@ -110,7 +110,7 @@ test('edição na arte sincroniza os campos principais sem incluir assinatura ou
   edited.objects[0].text='Novo título';edited.objects[3].text='Planejamento';
   expect(pageTextFromCanvas(edited,u)).toEqual({title:'Novo título',body:'Uma leitura'});
   expect(edited.objects[3].selectable).toBe(true);
-  expect(edited.objects[2].selectable).toBe(false);
+  expect(edited.objects[2].selectable).toBe(true);
   expect(fabric.objects[0].text).toBe('Título');
 });
 test('não salva arte que perdeu ou duplicou um campo principal',async()=>{
@@ -137,4 +137,16 @@ test('altura real de uma linha no Fabric permite corrigir a frase ou apagar só 
   const r=reflowEditedPage(u) as typeof f;
   expect(r.objects[0]).toMatchObject({text:'Depois',fontSize:46});
   expect((reflowEditedPage({...u,body:''}) as typeof f).objects[0].text).toBe('');
+});
+
+// Seleção direta: a revisão libera também os elementos que o compositor travou.
+test('edição na arte libera formas, imagens e grupos sem alterar o original',async()=>{
+  const {editablePage}=await import('../src/lib/sequence/editing');
+  const source={objects:[{type:'Circle',selectable:false,evented:false,radius:90},{type:'Image',selectable:false,src:'foto.jpg'},{type:'Group',objects:[{type:'Path',selectable:false,path:'M 0 0 L 20 20'}]}]};
+  const copy=editablePage(source) as {objects:Array<Record<string,unknown>>};
+  for(const o of copy.objects){expect(o.selectable).toBe(true);expect(o.evented).toBe(true);expect(o.perPixelTargetFind).toBe(true);}
+  expect(copy.objects[2].subTargetCheck).toBe(true);expect(copy.objects[2].interactive).toBe(true);
+  expect((copy.objects[2].objects as Array<Record<string,unknown>>)[0].selectable).toBe(true);
+  expect(source.objects[0].selectable).toBe(false);expect(source.objects[0].evented).toBe(false);
+  expect(source.objects[1].src).toBe('foto.jpg');
 });
