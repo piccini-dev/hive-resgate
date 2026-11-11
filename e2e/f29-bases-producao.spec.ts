@@ -125,7 +125,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const connector=json.objects.find(o=>o.name==='diagram-connector-0')!;
     const points=connector.path as Array<[string,number,number]>;
     let pt=await point((points[0][1]+points[1][1])/2,points[0][2]);await page.mouse.click(pt.x,pt.y);
-    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');
+    try{await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');}catch(error){throw new Error('Seleção de ligação '+JSON.stringify({connector,point:pt,canvas:await art.boundingBox(),selected:await dialog.getByTestId('editor-selected-type').allTextContents()})+' '+String(error));}
     const end=points.at(-1)!;pt=await point(end[1],end[2]);
     await page.mouse.move(pt.x,pt.y);await page.mouse.down();await page.mouse.move(pt.x+35,pt.y+22,{steps:6});await page.mouse.up();
     await dialog.getByRole('button',{name:'Salvar esta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
@@ -313,11 +313,13 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const dragBox=await art.boundingBox();if(!dragBox)throw new Error('Arte não visível');
     // MouseEvent usa pixels de tela inteiros. Deriva a posição exata a partir
     // desse deslocamento, em vez de arredondar dois pontos de cena separados.
+    // Com a barra contextual, 100 px chega perto do centro e aciona o snap;
+    // 130 px mantém o teste fora das guias, com a mesma exigência de precisão.
     const start={x:Math.round(pt.x),y:Math.round(pt.y)};
-    const expectedLeft=rule.left+100*1080/dragBox.width;
+    const expectedLeft=rule.left+130*1080/dragBox.width;
     const expectedTop=rule.top+26*1350/dragBox.height;
     await page.mouse.move(start.x,start.y);await page.mouse.down();
-    await page.mouse.move(start.x+100,start.y+26,{steps:8});await page.mouse.up();
+    await page.mouse.move(start.x+130,start.y+26,{steps:8});await page.mouse.up();
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
     await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(Math.round(expectedLeft)));
     // Camadas sobrepostas: clique normal seleciona o topo; Alt + clique percorre.
