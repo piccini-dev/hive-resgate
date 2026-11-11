@@ -4,6 +4,7 @@ import {seedAccounts,seedCampaign,seedValidatedContents,seedIdentityBrand} from 
 import {e2eUser} from './helpers/env';
 import {createTenant,deleteTenant,loginAs} from './helpers/tenant';
 import {mockEdge,mockProduction} from './helpers/mocks';
+import {legacyDiagram} from './helpers/diagram-fixture';
 import {sequenceReviewSnapshot} from '../src/lib/sequence/visual-state';
 import type {PostUnit,UserPost} from '../src/types';
 
@@ -70,6 +71,67 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect(editorial).toHaveLength(1);
     await page.getByRole('button',{name:/Seguir para a agenda/}).click();
     await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
+  });
+  test('ajuste visual assistido preserva conteúdo, mostra prévia e permite mover pontas sem redimensionar a linha',async({page})=>{
+    test.setTimeout(300000);
+    const f=await setup(),user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
+    await mockProduction(page);
+    const [cycle]=await sql<{updated_at:string}>(`select updated_at from campaign_cycles where id='${f.cycle}'`);
+    const [base]=await sql<{body:object}>(`select body from contents where id='${f.base.contentId}'`);
+    expect((await client.rpc('approve_cycle_production',{p_cycle:f.cycle,p_command:crypto.randomUUID(),p_expected_updated:cycle.updated_at,p_bases:[{id:f.base.contentId,body:base.body}],p_items:[{content_id:f.base.contentId,platform:'instagram',format:'carousel',approach:'Diagrama sintético para edição',purpose:'Validar a revisão',template_family:'M01',editorial_slug:'diagnostico-sistemico'}],p_replace:[]})).status).toBe(200);
+    const [plan]=await sql<{id:string}>(`select id from content_piece_plans where cycle_id='${f.cycle}'`);
+    const reserved=await client.rpc<{claim:string;piece:{id:string}}>('reserve_production_piece',{p_plan:plan.id});const pid=reserved.data.piece.id;
+    expect((await client.rpc('save_production_progress',{p_plan:plan.id,p_claim:reserved.data.claim,p_done:true,p_patch:{caption:'Legenda que não muda.'},p_units:[{layout:'cover',title:'Título do diagrama',body:''},{layout:'text',title:'Outra página',body:'Preservar integralmente.'}]})).status).toBe(200);
+    await page.goto(`/producao?campaign=${f.camp.id}&cycle=${f.cycle}`);
+    await expect(page.getByTestId('unit-status')).toHaveText('Pronta para revisar',{timeout:120000});
+    let units=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
+    expect((await client.rest(`/post_units?id=eq.${units[0].id}`,{method:'PATCH',body:JSON.stringify({fabric_json:legacyDiagram(),assets:{...units[0].assets,variant:'M03-B',manual_canvas:true}})})).status).toBe(204);
+    await page.reload();await expect(page.getByTestId('unit-status')).toHaveText('Pronta para revisar',{timeout:60000});
+    units=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
+    const [post]=await sql<UserPost>(`select * from user_posts where id='${pid}'`);
+    // Endpoint real: erros de autenticação/posse/versão param antes de chamar IA.
+    expect((await client.fn('sequence-visual-adjust',{post_id:crypto.randomUUID(),unit_id:units[0].id})).status).toBe(404);
+    expect((await client.fn('sequence-visual-adjust',{post_id:pid,unit_id:units[0].id,version:(post.version??1)-1})).status).toBe(409);
+    expect((await client.fn('sequence-visual-adjust',{post_id:pid,unit_id:units[0].id,version:post.version,instruction:'Alinhe',scope:'invalido',elements:[{id:'0',parent:'',kind:'textbox',name:'headline',left:0,top:0,width:100,height:50,angle:0}]})).status).toBe(400);
+    await page.getByRole('button',{name:'Revisar peça',exact:true}).click();
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    const dialog=page.getByRole('dialog');await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
+    const calls:Record<string,unknown>[]=[];
+    await mockEdge(page,'sequence-visual-adjust',b=>({success:true,plan:{summary:'Organizei as ligações.',operations:[{kind:'repair_diagram'}]}}),calls);
+    await dialog.getByRole('button',{name:'Ajustar com a Hive',exact:true}).click();
+    await dialog.getByRole('textbox',{name:'Pedido de ajuste visual'}).fill('Organize os rótulos e ligações.');
+    await dialog.getByRole('button',{name:'Preparar proposta visual'}).click();
+    await expect(dialog.getByTestId('page-edit-candidate')).toBeVisible({timeout:60000});
+    expect((await sql<PostUnit>(`select * from post_units where id='${units[0].id}'`))[0]).toEqual(units[0]);
+    expect(calls).toHaveLength(1);expect(calls[0].scope).toBe('page');expect(JSON.stringify(calls[0])).not.toContain('rendered_url');
+    await dialog.getByRole('button',{name:'Descartar proposta',exact:true}).click();
+    await expect(dialog.getByTestId('sequence-page-canvas')).toBeVisible();
+    await dialog.getByRole('button',{name:'Organizar diagrama',exact:true}).click();
+    await expect(dialog.getByRole('img',{name:'Visual proposto'})).toBeVisible({timeout:60000});
+    await dialog.getByRole('button',{name:'Aplicar nesta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
+    const after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
+    expect(after[1]).toEqual(units[1]);expect(after[0].title).toBe(units[0].title);expect(after[0].body).toBe(units[0].body);
+    expect(after[0].rendered_url).not.toBe(units[0].rendered_url);
+    expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe('Legenda que não muda.');
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
+    // O primeiro segmento do conector é horizontal; seleciona pelo traço e arrasta só a ponta final.
+    const json=after[0].fabric_json as {objects:Array<Record<string,unknown>>};
+    const connector=json.objects.find(o=>o.name==='diagram-connector-0')!;
+    const points=connector.path as Array<[string,number,number]>;
+    const art=dialog.locator('canvas.upper-canvas');
+    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    let pt=await point((points[0][1]+points[1][1])/2,points[0][2]);await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');
+    const end=points.at(-1)!;pt=await point(end[1],end[2]);
+    await page.mouse.move(pt.x,pt.y);await page.mouse.down();await page.mouse.move(pt.x+35,pt.y+22,{steps:6});await page.mouse.up();
+    await dialog.getByRole('button',{name:'Salvar esta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
+    const [moved]=await sql<PostUnit>(`select * from post_units where id='${after[0].id}'`);
+    const movedConnector=(moved.fabric_json as typeof json).objects.find(o=>o.name==='diagram-connector-0')!;
+    expect(movedConnector.path).not.toEqual(points);expect((movedConnector.beeConnector as {manual:boolean}).manual).toBe(true);
+    const movedPoints=movedConnector.path as Array<[string,number,number]>;
+    expect(movedPoints[0]).toEqual(points[0]);expect(movedPoints[1]).toEqual(points[1]);
+    expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
   });
   test('contratos autenticados: uma base gera imagem/carrossel/Stories; entregas preservam o material e exigem reconfirmação de conta',async()=>{
     test.setTimeout(180000);

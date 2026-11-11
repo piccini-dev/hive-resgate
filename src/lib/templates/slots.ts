@@ -12,7 +12,7 @@
 import type { TemplateConfig, TemplateField, TemplateTextRules } from '@/types';
 
 // Props custom que o Fabric precisa serializar EXPLICITAMENTE.
-export const FABRIC_CUSTOM_PROPS = ['name', 'beeSlot'];
+export const FABRIC_CUSTOM_PROPS = ['name', 'beeSlot', 'beeConnector'];
 
 // O que fica guardado no objeto do canvas. O resto e derivado.
 export interface BeeSlotMeta {

@@ -5,6 +5,8 @@
 // CANDIDATOS (apply_unit_candidate valida escopo e preservação no banco); aprovação final só com a
 // sequência completa (approve_sequence); exportação = o MESMO pacote aprovado (versão).
 import JSZip from 'jszip';
+import { applyVisualPlan, visualElements, type VisualPlan } from '@/lib/editorVisualPlan';
+import type { EditorSnapshot } from '@/lib/editorSnapshot';
 import { jsPDF } from 'jspdf';
 import { db } from '@/lib/db';
 import { needsSequenceRender, sequenceReviewSnapshot } from './visual-state';
@@ -288,16 +290,29 @@ export async function proposeSequenceText(post:UserPost,units:PostUnit[],texts:A
 
 // Edição na arte usa o mesmo contrato de candidatos: uma página, versão esperada,
 // histórico e aprovação invalidada. Nenhuma gravação paralela em rendered_slides.
-export async function savePageCanvas(post: UserPost, unit: PostUnit, state: {fabricJson:object;dataUrl:string}): Promise<UserPost> {
-  if(['scheduled','published'].includes(post.status))throw new Error('Este material já está na agenda ou publicado. Abra o fluxo específico de revisão para alterá-lo.');
+async function prepareCanvasCandidate(post:UserPost,unit:PostUnit,state:EditorSnapshot,instruction:string,impact:string):Promise<UnitCandidate>{
+  if(['scheduled','published','archived'].includes(post.status))throw new Error('Este material já está na agenda, publicado ou arquivado. Abra o fluxo específico de revisão para alterá-lo.');
   const text=pageTextFromCanvas(state.fabricJson,unit);
-  if(!state.dataUrl)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');
   const canvas=post.format==='story'?{width:1080,height:1920}:{width:1080,height:1350};
   const jpeg=await renderFabricToDataUrl(state.fabricJson,{...canvas,format:'jpeg'});
-  if(!jpeg)throw new Error('Não foi possível finalizar a arte com todos os elementos. Reabra a página e tente salvar novamente.');
+  if(!jpeg)throw new Error('Não foi possível finalizar a arte com todos os elementos. Reabra a página e tente novamente.');
   const {publicUrl}=await uploadAssetImage({immutable:true,userId:post.user_id,assetId:post.id,dataUrl:jpeg,filename:`unit-${unit.id}-edit-${crypto.randomUUID()}.jpg`});
-  const candidate=await insertCandidate(post,{action:'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:['text','visual'],instruction:'Edição direta na arte',proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact:'Somente esta página muda. Revise a nova versão antes de aprovar.'});
-  return applyUnitCandidate(candidate);
+  return insertCandidate(post,{action:'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:['text','visual'],instruction,proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact});
+}
+export async function savePageCanvas(post:UserPost,unit:PostUnit,state:EditorSnapshot):Promise<UserPost>{
+  if(!state.dataUrl)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');
+  return applyUnitCandidate(await prepareCanvasCandidate(post,unit,state,'Edição direta na arte','Somente esta página muda. Revise a nova versão antes de aprovar.'));
+}
+
+/** Proposta visual não toca na página: só o contrato de aplicação confirma a versão. */
+export async function proposeCanvasAdjustment(post:UserPost,unit:PostUnit,state:EditorSnapshot,request:{instruction:string;selection:boolean;organize?:boolean}):Promise<UnitCandidate>{
+  const ids=request.selection?state.selectedPaths??[]:null;
+  if(ids&&!ids.length)throw new Error('Selecione na arte os elementos que deseja ajustar ou escolha a página inteira.');
+  const width=1080,height=post.format==='story'?1920:1350;
+  const plan=request.organize?{summary:'Rótulos alinhados e conexões reorganizadas, preservando as palavras e os círculos.',operations:[{kind:'repair_diagram'}]}:(await edge.sequenceVisualAdjust<{plan:VisualPlan}>({post_id:post.id,unit_id:unit.id,version:post.version??1,instruction:request.instruction,scope:ids?'selection':'page',selected_ids:ids??[],variant:unit.assets?.variant,elements:visualElements(state.fabricJson)})).plan;
+  if(!plan.operations?.length)throw new Error(plan.summary||'A Hive não encontrou um ajuste seguro para este pedido.');
+  const adjusted=applyVisualPlan(state.fabricJson,plan,ids,width,height,unit.assets?.variant as string|undefined);
+  return prepareCanvasCandidate(post,unit,{...state,fabricJson:adjusted.fabricJson},request.instruction,`${adjusted.plan.summary} Confira a prévia. Outras páginas, fotografias e legenda serão preservadas.`);
 }
 
 export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro'}):Promise<UnitCandidate>{

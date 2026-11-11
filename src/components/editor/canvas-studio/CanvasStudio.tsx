@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { EditorSnapshot } from '@/lib/editorSnapshot';
 import { Toolbar } from './Toolbar';
+import { SelectionToolbar } from './SelectionToolbar';
 import { EmbeddedToolbar } from './EmbeddedToolbar';
 import { SidebarLeft, type PanelKey } from './SidebarLeft';
 import { CanvasArea } from './CanvasArea';
@@ -117,7 +118,7 @@ export function CanvasStudio({
     const capture = () => {
       if (readyEpochRef.current !== api.canvasEpoch || !api.fabric.current) return null;
       const dataUrl = api.exportPng(1);
-      return dataUrl ? { fabricJson: api.toJson(), dataUrl } : null;
+      return dataUrl ? { fabricJson: api.toJson(), dataUrl, selectedPaths: api.selectedPaths() } : null;
     };
     snapshotRef.current = capture;
     return () => { if (snapshotRef.current === capture) snapshotRef.current = null; };
@@ -157,6 +158,7 @@ export function CanvasStudio({
         />
       )}
 
+      {sequenceMode&&<SelectionToolbar api={api}/>}
       {templateMode && (
         <TemplatePreviewBar
           api={api}
