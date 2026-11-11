@@ -456,11 +456,12 @@ export function useEditor({ width, height, background = '#FFFFFF', onChange }: U
   }, [bump, notify]);
 
   // ---------- LOAD/EXPORT ----------
-  const loadFromJson = useCallback(async (json: object) => {
+  const loadFromJson = useCallback(async (json: object, options: {strict?:boolean} = {}) => {
     const c = fabricRef.current;
     if (!c) return;
     mutatingRef.current = true;
     const expected = (json as { objects?: unknown[] }).objects?.length ?? 0;
+    let failure: unknown;
     try {
       await c.loadFromJSON(json);
       // HARDENING anti-tela-branca: às vezes o loadFromJSON resolve com 0 objetos
@@ -470,6 +471,7 @@ export function useEditor({ width, height, background = '#FFFFFF', onChange }: U
         await c.loadFromJSON(json);
       }
     } catch (e) {
+      failure=e;
       // Enliven pode falhar (ex: uma imagem não carrega). NÃO deixa o canvas
       // em branco: os objetos que carregaram já estão no canvas — renderiza o
       // que deu, em vez de abortar tudo.
@@ -481,6 +483,7 @@ export function useEditor({ width, height, background = '#FFFFFF', onChange }: U
       requestAnimationFrame(() => { try { fabricRef.current?.renderAll(); } catch { /* noop */ } });
       mutatingRef.current = false;
     }
+    if(options.strict&&(failure||c.getObjects().length!==expected))throw new Error('A arte não carregou por completo. Reabra a página para editar sem perder elementos.');
     pushHistory();
     notify();
   }, [pushHistory, notify]);

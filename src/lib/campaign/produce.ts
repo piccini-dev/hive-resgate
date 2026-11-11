@@ -19,7 +19,9 @@ import type { AiVariation, CampaignCycle, Content, Idea, IdeaChannel, PiecePlan,
 import { sequenceVisualTodo } from '@/lib/sequence/visual-state';
 
 export async function loadProductionVisuals(pieces: UserPost[], plans: PiecePlan[], batch?: string) {
-  const sequences = batch ? pieces.filter(p=>p.status!=='archived'&&['carousel','story'].includes(p.format)&&p.metadata?.production_batch_id===batch) : [];
+  // Todas as entradas de revisão leem a fonte canônica, inclusive “produção existente”.
+  // O lote limita a geração automática, não a leitura de imagens já existentes.
+  const sequences = pieces.filter(p=>p.status!=='archived'&&['carousel','story'].includes(p.format)&&(!batch||p.metadata?.production_batch_id===batch));
   const units = sequences.length ? await db.select<PostUnit>('post_units',{post_id:`in.(${sequences.map(p=>p.id).join(',')})`,order:'position.asc'}) : [];
   return { units, todo:sequenceVisualTodo(pieces,plans,units,batch) };
 }
