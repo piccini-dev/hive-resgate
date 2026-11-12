@@ -1,5 +1,5 @@
 /** Captura síncrona: não depende do debounce da prévia do editor. */
-export interface EditorSnapshot { fabricJson: object; dataUrl: string }
+export interface EditorSnapshot { fabricJson: object; dataUrl: string; selectedPaths?: number[][] }
 
 export function canvasSignature(value: unknown): string {
   return JSON.stringify(value ?? null, (_key, item) => {

@@ -567,6 +567,19 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     return serialize(c);
   }, []);
 
+  const selectedPaths = useCallback((): number[][] => {
+    const c = fabricRef.current;
+    if (!c) return [];
+    const selected = new Set(c.getActiveObjects()), paths: number[][] = [];
+    const visit = (objects: fabric.Object[], parent: number[]) => objects.forEach((o, i) => {
+      const path = [...parent, i];
+      if (selected.has(o)) paths.push(path);
+      else if (o instanceof fabric.Group) visit(o.getObjects(), path);
+    });
+    visit(c.getObjects(), []);
+    return paths;
+  }, []);
+
   // ---------- SLOTS (modo template) ----------
   // Marca/desmarca o objeto ativo como campo dinamico. Passar null desmarca.
   const setActiveSlot = useCallback((meta: BeeSlotMeta | null) => {
@@ -653,6 +666,7 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     redo,
     loadFromJson,
     toJson,
+    selectedPaths,
     exportPng,
     downloadPng,
     // slots (modo template)

@@ -144,11 +144,11 @@ export function CanvasStudio({
     const capture = () => {
       if (readyEpochRef.current !== api.canvasEpoch || !api.fabric.current) return null;
       const dataUrl = api.exportPng(1);
-      return dataUrl ? { fabricJson: api.toJson(), dataUrl } : null;
+      return dataUrl ? { fabricJson: api.toJson(), dataUrl, selectedPaths: api.selectedPaths() } : null;
     };
     snapshotRef.current = capture;
     return () => { if (snapshotRef.current === capture) snapshotRef.current = null; };
-  }, [snapshotRef, api.canvasEpoch, api.exportPng, api.toJson, api.fabric]);
+  }, [snapshotRef, api.canvasEpoch, api.exportPng, api.toJson, api.selectedPaths, api.fabric]);
 
   async function handleSave() {
     if (!onSave) return;
