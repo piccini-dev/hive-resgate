@@ -176,6 +176,15 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
     expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe('Legenda que não muda.');
     expect(visualCalls).toHaveLength(0);
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();
+    await expect(dialog.getByRole('button',{name:'Organizar diagrama',exact:true})).toHaveCount(0);
+    pt=await point(300,150);await page.mouse.click(pt.x,pt.y);
+    await dialog.getByRole('button',{name:'Revisar elementos selecionados',exact:true}).click();
+    await expect(dialog.getByRole('alert')).toContainText('A seleção inclui texto principal');
+    await expect(dialog.getByRole('button',{name:'Conferir proposta desta parte',exact:true})).toBeDisabled();
+    await dialog.getByRole('button',{name:'Voltar à revisão',exact:true}).click();
+    await expect(dialog).toHaveCount(0);expect((await sql<PostUnit>(`select * from post_units where id='${explained.id}'`))[0]).toEqual(explained);
   });
   test('contratos autenticados: uma base gera imagem/carrossel/Stories; entregas preservam o material e exigem reconfirmação de conta',async()=>{
     test.setTimeout(180000);

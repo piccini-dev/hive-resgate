@@ -30,6 +30,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
   const initial=useMemo(()=>editablePage(unit.fabric_json),[unit.fabric_json]);
   const partSnapshot=useMemo(()=>draft??{fabricJson:initial,dataUrl:unit.rendered_url??''},[draft,initial,unit.rendered_url]);
   const hasDiagram=pageElements(partSnapshot.fabricJson,unit.assets?.variant as string|undefined).some(e=>e.diagram);
+  const hasLayerShapes=((partSnapshot.fabricJson as {objects?:Array<{type?:string}>}).objects??[]).some(o=>o.type?.toLowerCase()==='circle');
   const [choices,setChoices]=useState<Array<{id:string;name:string;url:string;theme?:'claro'|'escuro'}>>([]);
   const [loadingChoices,setLoadingChoices]=useState(false);
   const [choiceError,setChoiceError]=useState(false);
@@ -101,7 +102,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
       </section>:mode==='canvas'?<>
         <p className="text-sm text-muted-foreground">Clique para selecionar e arraste para mover. Dê dois cliques no texto para editar. Nas linhas, arraste as alças das pontas para mudar a ligação. Para alcançar uma camada sobreposta, use Alt + clique no mesmo ponto.</p>
         <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" disabled={busy||!canvasReady} onClick={()=>changeMode('part')}>Revisar elementos selecionados</Button><span className="text-xs text-muted-foreground">Selecione na arte e revise apenas essa parte.</span></div>
-        {unit.assets?.variant==='M03-B'&&<Button size="sm" variant="outline" disabled={busy||!canvasReady} onClick={()=>void run(async()=>{const snapshot=capture.current?.();if(!snapshot)throw new Error('Aguarde a arte carregar.');setDraft(snapshot);setBeforePreview(snapshot.dataUrl);setCandidate(await proposeDiagramOrganization(piece,unit,snapshot));})}>Organizar diagrama</Button>}
+        {unit.assets?.variant==='M03-B'&&hasLayerShapes&&<Button size="sm" variant="outline" disabled={busy||!canvasReady} onClick={()=>void run(async()=>{const snapshot=capture.current?.();if(!snapshot)throw new Error('Aguarde a arte carregar.');setDraft(snapshot);setBeforePreview(snapshot.dataUrl);setCandidate(await proposeDiagramOrganization(piece,unit,snapshot));})}>Organizar diagrama</Button>}
         {unit.fabric_json?<div className="min-h-[260px] flex-1 overflow-hidden rounded-xl border" data-testid="sequence-page-canvas" aria-busy={busy} style={{pointerEvents:busy?'none':undefined}}><CanvasStudio embedded sequenceMode snapshotRef={capture} onReadyChange={setCanvasReady} initialFabricJson={draft?.fabricJson??initial} initialPreset={piece.format==='story'?'instagram-story':'instagram-portrait'}/></div>:<p className="text-sm">Esta página ainda não tem arte editável. Ajuste o texto ou produza a imagem primeiro.</p>}
         <Button variant="accent" disabled={busy||!unit.fabric_json||!canvasReady} onClick={()=>void run(async()=>{const s=capture.current?.();if(!s)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');const p=await savePageCanvas(piece,unit,s);await onSaved(p);onClose();})}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Salvar esta página</Button>
       </>:mode==='part'?null:mode==='text'?<div className="space-y-3" data-testid="sequence-page-text">
