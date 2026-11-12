@@ -47,6 +47,8 @@ test.describe('F30 · departamentos e recuperação do editor', () => {
     await page.getByRole('button', { name: 'Editar conteúdo mãe', exact: true }).click();
     await page.getByLabel('Desenvolvimento', {exact: true}).fill('Uma versão ampliada para os próximos usos, preservando as versões anteriores.');
     await page.getByRole('button', { name: 'Salvar rascunho', exact: true }).click();
+    await expect(page.getByText('Rascunho salvo. As versões usadas nas campanhas permanecem preservadas.', {exact: true})).toBeVisible();
+    await expect(page.getByTestId('mother-detail')).toContainText('Uma versão ampliada');
     await page.reload();
     await expect(page.getByTestId('mother-detail')).toContainText('Uma versão ampliada');
     await page.getByRole('button', { name: 'Validar conteúdo mãe', exact: true }).click();
