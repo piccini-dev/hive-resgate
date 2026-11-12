@@ -302,13 +302,13 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const dragBox=await art.boundingBox();if(!dragBox)throw new Error('Arte não visível');
     // MouseEvent usa pixels de tela inteiros. Deriva a posição exata a partir
     // desse deslocamento, em vez de arredondar dois pontos de cena separados.
-    // Com a barra contextual, 100 px chega perto do centro e aciona o snap;
-    // 130 px mantém o teste fora das guias, com a mesma exigência de precisão.
+    // No zoom atual, 130 px aproxima a borda da régua do centro da página e
+    // aciona o snap. 90 px mantém suas três âncoras longe das guias existentes.
     const start={x:Math.round(pt.x),y:Math.round(pt.y)};
-    const expectedLeft=rule.left+130*1080/dragBox.width;
+    const expectedLeft=rule.left+90*1080/dragBox.width;
     const expectedTop=rule.top+26*1350/dragBox.height;
     await page.mouse.move(start.x,start.y);await page.mouse.down();
-    await page.mouse.move(start.x+130,start.y+26,{steps:8});await page.mouse.up();
+    await page.mouse.move(start.x+90,start.y+26,{steps:8});await page.mouse.up();
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
     await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(Math.round(expectedLeft)));
     // Camadas sobrepostas: clique normal seleciona o topo; Alt + clique percorre.
