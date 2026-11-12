@@ -5,7 +5,9 @@
 
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { EditorSnapshot } from '@/lib/editorSnapshot';
+import { ensureFontsLoaded } from '@/lib/templates/layout';
 import { Toolbar } from './Toolbar';
+import { SelectionToolbar } from './SelectionToolbar';
 import { EmbeddedToolbar } from './EmbeddedToolbar';
 import { SidebarLeft, type PanelKey } from './SidebarLeft';
 import { CanvasArea } from './CanvasArea';
@@ -26,6 +28,7 @@ export interface CanvasStudioChangeState {
 
 interface CanvasStudioProps {
   snapshotRef?: MutableRefObject<(() => EditorSnapshot | null) | null>;
+  onReadyChange?: (ready:boolean)=>void;
   initialPreset?: string;
   initialFabricJson?: object;
   onBack?: () => void;
@@ -52,6 +55,7 @@ interface CanvasStudioProps {
 
 export function CanvasStudio({
   snapshotRef,
+  onReadyChange,
   initialPreset = 'linkedin-portrait',
   initialFabricJson,
   onBack,
@@ -95,22 +99,45 @@ export function CanvasStudio({
   // template, que espera tudo antes de montar, caia direto na corrida).
   // canvasEpoch muda a cada canvas novo, entao a carga acompanha.
   const readyEpochRef = useRef<number>(-1);
+  const [readyEpoch,setReadyEpoch]=useState(-1);
   const loadedEpochRef = useRef<number>(-1);
   useEffect(() => {
-    readyEpochRef.current = -1;
+    readyEpochRef.current = -1;setReadyEpoch(-1);
     return () => { readyEpochRef.current = -1; };
   }, [api.canvasEpoch]);
   useEffect(() => {
     const canvas = api.fabric.current;
     if (!canvas || loadedEpochRef.current === api.canvasEpoch) return;
-    if (!initialFabricJson) { readyEpochRef.current = api.canvasEpoch; return; }
     loadedEpochRef.current = api.canvasEpoch;
-    readyEpochRef.current = -1;
-    void api.loadFromJson(initialFabricJson,{strict:sequenceMode}).then(() => {
-      if (api.fabric.current === canvas) readyEpochRef.current = api.canvasEpoch;
-    }).catch((e) => { if(sequenceMode)setLoadError((e as Error).message); /* Captura bloqueada. */ });
+    readyEpochRef.current = -1;setReadyEpoch(-1);
+    void (async()=>{
+      if(sequenceMode)await ensureFontsLoaded([{family:'Playfair Display',weight:'bold'},{family:'Inter',weight:'400'},{family:'Inter',weight:'600'}]);
+      if(api.fabric.current!==canvas)return;
+      if(initialFabricJson)await api.loadFromJson(initialFabricJson,{strict:sequenceMode});
+      if(sequenceMode){
+        api.fitToContainer();
+        // A edição só libera quando fontes, tamanho e posição do canvas estão
+        // prontos. Não basta a camada já existir durante a abertura do modal.
+        let previous='',stable=0;
+        for(let i=0;i<60&&stable<3;i++){
+          await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+          if(api.fabric.current!==canvas)return;
+          const rect=canvas.upperCanvasEl.getBoundingClientRect();
+          const signature=[rect.x,rect.y,rect.width,rect.height].map(v=>Math.round(v*10)).join(':');
+          stable=signature===previous&&rect.width>0&&rect.height>0?stable+1:0;previous=signature;
+        }
+        if(stable<3)throw new Error('A janela ainda está mudando de tamanho. Reabra a arte quando ela estiver estável.');
+        canvas.calcOffset();canvas.requestRenderAll();
+      }
+      if(api.fabric.current===canvas){readyEpochRef.current=api.canvasEpoch;setReadyEpoch(api.canvasEpoch);}
+    })().catch((e)=>{if(sequenceMode&&api.fabric.current===canvas)setLoadError((e as Error).message);});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFabricJson, api.canvasEpoch]);
+
+  useEffect(()=>{
+    onReadyChange?.(!sequenceMode||readyEpoch===api.canvasEpoch);
+    return()=>onReadyChange?.(false);
+  },[onReadyChange,sequenceMode,readyEpoch,api.canvasEpoch]);
 
   useEffect(() => {
     if (!snapshotRef) return;
@@ -140,7 +167,8 @@ export function CanvasStudio({
   }
 
   return (
-    <div className={embedded ? 'flex h-full flex-col bg-background' : 'flex h-screen flex-col bg-background'}>
+    <div data-canvas-ready={!sequenceMode||readyEpoch===api.canvasEpoch?'true':'false'} className={embedded ? 'relative flex h-full min-h-0 flex-col bg-background' : 'relative flex h-screen flex-col bg-background'} onPointerDownCapture={e=>{if(sequenceMode&&readyEpoch!==api.canvasEpoch){e.preventDefault();e.stopPropagation();}}}>
+      {sequenceMode&&readyEpoch!==api.canvasEpoch&&!loadError&&<div role="status" className="absolute inset-0 z-30 grid place-items-center bg-background/80 text-sm">Preparando arte…</div>}
       {loadError&&<p role="alert" className="p-3 text-sm text-destructive">{loadError}</p>}
       {embedded ? (
         <EmbeddedToolbar api={api} preset={preset} onPresetChange={setPreset} lockPreset={sequenceMode} />
@@ -157,6 +185,7 @@ export function CanvasStudio({
         />
       )}
 
+      {sequenceMode&&<SelectionToolbar api={api}/>}
       {templateMode && (
         <TemplatePreviewBar
           api={api}

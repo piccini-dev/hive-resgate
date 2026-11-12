@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { CanvasStudio } from '@/components/editor/canvas-studio/CanvasStudio';
 import type { EditorSnapshot } from '@/lib/editorSnapshot';
 import { editablePage } from '@/lib/sequence/editing';
-import { applyUnitCandidate, discardUnitCandidate, proposeCoverImage, proposePageVisual, proposeText, renderPending, savePageCanvas, type UnitCandidate } from '@/lib/sequence/service';
+import { applyUnitCandidate, discardUnitCandidate, proposeCoverImage, proposePageVisual, proposeDiagramOrganization, proposeText, renderPending, savePageCanvas, type UnitCandidate } from '@/lib/sequence/service';
 import { loadHiveDesign } from '@/lib/hive/loadDesign';
 import { composeM01 } from '@/lib/hive/composeM01';
 import { composeM02 } from '@/lib/hive/composeM02';
@@ -22,6 +22,8 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
   const [mode,setMode]=useState(initialMode),[busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null);
   const [title,setTitle]=useState(unit.title??''),[body,setBody]=useState(unit.body??''),[instruction,setInstruction]=useState('');
   const [candidate,setCandidate]=useState<UnitCandidate|null>(null);
+  const [draft,setDraft]=useState<EditorSnapshot|null>(null),[beforePreview,setBeforePreview]=useState<string|null>(null);
+  const [canvasReady,setCanvasReady]=useState(false);
   const capture=useRef<(()=>EditorSnapshot|null)|null>(null);
   const initial=useMemo(()=>editablePage(unit.fabric_json),[unit.fabric_json]);
   const [choices,setChoices]=useState<Array<{id:string;name:string;url:string;theme?:'claro'|'escuro'}>>([]);
@@ -68,25 +70,26 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
   });}
   const proposed=candidate?.proposal?.units?.find(u=>u.id===unit.id);
   return <Dialog open onOpenChange={open=>{if(!open)void close();}}>
-    <DialogContent className="flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4" onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
+    <DialogContent className={`data-[state=open]:animate-none data-[state=closed]:animate-none flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4 ${mode==='canvas'&&!candidate?'h-[94vh]':''}`} onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
       <DialogTitle>Página {unit.position} · ajustar conteúdo</DialogTitle>
       <DialogDescription>Você altera esta página. As demais páginas e a legenda permanecem preservadas.</DialogDescription>
       <div className="flex flex-wrap gap-2">
-        {([['canvas','Editar na arte'],['text','Ajustar texto'],['visual','Alterar visual']] as const).map(([k,l])=><Button key={k} size="sm" variant={mode===k?'accent':'outline'} disabled={busy||!!candidate} onClick={()=>setMode(k)}>{l}</Button>)}
+        {([['canvas','Editar na arte'],['text','Ajustar texto'],['visual','Alterar visual']] as const).map(([k,l])=><Button key={k} size="sm" variant={mode===k?'accent':'outline'} disabled={busy||!!candidate} onClick={()=>{if(mode==='canvas'){const snapshot=capture.current?.();if(snapshot)setDraft(snapshot);}setBeforePreview(null);setMode(k);}}>{l}</Button>)}
       </div>
       {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
       {candidate?<section className="space-y-4" data-testid="page-edit-candidate">
         <h3 className="font-semibold">Confira a proposta antes de aplicar</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          <div><p className="mb-2 text-sm">Atual</p>{unit.rendered_url&&<img src={unit.rendered_url} className="max-h-96 rounded border" alt="Página atual"/>}<p>{unit.title}</p><p className="whitespace-pre-wrap text-sm">{unit.body}</p></div>
+          <div><p className="mb-2 text-sm">Atual</p>{unit.rendered_url&&<img src={beforePreview??unit.rendered_url} className="max-h-96 rounded border" alt="Página atual"/>}<p>{unit.title}</p><p className="whitespace-pre-wrap text-sm">{unit.body}</p></div>
           <div><p className="mb-2 text-sm">Proposta</p>{proposed?.rendered_url&&<img src={proposed.rendered_url} className="max-h-96 rounded border" alt="Visual proposto"/>}<p className="font-semibold">{proposed?.title??unit.title}</p><p className="whitespace-pre-wrap text-sm">{proposed?.body??unit.body}</p></div>
         </div>
         {candidate.impact&&<p className="text-sm text-muted-foreground">{candidate.impact}</p>}
         <div className="flex gap-2"><Button variant="accent" disabled={busy} onClick={()=>void apply()}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Aplicar nesta página</Button><Button variant="outline" disabled={busy} onClick={()=>void run(async()=>{await discardUnitCandidate(candidate);setCandidate(null);})}>Descartar proposta</Button></div>
       </section>:mode==='canvas'?<>
-        <p className="text-sm text-muted-foreground">Clique para selecionar e arraste para mover. Dê dois cliques no texto para editar. Para alcançar uma camada sobreposta, use Alt + clique no mesmo ponto.</p>
-        {unit.fabric_json?<div className="h-[65vh] min-h-[420px] overflow-hidden rounded-xl border" data-testid="sequence-page-canvas"><CanvasStudio embedded sequenceMode snapshotRef={capture} initialFabricJson={initial} initialPreset={piece.format==='story'?'instagram-story':'instagram-portrait'}/></div>:<p className="text-sm">Esta página ainda não tem arte editável. Ajuste o texto ou produza a imagem primeiro.</p>}
-        <Button variant="accent" disabled={busy||!unit.fabric_json} onClick={()=>void run(async()=>{const s=capture.current?.();if(!s)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');const p=await savePageCanvas(piece,unit,s);await onSaved(p);onClose();})}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Salvar esta página</Button>
+        <p className="text-sm text-muted-foreground">Clique para selecionar e arraste para mover. Dê dois cliques no texto para editar. Nas linhas, arraste as alças das pontas para mudar a ligação. Para alcançar uma camada sobreposta, use Alt + clique no mesmo ponto.</p>
+        {unit.assets?.variant==='M03-B'&&<Button size="sm" variant="outline" disabled={busy||!canvasReady} onClick={()=>void run(async()=>{const snapshot=capture.current?.();if(!snapshot)throw new Error('Aguarde a arte carregar.');setDraft(snapshot);setBeforePreview(snapshot.dataUrl);setCandidate(await proposeDiagramOrganization(piece,unit,snapshot));})}>Organizar diagrama</Button>}
+        {unit.fabric_json?<div className="min-h-[260px] flex-1 overflow-hidden rounded-xl border" data-testid="sequence-page-canvas" aria-busy={busy} style={{pointerEvents:busy?'none':undefined}}><CanvasStudio embedded sequenceMode snapshotRef={capture} onReadyChange={setCanvasReady} initialFabricJson={draft?.fabricJson??initial} initialPreset={piece.format==='story'?'instagram-story':'instagram-portrait'}/></div>:<p className="text-sm">Esta página ainda não tem arte editável. Ajuste o texto ou produza a imagem primeiro.</p>}
+        <Button variant="accent" disabled={busy||!unit.fabric_json||!canvasReady} onClick={()=>void run(async()=>{const s=capture.current?.();if(!s)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');const p=await savePageCanvas(piece,unit,s);await onSaved(p);onClose();})}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Salvar esta página</Button>
       </>:mode==='text'?<div className="space-y-3" data-testid="sequence-page-text">
         <label className="block space-y-1 text-sm">Título<Input aria-label="Título desta página" value={title} disabled={busy} onChange={e=>setTitle(e.target.value)}/></label>
         <label className="block space-y-1 text-sm">Texto<Textarea aria-label="Texto desta página" rows={5} value={body} disabled={busy} onChange={e=>setBody(e.target.value)}/></label>

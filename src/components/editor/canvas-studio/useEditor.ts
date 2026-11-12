@@ -10,6 +10,7 @@ import * as fabric from 'fabric';
 import { FABRIC_CUSTOM_PROPS, type BeeSlotMeta } from '@/lib/templates/slots';
 import { attachSmartGuides } from './smartGuides';
 import { attachLayerPicking } from './layerPicking';
+import { installConnectorControls, normalizeEditorLines, resizeConnectorHandles, syncCanvasConnections } from './connectorControls';
 
 const HISTORY_LIMIT = 40;
 
@@ -28,16 +29,14 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 }
 function serialize(c: fabric.Canvas): object {
   const json = c.toObject(FABRIC_CUSTOM_PROPS) as { objects?: Array<Record<string, unknown>> };
-  const objs = json.objects ?? [];
-  const live = c.getObjects();
-  for (let i = 0; i < objs.length && i < live.length; i++) {
-    const liveStyles = (live[i] as unknown as { styles?: unknown }).styles;
-    // Só substitui quando a instância viva tem styles NESTED (objeto). Se já for
-    // array (texto carregado de um fabric antigo plano), deixa como está.
-    if (isPlainObject(liveStyles) && Object.keys(liveStyles).length > 0) {
-      objs[i].styles = JSON.parse(JSON.stringify(liveStyles));
+  const preserveStyles=(objects:Array<Record<string,unknown>>,live:fabric.Object[])=>{
+    for(let i=0;i<objects.length&&i<live.length;i++){
+      const styles=(live[i] as unknown as {styles?:unknown}).styles;
+      if(isPlainObject(styles)&&Object.keys(styles).length)objects[i].styles=JSON.parse(JSON.stringify(styles));
+      if(live[i] instanceof fabric.Group)preserveStyles((objects[i].objects??[]) as Array<Record<string,unknown>>,(live[i] as fabric.Group).getObjects());
     }
-  }
+  };
+  preserveStyles(json.objects??[],c.getObjects());
   return json;
 }
 
@@ -169,12 +168,32 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     if(pickAllLayers)attachLayerPicking(c);
     // O teclado do Fabric precisa permanecer dentro do modal (focus trap do Radix).
     // Vale também para texto novo e para undo/redo, que recriam os objetos.
+    const positionedInputs=new WeakSet<fabric.IText>();
     const bindTextInput = ({target}: {target: fabric.Object}) => {
       const bind = (obj: fabric.Object) => {
-        if(obj instanceof fabric.IText)obj.hiddenTextareaContainer=containerRef.current??undefined;
+        if(obj instanceof fabric.IText){
+          obj.hiddenTextareaContainer=containerRef.current??undefined;
+          if(pickAllLayers&&!positionedInputs.has(obj)){
+            positionedInputs.add(obj);
+            const calc=obj._calcTextareaPosition.bind(obj);
+            // O Fabric calcula coordenadas de documento. Dentro do modal e com
+            // zoom CSS, o input precisa de coordenadas locais para não rolar a arte.
+            obj._calcTextareaPosition=()=>{
+              const position=calc(),host=containerRef.current;
+              if(!host||position.charHeight===undefined)return position;
+              const bounds=host.getBoundingClientRect(),art=c.upperCanvasEl.getBoundingClientRect();
+              const scaleX=art.width/c.getWidth(),scaleY=art.height/c.getHeight();
+              const offset=c._offset;
+              const x=art.left+(parseFloat(position.left)-offset.left)*scaleX-bounds.left;
+              const y=art.top+(parseFloat(position.top)-offset.top)*scaleY-bounds.top;
+              return {...position,left:`${host.scrollLeft+Math.max(1,Math.min(x,host.clientWidth-2))}px`,top:`${host.scrollTop+Math.max(1,Math.min(y,host.clientHeight-2))}px`,fontSize:`${position.charHeight*scaleY}px`,charHeight:position.charHeight*scaleY};
+            };
+          }
+        }
         if(obj instanceof fabric.Group)obj.getObjects().forEach(bind);
       };
       bind(target);
+      if(pickAllLayers){installConnectorControls(target,()=>zoomRef.current);resizeConnectorHandles(c,zoomRef.current);}
     };
     c.on('object:added',bindTextInput);
     c.on('text:editing:entered',({target})=>{
@@ -192,6 +211,15 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     c.on('selection:updated', refreshActive);
     c.on('selection:cleared', () => setActiveObject(null));
 
+    if(pickAllLayers){
+      const follow=({target}:{target:fabric.Object})=>syncCanvasConnections(c,target);
+      c.on('object:moving',follow);c.on('object:scaling',follow);c.on('object:rotating',follow);c.on('text:changed',follow);
+      c.on('object:modified',({target,action})=>{
+        const o=target as fabric.Object&{beeConnector?:{manual?:boolean}};
+        if(o.beeConnector&&action==='drag')o.beeConnector.manual=true;
+        else syncCanvasConnections(c,target);
+      });
+    }
     const onChange_ = () => {
       if (mutatingRef.current) return;
       pushHistory();
@@ -315,7 +343,7 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
   const addLine = useCallback(() => {
     const c = fabricRef.current;
     if (!c) return;
-    c.add(new fabric.Line([width * 0.2, height * 0.5, width * 0.8, height * 0.5], { stroke: '#2D4A5C', strokeWidth: 4 }));
+    c.add(new fabric.Path(`M ${width*.2} ${height*.5} L ${width*.8} ${height*.5}`, { fill:'',stroke: '#2D4A5C', strokeWidth: 4 }));
     c.requestRenderAll();
   }, [width, height]);
 
@@ -388,14 +416,35 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     notify();
   }, [pushHistory, notify]);
 
-  const deleteActive = useCallback(() => {
-    const c = fabricRef.current;
-    const obj = c?.getActiveObject();
-    if (!c || !obj) return;
-    c.remove(obj);
-    c.discardActiveObject();
-    c.requestRenderAll();
-  }, []);
+  const editSelection = useCallback((operation:'left'|'center'|'right'|'top'|'middle'|'bottom'|'horizontal'|'vertical'|'group'|'ungroup'|'delete') => {
+    const c=fabricRef.current;if(!c)return;
+    const active=c.getActiveObject(),selected=c.getActiveObjects();if(!active||!selected.length)return;
+    mutatingRef.current=true;
+    try{
+      c.discardActiveObject();
+      let next=selected;
+      if(operation==='delete'){selected.forEach(o=>c.remove(o));next=[];}
+      else if(operation==='group'&&selected.length>1&&selected.every(o=>!o.group)){
+        selected.forEach(o=>c.remove(o));const group=new fabric.Group(selected,{subTargetCheck:true,interactive:true});c.add(group);next=[group];
+      }else if(operation==='ungroup'&&active instanceof fabric.Group&&!(active instanceof fabric.ActiveSelection)){
+        const children=active.remove(...active.getObjects());c.remove(active);children.forEach(o=>{c.add(o);o.setCoords();});next=children;
+      }else if(!['group','ungroup'].includes(operation)){
+        const horizontal=['left','center','right','horizontal'].includes(operation),pos=horizontal?'left':'top',size=horizontal?'width':'height';
+        const boxes=selected.map(o=>({o,b:o.getBoundingRect()}));
+        const start=selected.length===1?0:Math.min(...boxes.map(x=>x.b[pos]));
+        const end=selected.length===1?(horizontal?width:height):Math.max(...boxes.map(x=>x.b[pos]+x.b[size]));
+        const move=(o:fabric.Object,delta:number)=>{const p=o.getXY();o.setXY(new fabric.Point(p.x+(horizontal?delta:0),p.y+(horizontal?0:delta)));o.setCoords();};
+        if(operation==='horizontal'||operation==='vertical'){
+          if(boxes.length>=3){boxes.sort((a,b)=>a.b[pos]-b.b[pos]);const gap=(end-start-boxes.reduce((sum,x)=>sum+x.b[size],0))/(boxes.length-1);if(gap>=0){let at=start;boxes.forEach(({o,b})=>{move(o,at-b[pos]);at+=b[size]+gap;});}}
+        }else boxes.forEach(({o,b})=>{const at=operation==='left'||operation==='top'?start:operation==='right'||operation==='bottom'?end-b[size]:(start+end-b[size])/2;move(o,at-b[pos]);});
+        if(pickAllLayers)selected.forEach(o=>syncCanvasConnections(c,o));
+      }
+      if(next.length===1)c.setActiveObject(next[0]);else if(next.length>1)c.setActiveObject(new fabric.ActiveSelection(next,{canvas:c}));
+      setActiveObject(c.getActiveObject()??null);c.requestRenderAll();
+    }finally{mutatingRef.current=false;}
+    pushHistory();notify();bump();
+  },[width,height,pickAllLayers,pushHistory,notify,bump]);
+  const deleteActive = useCallback(() => editSelection('delete'),[editSelection]);
 
   const updateActive = useCallback((patch: Record<string, unknown>) => {
     const c = fabricRef.current;
@@ -403,10 +452,11 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     if (!c || !obj) return;
     obj.set(patch);
     obj.setCoords();
+    if(pickAllLayers)syncCanvasConnections(c,obj);
     c.requestRenderAll();
     c.fire('object:modified', { target: obj });
     bump();
-  }, [bump]);
+  }, [bump,pickAllLayers]);
 
   // Aplica/remove um filtro de cor na Image ativa (BlendColor mode tint).
   // Util pra tingir a espiral Bee (PNG honey) em outras cores.
@@ -485,12 +535,12 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     const expected = (json as { objects?: unknown[] }).objects?.length ?? 0;
     let failure: unknown;
     try {
-      await c.loadFromJSON(json);
+      await c.loadFromJSON(pickAllLayers?normalizeEditorLines(json):json);
       // HARDENING anti-tela-branca: às vezes o loadFromJSON resolve com 0 objetos
       // (hidratação intermitente, mais comum no dev/StrictMode) — tenta 1x de novo.
       if (expected > 0 && c.getObjects().length === 0) {
         console.warn('[useEditor] loadFromJSON carregou 0 objetos — retry');
-        await c.loadFromJSON(json);
+        await c.loadFromJSON(pickAllLayers?normalizeEditorLines(json):json);
       }
     } catch (e) {
       failure=e;
@@ -508,7 +558,7 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     if(options.strict&&(failure||c.getObjects().length!==expected))throw new Error('A arte não carregou por completo. Reabra a página para editar sem perder elementos.');
     pushHistory();
     notify();
-  }, [pushHistory, notify]);
+  }, [pushHistory, notify,pickAllLayers]);
 
   // Serializa incluindo as props custom (name/beeSlot) — nunca use toJSON().
   const toJson = useCallback((): object => {
@@ -553,6 +603,8 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     setActiveObject(obj);
   }, []);
 
+  useEffect(()=>{if(pickAllLayers&&fabricRef.current)resizeConnectorHandles(fabricRef.current,zoom);},[zoom,pickAllLayers,canvasEpoch]);
+
   const exportPng = useCallback((multiplier = 2): string | null => {
     const c = fabricRef.current;
     if (!c) return null;
@@ -591,6 +643,9 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     replaceActiveImage,
     setBackground,
     deleteActive,
+    editSelection,
+    selectedCount: fabricRef.current?.getActiveObjects().length??0,
+    activeIsGroup: activeObject instanceof fabric.Group&&!(activeObject instanceof fabric.ActiveSelection),
     updateActive,
     tintActiveImage,
     moveLayer,

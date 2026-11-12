@@ -4,6 +4,7 @@ import {seedAccounts,seedCampaign,seedValidatedContents,seedIdentityBrand} from 
 import {e2eUser} from './helpers/env';
 import {createTenant,deleteTenant,loginAs} from './helpers/tenant';
 import {mockEdge,mockProduction} from './helpers/mocks';
+import {legacyDiagram} from './helpers/diagram-fixture';
 import {sequenceReviewSnapshot} from '../src/lib/sequence/visual-state';
 import type {PostUnit,UserPost} from '../src/types';
 
@@ -70,6 +71,69 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect(editorial).toHaveLength(1);
     await page.getByRole('button',{name:/Seguir para a agenda/}).click();
     await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
+  });
+  test('organização local do diagrama preserva conteúdo, mostra prévia e permite mover pontas sem redimensionar a linha',async({page})=>{
+    test.setTimeout(300000);
+    const f=await setup(),user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
+    await mockProduction(page);
+    const [cycle]=await sql<{updated_at:string}>(`select updated_at from campaign_cycles where id='${f.cycle}'`);
+    const [base]=await sql<{body:object}>(`select body from contents where id='${f.base.contentId}'`);
+    expect((await client.rpc('approve_cycle_production',{p_cycle:f.cycle,p_command:crypto.randomUUID(),p_expected_updated:cycle.updated_at,p_bases:[{id:f.base.contentId,body:base.body}],p_items:[{content_id:f.base.contentId,platform:'instagram',format:'carousel',approach:'Diagrama sintético para edição',purpose:'Validar a revisão',template_family:'M01',editorial_slug:'diagnostico-sistemico'}],p_replace:[]})).status).toBe(200);
+    const [plan]=await sql<{id:string}>(`select id from content_piece_plans where cycle_id='${f.cycle}'`);
+    const reserved=await client.rpc<{claim:string;piece:{id:string}}>('reserve_production_piece',{p_plan:plan.id});const pid=reserved.data.piece.id;
+    expect((await client.rpc('save_production_progress',{p_plan:plan.id,p_claim:reserved.data.claim,p_done:true,p_patch:{caption:'Legenda que não muda.'},p_units:[{layout:'cover',title:'Título do diagrama',body:''},{layout:'text',title:'Outra página',body:'Preservar integralmente.'}]})).status).toBe(200);
+    await page.goto(`/producao?campaign=${f.camp.id}&cycle=${f.cycle}`);
+    await expect(page.getByTestId('unit-status')).toHaveText('Pronta para revisar',{timeout:120000});
+    let units=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
+    expect((await client.rest(`/post_units?id=eq.${units[0].id}`,{method:'PATCH',body:JSON.stringify({fabric_json:legacyDiagram(),assets:{...units[0].assets,variant:'M03-B',manual_canvas:true}})})).status).toBe(204);
+    await page.reload();await expect(page.getByTestId('unit-status')).toHaveText('Pronta para revisar',{timeout:60000});
+    units=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
+    await page.getByRole('button',{name:'Revisar peça',exact:true}).click();
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    const dialog=page.getByRole('dialog');await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
+    const art=dialog.locator('canvas.upper-canvas');
+    const point=async(x:number,y:number)=>{await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    let selectionPoint=await point(300,150);await page.mouse.click(selectionPoint.x,selectionPoint.y);
+    await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Título do diagrama');
+    selectionPoint=await point(400,1238);await page.keyboard.down('Shift');await page.mouse.click(selectionPoint.x,selectionPoint.y);await page.keyboard.up('Shift');
+    try{await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');}catch(error){throw new Error('Seleção múltipla '+JSON.stringify({point:selectionPoint,canvas:await art.boundingBox(),hit:await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.outerHTML.slice(0,250),selectionPoint),selected:await dialog.getByTestId('editor-selected-type').allTextContents()})+' '+String(error));}
+    await dialog.getByRole('button',{name:'Agrupar',exact:true}).click();await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Grupo');
+    await dialog.getByRole('button',{name:'Desagrupar',exact:true}).click();await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');
+    await dialog.getByRole('button',{name:'Desfazer (Cmd+Z)',exact:true}).click();
+    await dialog.getByRole('button',{name:'Refazer',exact:true}).click();
+    await expect(dialog.getByRole('button',{name:'Texto principal',exact:true})).toBeVisible();
+    await expect(dialog.getByRole('button',{name:'Ajustar com a Hive',exact:true})).toHaveCount(0);
+    const visualCalls:string[]=[];page.on('request',request=>{if(request.url().includes('/functions/v1/sequence-visual-adjust'))visualCalls.push(request.url());});
+    await dialog.getByRole('button',{name:'Organizar diagrama',exact:true}).click();
+    await expect(dialog.getByTestId('page-edit-candidate')).toBeVisible({timeout:60000});
+    expect((await sql<PostUnit>(`select * from post_units where id='${units[0].id}'`))[0]).toEqual(units[0]);
+    expect(visualCalls).toHaveLength(0);
+    await dialog.getByRole('button',{name:'Descartar proposta',exact:true}).click();
+    await expect(dialog.getByTestId('sequence-page-canvas')).toBeVisible();
+    await dialog.getByRole('button',{name:'Organizar diagrama',exact:true}).click();
+    await expect(dialog.getByRole('img',{name:'Visual proposto'})).toBeVisible({timeout:60000});
+    await dialog.getByRole('button',{name:'Aplicar nesta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
+    const after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
+    expect(after[1]).toEqual(units[1]);expect(after[0].title).toBe(units[0].title);expect(after[0].body).toBe(units[0].body);
+    expect(after[0].rendered_url).not.toBe(units[0].rendered_url);
+    expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe('Legenda que não muda.');
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
+    // O primeiro segmento do conector é horizontal; seleciona pelo traço e arrasta só a ponta final.
+    const json=after[0].fabric_json as {objects:Array<Record<string,unknown>>};
+    const connector=json.objects.find(o=>o.name==='diagram-connector-0')!;
+    const points=connector.path as Array<[string,number,number]>;
+    let pt=await point((points[0][1]+points[1][1])/2,points[0][2]);await page.mouse.click(pt.x,pt.y);
+    try{await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');}catch(error){throw new Error('Seleção de ligação '+JSON.stringify({p:[Math.round(pt.x),Math.round(pt.y)],selected:await dialog.getByTestId('editor-selected-type').allTextContents(),hit:await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.tagName,pt),canvas:await art.boundingBox()})+' '+String(error));}
+    const end=points.at(-1)!;pt=await point(end[1],end[2]);
+    await page.mouse.move(pt.x,pt.y);await page.mouse.down();await page.mouse.move(pt.x+35,pt.y+22,{steps:6});await page.mouse.up();
+    await dialog.getByRole('button',{name:'Salvar esta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
+    const [moved]=await sql<PostUnit>(`select * from post_units where id='${after[0].id}'`);
+    const movedConnector=(moved.fabric_json as typeof json).objects.find(o=>o.name==='diagram-connector-0')!;
+    expect(movedConnector.path).not.toEqual(points);expect((movedConnector.beeConnector as {manual:boolean}).manual).toBe(true);
+    const movedPoints=movedConnector.path as Array<[string,number,number]>;
+    expect(movedPoints[0]).toEqual(points[0]);expect(movedPoints[1]).toEqual(points[1]);
+    expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
   });
   test('contratos autenticados: uma base gera imagem/carrossel/Stories; entregas preservam o material e exigem reconfirmação de conta',async()=>{
     test.setTimeout(180000);
@@ -203,7 +267,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     // Mouse real no canvas escalado: não selecionar a camada pelo menu lateral.
     await expect(dialog.getByRole('button',{name:'Título da página',exact:true})).toBeVisible();
     const art=dialog.locator('canvas.upper-canvas');
-    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    const point=async(x:number,y:number)=>{await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
     const json=before[1].fabric_json as {objects:Array<{name?:string;left:number;top:number;width:number;fontSize?:number}>};
     const title=json.objects.find(o=>o.name==='unit-title')!;
     let pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);
@@ -230,7 +294,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const rule=json.objects.find(o=>o.name==='page-rule')!;
     pt=await point(rule.left+rule.width*.25,rule.top+1.5);
     await page.mouse.click(pt.x,pt.y);
-    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    try{await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');}catch(error){throw new Error('Seleção da forma '+JSON.stringify({point:pt,canvas:await art.boundingBox(),hit:await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.outerHTML.slice(0,250),pt),selected:await dialog.getByTestId('editor-selected-type').allTextContents()})+' '+String(error));}
     // Seleção pode recalibrar a área do editor; mede novamente e arrasta para
     // longe dos alinhamentos existentes, sem contrariar o snap das guias.
     // Em uma linha fina, o meio coincide com a alça de redimensionar; pega fora dela.
@@ -238,11 +302,13 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const dragBox=await art.boundingBox();if(!dragBox)throw new Error('Arte não visível');
     // MouseEvent usa pixels de tela inteiros. Deriva a posição exata a partir
     // desse deslocamento, em vez de arredondar dois pontos de cena separados.
+    // No zoom atual, 130 px aproxima a borda da régua do centro da página e
+    // aciona o snap. 90 px mantém suas três âncoras longe das guias existentes.
     const start={x:Math.round(pt.x),y:Math.round(pt.y)};
-    const expectedLeft=rule.left+100*1080/dragBox.width;
+    const expectedLeft=rule.left+90*1080/dragBox.width;
     const expectedTop=rule.top+26*1350/dragBox.height;
     await page.mouse.move(start.x,start.y);await page.mouse.down();
-    await page.mouse.move(start.x+100,start.y+26,{steps:8});await page.mouse.up();
+    await page.mouse.move(start.x+90,start.y+26,{steps:8});await page.mouse.up();
     await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
     await expect(dialog.getByRole('spinbutton',{name:'Posição X',exact:true})).toHaveValue(String(Math.round(expectedLeft)));
     // Camadas sobrepostas: clique normal seleciona o topo; Alt + clique percorre.

@@ -53,7 +53,7 @@ export function ElementsPanel({ api }: { api: EditorApi }) {
     const w = c.getWidth() ?? 1080;
     const h = c.getHeight() ?? 1350;
     if (kind === 'thin' || kind === 'thick') {
-      const line = new fabric.Line([w * 0.2, h / 2, w * 0.8, h / 2], {
+      const line = new fabric.Path(`M ${w*.2} ${h/2} L ${w*.8} ${h/2}`, {fill:'',
         stroke: '#2D4A5C',
         strokeWidth: kind === 'thin' ? 2 : 8,
       });

@@ -14,6 +14,7 @@
 // NÃO altera o texto (EDITORIAL_LOCKED). Feed 1080x1350 (IG + LinkedIn).
 
 import { layoutText } from '@/lib/templates/layout';
+import { organizeLayerDiagram } from './diagramConnections';
 import type { M01Recipe, DesignLayer } from './composeM01';
 
 const FONT_SERIF = 'Playfair Display';
@@ -180,17 +181,17 @@ export function composeM03(input: ComposeM03Input): ComposedSlide {
     const fills = onDark
       ? ['rgba(239,232,219,0.06)', 'rgba(239,232,219,0.11)', 'rgba(239,232,219,0.18)', 'rgba(239,232,219,0.28)']
       : ['rgba(28,46,74,0.06)', 'rgba(28,46,74,0.11)', 'rgba(28,46,74,0.18)', 'rgba(28,46,74,0.28)'];
-    radii.forEach((rr, i) => objects.push(circle(cx, cy, rr, fills[i], onDark ? 'rgba(239,232,219,0.18)' : 'rgba(28,46,74,0.18)', 1)));
-    objects.push(circle(cx, cy, R * 0.07, laranja)); // núcleo (essência)
+    radii.forEach((rr, i) => objects.push({...circle(cx, cy, rr, fills[i], onDark ? 'rgba(239,232,219,0.18)' : 'rgba(28,46,74,0.18)', 1),name:`diagram-ring-${i}`}));
+    objects.push({...circle(cx, cy, R * 0.07, laranja),name:'diagram-core'}); // núcleo (essência)
     // rótulos à direita, com conector até a borda de cada anel
     const items = data.layers ?? [];
     const lx = pctW(60);
     items.forEach((it, i) => {
       const ly = cy - R * 0.66 + i * (R * 0.62);
       const ringR = radii[i];
-      objects.push(line(cx + ringR, cy - ringR * 0.35 + i * 4, lx - pctW(2), ly + Math.round(W * 0.02), onDark ? 'rgba(239,232,219,0.35)' : 'rgba(28,46,74,0.3)', 1.2));
-      objects.push(label(it.nome, lx, ly, pctW(34), Math.round(W * 0.026), inkTitle, 'left', '600'));
-      objects.push(label(it.desc, lx, ly + Math.round(W * 0.03), pctW(34), Math.round(W * 0.019), mutedBody, 'left'));
+      objects.push({...line(cx + ringR, cy - ringR * 0.35 + i * 4, lx - pctW(2), ly + Math.round(W * 0.02), onDark ? 'rgba(239,232,219,0.35)' : 'rgba(28,46,74,0.3)', 1.2),name:`diagram-connector-${i}`,beeConnector:{from:i===3?'diagram-core':`diagram-ring-${i}`,to:`diagram-label-${i}`,angle:[-55,-20,0,65][i],lane:i,route:'elbow'}});
+      objects.push({...label(it.nome, lx, ly, pctW(34), Math.round(W * 0.026), inkTitle, 'left', '600'),name:`diagram-label-${i}`});
+      objects.push({...label(it.desc, lx, ly + Math.round(W * 0.03), pctW(34), Math.round(W * 0.019), mutedBody, 'left'),name:`diagram-description-${i}`});
     });
   }
 
@@ -275,5 +276,5 @@ export function composeM03(input: ComposeM03Input): ComposedSlide {
     fill: onDark ? creme : azul, textAlign: 'center', charSpacing: 360, name: 'signature', selectable: false,
   });
 
-  return { version: '6.0.0', background, objects };
+  return kind==='camadas'&&data.layers?.length===4?organizeLayerDiagram({version:'6.0.0',background,objects},W,H,'M03-B') as ComposedSlide:{ version: '6.0.0', background, objects };
 }

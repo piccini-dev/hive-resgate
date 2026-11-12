@@ -54,6 +54,11 @@ function layerName(o: fabric.Object): string {
     case 'signature': return 'Assinatura';
     default: break;
   }
+  if(raw?.startsWith('diagram-connector-'))return `Ligação ${Number(raw.split('-').at(-1))+1}`;
+  if(raw?.startsWith('diagram-label-'))return `Rótulo ${Number(raw.split('-').at(-1))+1}`;
+  if(raw?.startsWith('diagram-description-'))return `Descrição ${Number(raw.split('-').at(-1))+1}`;
+  if(raw?.startsWith('diagram-ring-'))return `Camada ${Number(raw.split('-').at(-1))+1}`;
+  if(raw==='diagram-core')return 'Núcleo';
   if (raw && raw.trim()) return raw;
   return prettyType(o.type);
 }

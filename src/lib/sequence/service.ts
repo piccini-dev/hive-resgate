@@ -5,6 +5,8 @@
 // CANDIDATOS (apply_unit_candidate valida escopo e preservação no banco); aprovação final só com a
 // sequência completa (approve_sequence); exportação = o MESMO pacote aprovado (versão).
 import JSZip from 'jszip';
+import { organizeLayerDiagram } from '@/lib/hive/diagramConnections';
+import type { EditorSnapshot } from '@/lib/editorSnapshot';
 import { jsPDF } from 'jspdf';
 import { db } from '@/lib/db';
 import { needsSequenceRender, sequenceReviewSnapshot } from './visual-state';
@@ -288,16 +290,25 @@ export async function proposeSequenceText(post:UserPost,units:PostUnit[],texts:A
 
 // Edição na arte usa o mesmo contrato de candidatos: uma página, versão esperada,
 // histórico e aprovação invalidada. Nenhuma gravação paralela em rendered_slides.
-export async function savePageCanvas(post: UserPost, unit: PostUnit, state: {fabricJson:object;dataUrl:string}): Promise<UserPost> {
-  if(['scheduled','published'].includes(post.status))throw new Error('Este material já está na agenda ou publicado. Abra o fluxo específico de revisão para alterá-lo.');
+async function prepareCanvasCandidate(post:UserPost,unit:PostUnit,state:EditorSnapshot,instruction:string,impact:string):Promise<UnitCandidate>{
+  if(['scheduled','published','archived'].includes(post.status))throw new Error('Este material já está na agenda, publicado ou arquivado. Abra o fluxo específico de revisão para alterá-lo.');
   const text=pageTextFromCanvas(state.fabricJson,unit);
-  if(!state.dataUrl)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');
   const canvas=post.format==='story'?{width:1080,height:1920}:{width:1080,height:1350};
   const jpeg=await renderFabricToDataUrl(state.fabricJson,{...canvas,format:'jpeg'});
-  if(!jpeg)throw new Error('Não foi possível finalizar a arte com todos os elementos. Reabra a página e tente salvar novamente.');
+  if(!jpeg)throw new Error('Não foi possível finalizar a arte com todos os elementos. Reabra a página e tente novamente.');
   const {publicUrl}=await uploadAssetImage({immutable:true,userId:post.user_id,assetId:post.id,dataUrl:jpeg,filename:`unit-${unit.id}-edit-${crypto.randomUUID()}.jpg`});
-  const candidate=await insertCandidate(post,{action:'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:['text','visual'],instruction:'Edição direta na arte',proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact:'Somente esta página muda. Revise a nova versão antes de aprovar.'});
-  return applyUnitCandidate(candidate);
+  return insertCandidate(post,{action:'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:['text','visual'],instruction,proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact});
+}
+export async function savePageCanvas(post:UserPost,unit:PostUnit,state:EditorSnapshot):Promise<UserPost>{
+  if(!state.dataUrl)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');
+  return applyUnitCandidate(await prepareCanvasCandidate(post,unit,state,'Edição direta na arte','Somente esta página muda. Revise a nova versão antes de aprovar.'));
+}
+
+/** Organização geométrica local: nenhuma chamada de IA e nenhuma mudança antes da prévia. */
+export async function proposeDiagramOrganization(post:UserPost,unit:PostUnit,state:EditorSnapshot):Promise<UnitCandidate>{
+  const width=1080,height=post.format==='story'?1920:1350;
+  const fabricJson=organizeLayerDiagram(state.fabricJson,width,height,unit.assets?.variant as string|undefined);
+  return prepareCanvasCandidate(post,unit,{...state,fabricJson},'Organizar este diagrama de camadas','Rótulos alinhados e conexões reorganizadas, preservando as palavras e os círculos. Confira a prévia. Outras páginas, fotografias e legenda serão preservadas.');
 }
 
 export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro'}):Promise<UnitCandidate>{
