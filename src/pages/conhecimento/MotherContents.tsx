@@ -88,8 +88,8 @@ export function MotherContents() {
       <Button variant="ghost" disabled={busy} onClick={() => { setCurrent(null); setParams({}); }}>Voltar ao acervo</Button>
       <h2 className="font-display text-xl font-semibold">{current.title}</h2>
       <p className="text-xs text-muted-foreground">{current.status === 'validated' ? 'Validado' : 'Rascunho · aguardando validação'}</p>
-      {body ? <><label className="block space-y-1 text-sm">Síntese<Textarea value={body.frase ?? ''} disabled={busy} onChange={e => setBody({ ...body, frase: e.target.value })}/></label>
-        <label className="block space-y-1 text-sm">Desenvolvimento<Textarea rows={16} value={body.texto ?? ''} disabled={busy} onChange={e => setBody({ ...body, texto: e.target.value })}/></label>
+      {body ? <><div className="space-y-1 text-sm"><label htmlFor="mother-summary">Síntese</label><Textarea id="mother-summary" value={body.frase ?? ''} disabled={busy} onChange={e => setBody({ ...body, frase: e.target.value })}/></div>
+        <div className="space-y-1 text-sm"><label htmlFor="mother-development">Desenvolvimento</label><Textarea id="mother-development" rows={16} value={body.texto ?? ''} disabled={busy} onChange={e => setBody({ ...body, texto: e.target.value })}/></div>
         <Button disabled={busy || !body.texto?.trim()} onClick={() => void act(() => save(body))}>Salvar rascunho</Button><Button variant="ghost" disabled={busy} onClick={() => setBody(null)}>Cancelar edição</Button></> : <>
         <p className="font-semibold">{current.body.frase}</p><p className="whitespace-pre-wrap leading-relaxed">{current.body.texto}</p>
         <Button variant="outline" disabled={busy} onClick={() => setBody({ ...current.body })}>Editar conteúdo mãe</Button>
