@@ -25,20 +25,22 @@ export function MotherContents() {
   const [creating, setCreating] = useState(false), [title, setTitle] = useState(''), [summary, setSummary] = useState('');
   const [instruction, setInstruction] = useState(''), [profile, setProfile] = useState<string | null>(null);
   const [history, setHistory] = useState<BaseVersion[]>([]), [uses, setUses] = useState<Array<{ campaign_id: string; version_id: string }>>([]);
+  const [campaignNames, setCampaignNames] = useState<Record<string, string>>({});
   async function load() { setFailed(false); try { setEntries(await baseApi.catalog()); } catch { setFailed(true); } }
-  useEffect(() => { void load(); void identityApi.profiles().then(ps => setProfile(ps.find(p => p.is_default)?.id ?? ps[0]?.id ?? null)).catch(() => {}); }, []);
+  useEffect(() => { void load(); void identityApi.profiles().then(ps => setProfile(current => current ?? ps.find(p => p.is_default)?.id ?? ps[0]?.id ?? null)).catch(() => {}); }, []);
   async function act(fn: () => Promise<void>) { if (busy) return; setBusy(true); try { await fn(); } catch(e) { toast.error((e as Error).message); } finally { setBusy(false); } }
   async function open(content: Content) {
-    const [versions, usages, container] = await Promise.all([
+    const [versions, usages, container, campaigns] = await Promise.all([
       db.select<BaseVersion>('content_base_versions', { content_id: `eq.${content.id}`, order: 'ordinal.desc' }),
       db.select<{ campaign_id: string; version_id: string }>('content_base_uses', { content_id: `eq.${content.id}`, select: 'campaign_id,version_id' }),
       campaignApi.getAvulso(),
+      campaignApi.list(),
     ]);
     const cycles = container ? await cycleApi.listByCampaign(container.id) : [];
     const workspaceIds = new Set(cycles.map(c => c.id));
     const draft = versions.find(v => v.status === 'draft' && v.draft_cycle_id && workspaceIds.has(v.draft_cycle_id));
     const working = draft ? (await baseApi.listByCycle(draft.draft_cycle_id!)).find(c => c.id === content.id) ?? content : content;
-    setCurrent(working); setBody(null); setInstruction(''); setHistory(versions); setUses(usages); setCreating(false);
+    setCurrent(working); setBody(null); setInstruction(''); setHistory(versions); setUses(usages.filter(u => campaigns.some(c => c.id === u.campaign_id))); setCampaignNames(Object.fromEntries(campaigns.map(c => [c.id, c.name]))); setCreating(false);
     setParams({ content: content.id }, { replace: true });
   }
   useEffect(() => {
@@ -102,8 +104,9 @@ export function MotherContents() {
           })}><Sparkles className="h-4 w-4"/>Propor aprofundamento</Button></div></details>
         {current.status !== 'validated' && <Button variant="accent" disabled={busy} onClick={() => void act(async () => { const c = await baseApi.validate(current); setCurrent(c); await load(); await open(c); toast.success('Conteúdo mãe validado. Nenhum post foi criado.'); })}>Validar conteúdo mãe</Button>}
       </>}
-      <details className="border-t pt-3"><summary className="cursor-pointer text-sm">Histórico e utilizações</summary><p className="mt-2 text-sm">{history.filter(v => v.status === 'validated').length} versões validadas · {new Set(uses.map(u => u.campaign_id)).size} contextos de utilização.</p>
-        <ul className="mt-2 space-y-2 text-xs">{history.filter(v => v.status === 'validated').map(v => <li key={v.id}>Versão {v.ordinal} · {v.validated_at ? new Date(v.validated_at).toLocaleDateString('pt-BR') : ''}<p className="text-muted-foreground">{v.body.frase}</p></li>)}</ul></details>
+      <details className="border-t pt-3"><summary className="cursor-pointer text-sm">Histórico e utilizações</summary><p className="mt-2 text-sm">{history.filter(v => v.status === 'validated').length} versões validadas · {new Set(uses.map(u => u.campaign_id)).size} campanhas.</p>
+        <ul className="mt-2 space-y-2 text-xs">{history.filter(v => v.status === 'validated').map(v => <li key={v.id}>Versão {v.ordinal} · {v.validated_at ? new Date(v.validated_at).toLocaleDateString('pt-BR') : ''}<p className="text-muted-foreground">{v.body.frase}</p></li>)}</ul>
+        <ul className="mt-3 space-y-2 text-xs">{[...new Set(uses.map(u => u.campaign_id))].map(id => <li key={id}><Link className="underline" to={`/campanhas/${id}`}>{campaignNames[id]}</Link> · versões {uses.filter(u => u.campaign_id === id).map(u => history.find(v => v.id === u.version_id)?.ordinal).filter(Boolean).filter((v,i,all) => all.indexOf(v) === i).join(', ')}</li>)}</ul></details>
     </section> : <div className="grid gap-3 md:grid-cols-2">{entries === null ? <Loader2 className="h-5 w-5 animate-spin"/> : entries.length === 0 ? <p className="text-sm text-muted-foreground">Seu acervo está pronto para receber o primeiro conteúdo mãe.</p> : entries.map(({content,version}) => <button key={content.id} disabled={busy} className="space-y-2 rounded-xl border bg-card p-4 text-left hover:border-accent" data-testid="mother-card" onClick={() => void act(() => open(content))}>
       <p className="font-semibold">{content.title}</p><p className="text-xs text-muted-foreground">{version ? `Validado · versão ${version.ordinal}` : 'Em elaboração'}</p><p className="line-clamp-3 text-sm text-muted-foreground">{version?.body.frase ?? content.body.frase}</p></button>)}</div>}
   </div>;
