@@ -37,6 +37,8 @@ O Marcos pediu para suspender o novo recurso “Ajustar com a Hive”. O trabalh
 28. O editor ocupa o espaço restante da janela, mantendo a arte inteira acessível em vez de exceder a altura do modal.
 29. O campo invisível de digitação usa coordenadas locais com o zoom aplicado, evitando rolagem indevida durante a edição do texto.
 
+30. O editor mostra “Preparando arte” até as fontes, o carregamento e a posição do canvas estarem estáveis. A abertura desta janela não anima o zoom, evitando cliques em coordenadas que ainda estão mudando.
+
 ## Limites
 
 Não é uma reprodução completa do Canva. A organização automática reconhece M03-B; outros desenhos mantêm a edição direta dos elementos. Setas com ponta desenhada como objeto independente continuam com componentes selecionáveis separadamente. Grupos/desenhos transformados podem exigir ajuste manual; o acompanhamento semântico contempla os elementos individuais do diagrama.

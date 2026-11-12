@@ -92,7 +92,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
     const dialog=page.getByRole('dialog');await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
     const art=dialog.locator('canvas.upper-canvas');
-    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    const point=async(x:number,y:number)=>{await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
     let selectionPoint=await point(300,150);await page.mouse.click(selectionPoint.x,selectionPoint.y);
     await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Título do diagrama');
     selectionPoint=await point(400,1238);await page.keyboard.down('Shift');await page.mouse.click(selectionPoint.x,selectionPoint.y);await page.keyboard.up('Shift');
@@ -124,7 +124,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const connector=json.objects.find(o=>o.name==='diagram-connector-0')!;
     const points=connector.path as Array<[string,number,number]>;
     let pt=await point((points[0][1]+points[1][1])/2,points[0][2]);await page.mouse.click(pt.x,pt.y);
-    try{await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');}catch(error){throw new Error('Seleção de ligação '+JSON.stringify({connector,point:pt,canvas:await art.boundingBox(),selected:await dialog.getByTestId('editor-selected-type').allTextContents()})+' '+String(error));}
+    try{await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Forma');}catch(error){throw new Error('Seleção de ligação '+JSON.stringify({p:[Math.round(pt.x),Math.round(pt.y)],selected:await dialog.getByTestId('editor-selected-type').allTextContents(),hit:await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.tagName,pt),canvas:await art.boundingBox()})+' '+String(error));}
     const end=points.at(-1)!;pt=await point(end[1],end[2]);
     await page.mouse.move(pt.x,pt.y);await page.mouse.down();await page.mouse.move(pt.x+35,pt.y+22,{steps:6});await page.mouse.up();
     await dialog.getByRole('button',{name:'Salvar esta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
@@ -267,7 +267,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     // Mouse real no canvas escalado: não selecionar a camada pelo menu lateral.
     await expect(dialog.getByRole('button',{name:'Título da página',exact:true})).toBeVisible();
     const art=dialog.locator('canvas.upper-canvas');
-    const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
+    const point=async(x:number,y:number)=>{await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
     const json=before[1].fabric_json as {objects:Array<{name?:string;left:number;top:number;width:number;fontSize?:number}>};
     const title=json.objects.find(o=>o.name==='unit-title')!;
     let pt=await point(title.left+title.width*.25,title.top+(title.fontSize??50)*.5);

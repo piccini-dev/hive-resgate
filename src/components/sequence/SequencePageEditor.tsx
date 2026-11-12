@@ -69,7 +69,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
   });}
   const proposed=candidate?.proposal?.units?.find(u=>u.id===unit.id);
   return <Dialog open onOpenChange={open=>{if(!open)void close();}}>
-    <DialogContent className={`flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4 ${mode==='canvas'&&!candidate?'h-[94vh]':''}`} onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
+    <DialogContent className={`data-[state=open]:animate-none data-[state=closed]:animate-none flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4 ${mode==='canvas'&&!candidate?'h-[94vh]':''}`} onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
       <DialogTitle>Página {unit.position} · ajustar conteúdo</DialogTitle>
       <DialogDescription>Você altera esta página. As demais páginas e a legenda permanecem preservadas.</DialogDescription>
       <div className="flex flex-wrap gap-2">
