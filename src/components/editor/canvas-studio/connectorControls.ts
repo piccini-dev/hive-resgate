@@ -76,6 +76,9 @@ export function resizeConnectorHandles(canvas:fabric.Canvas,zoom:number):void{
   // Atribuir só a propriedade fazia formas/linhas parecerem transparentes.
   canvas.setTargetFindTolerance(6/Math.max(zoom,.1));
   const visit=(o:fabric.FabricObject)=>{
+    // O Fabric primeiro testa a caixa do objeto e só depois seus pixels.
+    // Traços subpixel precisam da mesma margem nas duas etapas do hit-test.
+    if(o.perPixelTargetFind||openPath(o))o.padding=6/Math.max(zoom,.1);
     if(openPath(o))for(const c of Object.values(o.controls)){c.sizeX=14/zoom;c.sizeY=14/zoom;c.touchSizeX=24/zoom;c.touchSizeY=24/zoom;}
     if(o instanceof fabric.Group)o.getObjects().forEach(visit);o.setCoords();
   };canvas.getObjects().forEach(visit);canvas.requestRenderAll();

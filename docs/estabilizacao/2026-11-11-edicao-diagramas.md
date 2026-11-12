@@ -39,6 +39,9 @@ O Marcos pediu para suspender o novo recurso “Ajustar com a Hive”. O trabalh
 
 30. O editor mostra “Preparando arte” até as fontes, o carregamento e a posição do canvas estarem estáveis. A abertura desta janela não anima o zoom, evitando cliques em coordenadas que ainda estão mudando.
 
+31. Traços finos usam margem de toque também na etapa geométrica de seleção, não só na leitura dos pixels, mantendo cliques precisos com a arte reduzida.
+32. Salvar e Organizar ficam indisponíveis até a arte estar pronta, inclusive após descartar uma prévia e reabrir o editor.
+
 ## Limites
 
 Não é uma reprodução completa do Canva. A organização automática reconhece M03-B; outros desenhos mantêm a edição direta dos elementos. Setas com ponta desenhada como objeto independente continuam com componentes selecionáveis separadamente. Grupos/desenhos transformados podem exigir ajuste manual; o acompanhamento semântico contempla os elementos individuais do diagrama.

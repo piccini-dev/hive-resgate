@@ -28,6 +28,7 @@ export interface CanvasStudioChangeState {
 
 interface CanvasStudioProps {
   snapshotRef?: MutableRefObject<(() => EditorSnapshot | null) | null>;
+  onReadyChange?: (ready:boolean)=>void;
   initialPreset?: string;
   initialFabricJson?: object;
   onBack?: () => void;
@@ -54,6 +55,7 @@ interface CanvasStudioProps {
 
 export function CanvasStudio({
   snapshotRef,
+  onReadyChange,
   initialPreset = 'linkedin-portrait',
   initialFabricJson,
   onBack,
@@ -131,6 +133,11 @@ export function CanvasStudio({
     })().catch((e)=>{if(sequenceMode&&api.fabric.current===canvas)setLoadError((e as Error).message);});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFabricJson, api.canvasEpoch]);
+
+  useEffect(()=>{
+    onReadyChange?.(!sequenceMode||readyEpoch===api.canvasEpoch);
+    return()=>onReadyChange?.(false);
+  },[onReadyChange,sequenceMode,readyEpoch,api.canvasEpoch]);
 
   useEffect(() => {
     if (!snapshotRef) return;
