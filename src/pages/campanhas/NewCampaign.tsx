@@ -399,7 +399,7 @@ export function NewCampaign() {
     const first = result.cycles[0];
     return (
       <WizardShell eyebrow={result.campaign.name} title="Sua campanha começou."
-        subtitle="A Hive vai planejar e desenvolver seus conteúdos em ciclos, ajustando as próximas recomendações conforme aprendemos com os resultados."
+        subtitle="A campanha vai utilizar conteúdos mãe validados do acervo e propor recortes para seus objetivos."
         footer={(
           <>
             <Button variant="accent" size="lg" onClick={() => navigate(`/producao?campaign=${result.campaign.id}&cycle=${first?.id ?? ''}`)}>

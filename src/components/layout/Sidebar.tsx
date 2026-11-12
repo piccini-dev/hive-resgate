@@ -62,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/genesis', label: 'Como escrevo', icon: BrainCircuit },
       { to: '/editoriais', label: 'Editoriais', icon: BookOpen },
       { to: '/conhecimento', label: 'Conhecimento', icon: Database },
+      { to: '/conteudos-mae', label: 'Conteúdos mãe', icon: Layers },
     ],
   },
   {

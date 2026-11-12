@@ -12,6 +12,7 @@ import { Biblioteca } from '@/pages/biblioteca/Biblioteca';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { OnboardingWizard } from '@/pages/onboarding/OnboardingWizard';
 import { KnowledgeBase } from '@/pages/conhecimento/KnowledgeBase';
+import { MotherContents } from '@/pages/conhecimento/MotherContents';
 import { Editoriais } from '@/pages/editoriais/Editoriais';
 import { Curadoria } from '@/pages/curadoria/Curadoria';
 import { Podcasts } from '@/pages/podcasts/Podcasts';
@@ -156,6 +157,7 @@ export default function App() {
           <Route path="linhas" element={<Navigate to="/campanhas" replace />} />
           <Route path="biblioteca" element={<Biblioteca />} />
           <Route path="conhecimento" element={<KnowledgeBase />} />
+          <Route path="conteudos-mae" element={<MotherContents />} />
           <Route path="configuracoes" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

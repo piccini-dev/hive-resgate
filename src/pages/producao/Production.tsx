@@ -11,6 +11,7 @@ import { PlanStep } from '@/components/production/PlanStep';
 import { PautaStep } from '@/components/production/PautaStep';
 import { DevelopStep } from '@/components/production/DevelopStep';
 import { ProductionHub } from '@/components/production/ProductionHub';
+import { CampaignBasePicker } from '@/components/production/CampaignBasePicker';
 import { accountApi, campaignApi, cycleApi, ideaApi } from '@/lib/campaignApi';
 import { beeApi } from '@/lib/api';
 import { isAvulso } from '@/lib/campaign/avulso';
@@ -47,6 +48,7 @@ export function Production() {
   const contentId = params.get('content') ?? undefined;
   const campaign = campaigns?.find((c) => c.id === campaignId) ?? (avulso && avulso.id === campaignId ? avulso : undefined);
   const solo = isAvulso(campaign);
+  const archiveFlow = !solo && (campaign?.metadata?.content_source === 'archive' || params.get('flow') === 'acervo');
   const cycle = cycles.find((c) => c.id === cycleId);
   const rec = useMemo(() => recommendedCycle(cycles), [cycles]);
   const today = new Date().toISOString().slice(0, 10);
@@ -133,8 +135,9 @@ export function Production() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <ProductionStepper current={step} reached={statusStep} onSelect={(i) => { if (!solo || i >= 4) setViewStep(i === statusStep ? null : i); }}
+      {!archiveFlow && <ProductionStepper current={step} reached={statusStep} onSelect={(i) => { if (!solo || i >= 4) setViewStep(i === statusStep ? null : i); }}
         {...(solo ? { steps: ['Ideia', 'Conteúdos-base', 'Criar posts'], offset: 3 } : {})} />
+      }
       <div className="mx-auto grid w-full max-w-7xl flex-1 gap-6 p-4 lg:grid-cols-[340px_1fr] lg:p-6">
         <aside>
           {solo ? (
@@ -158,6 +161,10 @@ export function Production() {
             <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground" data-testid="choose-work">
               {!campaign ? 'Escolha em qual campanha você quer trabalhar (ao lado). A Hive não abre uma campanha por conta própria quando há mais de uma.' : 'Escolha o ciclo para continuar.'}
             </div>
+          ) : archiveFlow && !ADVANCED.includes(cycle.status) ? (
+            <CampaignBasePicker key={cycle.id} campaign={campaign} cycle={cycle} accounts={accounts} onDone={replaceCycle}/>
+          ) : archiveFlow ? (
+            <ProductionHub key={cycle.id} campaign={campaign} cycle={cycle} ideas={ideas} editorials={editorials} accounts={accounts} onCycleChange={replaceCycle}/>
           ) : step === 2 ? (
             <PlanStep key={cycle.id} campaign={campaign} cycle={cycle} accounts={accounts}
               isCurrent={cycle.start_date <= today && today <= cycle.end_date}
