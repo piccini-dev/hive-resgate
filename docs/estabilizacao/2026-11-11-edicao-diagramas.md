@@ -34,6 +34,9 @@ O Marcos pediu para suspender o novo recurso “Ajustar com a Hive”. O trabalh
 26. Páginas agendadas, publicadas ou arquivadas exigem o fluxo específico de revisão. Não há mudança no agendamento, nas contas ou na publicação social.
 27. Variações de receita com outra quantidade de camadas mantêm o compositor anterior. O reparo automático cobre a estrutura padrão de quatro camadas.
 
+28. O editor ocupa o espaço restante da janela, mantendo a arte inteira acessível em vez de exceder a altura do modal.
+29. O campo invisível de digitação usa coordenadas locais com o zoom aplicado, evitando rolagem indevida durante a edição do texto.
+
 ## Limites
 
 Não é uma reprodução completa do Canva. A organização automática reconhece M03-B; outros desenhos mantêm a edição direta dos elementos. Setas com ponta desenhada como objeto independente continuam com componentes selecionáveis separadamente. Grupos/desenhos transformados podem exigir ajuste manual; o acompanhamento semântico contempla os elementos individuais do diagrama.

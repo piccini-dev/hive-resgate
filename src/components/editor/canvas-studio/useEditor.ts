@@ -168,9 +168,28 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
     if(pickAllLayers)attachLayerPicking(c);
     // O teclado do Fabric precisa permanecer dentro do modal (focus trap do Radix).
     // Vale também para texto novo e para undo/redo, que recriam os objetos.
+    const positionedInputs=new WeakSet<fabric.IText>();
     const bindTextInput = ({target}: {target: fabric.Object}) => {
       const bind = (obj: fabric.Object) => {
-        if(obj instanceof fabric.IText)obj.hiddenTextareaContainer=containerRef.current??undefined;
+        if(obj instanceof fabric.IText){
+          obj.hiddenTextareaContainer=containerRef.current??undefined;
+          if(pickAllLayers&&!positionedInputs.has(obj)){
+            positionedInputs.add(obj);
+            const calc=obj._calcTextareaPosition.bind(obj);
+            // O Fabric calcula coordenadas de documento. Dentro do modal e com
+            // zoom CSS, o input precisa de coordenadas locais para não rolar a arte.
+            obj._calcTextareaPosition=()=>{
+              const position=calc(),host=containerRef.current;
+              if(!host||position.charHeight===undefined)return position;
+              const bounds=host.getBoundingClientRect(),art=c.upperCanvasEl.getBoundingClientRect();
+              const scaleX=art.width/c.getWidth(),scaleY=art.height/c.getHeight();
+              const offset=c._offset;
+              const x=art.left+(parseFloat(position.left)-offset.left)*scaleX-bounds.left;
+              const y=art.top+(parseFloat(position.top)-offset.top)*scaleY-bounds.top;
+              return {...position,left:`${host.scrollLeft+Math.max(1,Math.min(x,host.clientWidth-2))}px`,top:`${host.scrollTop+Math.max(1,Math.min(y,host.clientHeight-2))}px`,fontSize:`${position.charHeight*scaleY}px`,charHeight:position.charHeight*scaleY};
+            };
+          }
+        }
         if(obj instanceof fabric.Group)obj.getObjects().forEach(bind);
       };
       bind(target);

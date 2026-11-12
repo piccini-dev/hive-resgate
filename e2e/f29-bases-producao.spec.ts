@@ -94,8 +94,9 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const art=dialog.locator('canvas.upper-canvas');
     const point=async(x:number,y:number)=>{const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
     let selectionPoint=await point(300,150);await page.mouse.click(selectionPoint.x,selectionPoint.y);
+    await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Título do diagrama');
     selectionPoint=await point(400,1238);await page.keyboard.down('Shift');await page.mouse.click(selectionPoint.x,selectionPoint.y);await page.keyboard.up('Shift');
-    await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');
+    try{await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');}catch(error){throw new Error('Seleção múltipla '+JSON.stringify({point:selectionPoint,canvas:await art.boundingBox(),hit:await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.outerHTML.slice(0,250),selectionPoint),selected:await dialog.getByTestId('editor-selected-type').allTextContents()})+' '+String(error));}
     await dialog.getByRole('button',{name:'Agrupar',exact:true}).click();await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Grupo');
     await dialog.getByRole('button',{name:'Desagrupar',exact:true}).click();await expect(dialog.getByTestId('selection-toolbar')).toContainText('2 elementos selecionados');
     await dialog.getByRole('button',{name:'Desfazer (Cmd+Z)',exact:true}).click();
@@ -293,7 +294,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const rule=json.objects.find(o=>o.name==='page-rule')!;
     pt=await point(rule.left+rule.width*.25,rule.top+1.5);
     await page.mouse.click(pt.x,pt.y);
-    await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');
+    try{await expect(dialog.getByTestId('editor-selected-type')).toHaveText('Retângulo');}catch(error){throw new Error('Seleção da forma '+JSON.stringify({point:pt,canvas:await art.boundingBox(),hit:await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.outerHTML.slice(0,250),pt),selected:await dialog.getByTestId('editor-selected-type').allTextContents()})+' '+String(error));}
     // Seleção pode recalibrar a área do editor; mede novamente e arrasta para
     // longe dos alinhamentos existentes, sem contrariar o snap das guias.
     // Em uma linha fina, o meio coincide com a alça de redimensionar; pega fora dela.

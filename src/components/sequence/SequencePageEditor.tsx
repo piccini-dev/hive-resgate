@@ -69,7 +69,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
   });}
   const proposed=candidate?.proposal?.units?.find(u=>u.id===unit.id);
   return <Dialog open onOpenChange={open=>{if(!open)void close();}}>
-    <DialogContent className="flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4" onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
+    <DialogContent className={`flex max-h-[94vh] w-[96vw] max-w-7xl flex-col overflow-y-auto p-4 ${mode==='canvas'&&!candidate?'h-[94vh]':''}`} onEscapeKeyDown={e=>{if(busy||(e.target instanceof HTMLElement&&e.target.matches('textarea[data-fabric="textarea"]')))e.preventDefault();}} onPointerDownOutside={e=>e.preventDefault()}>
       <DialogTitle>Página {unit.position} · ajustar conteúdo</DialogTitle>
       <DialogDescription>Você altera esta página. As demais páginas e a legenda permanecem preservadas.</DialogDescription>
       <div className="flex flex-wrap gap-2">
@@ -87,7 +87,7 @@ export function SequencePageEditor({piece,units,unit,initialMode,onClose,onSaved
       </section>:mode==='canvas'?<>
         <p className="text-sm text-muted-foreground">Clique para selecionar e arraste para mover. Dê dois cliques no texto para editar. Nas linhas, arraste as alças das pontas para mudar a ligação. Para alcançar uma camada sobreposta, use Alt + clique no mesmo ponto.</p>
         {unit.assets?.variant==='M03-B'&&<Button size="sm" variant="outline" disabled={busy} onClick={()=>void run(async()=>{const snapshot=capture.current?.();if(!snapshot)throw new Error('Aguarde a arte carregar.');setDraft(snapshot);setBeforePreview(snapshot.dataUrl);setCandidate(await proposeDiagramOrganization(piece,unit,snapshot));})}>Organizar diagrama</Button>}
-        {unit.fabric_json?<div className="h-[65vh] min-h-[420px] overflow-hidden rounded-xl border" data-testid="sequence-page-canvas" aria-busy={busy} style={{pointerEvents:busy?'none':undefined}}><CanvasStudio embedded sequenceMode snapshotRef={capture} initialFabricJson={draft?.fabricJson??initial} initialPreset={piece.format==='story'?'instagram-story':'instagram-portrait'}/></div>:<p className="text-sm">Esta página ainda não tem arte editável. Ajuste o texto ou produza a imagem primeiro.</p>}
+        {unit.fabric_json?<div className="min-h-[260px] flex-1 overflow-hidden rounded-xl border" data-testid="sequence-page-canvas" aria-busy={busy} style={{pointerEvents:busy?'none':undefined}}><CanvasStudio embedded sequenceMode snapshotRef={capture} initialFabricJson={draft?.fabricJson??initial} initialPreset={piece.format==='story'?'instagram-story':'instagram-portrait'}/></div>:<p className="text-sm">Esta página ainda não tem arte editável. Ajuste o texto ou produza a imagem primeiro.</p>}
         <Button variant="accent" disabled={busy||!unit.fabric_json} onClick={()=>void run(async()=>{const s=capture.current?.();if(!s)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');const p=await savePageCanvas(piece,unit,s);await onSaved(p);onClose();})}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:null}Salvar esta página</Button>
       </>:mode==='text'?<div className="space-y-3" data-testid="sequence-page-text">
         <label className="block space-y-1 text-sm">Título<Input aria-label="Título desta página" value={title} disabled={busy} onChange={e=>setTitle(e.target.value)}/></label>
