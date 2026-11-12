@@ -73,7 +73,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
   });
   test('organização local do diagrama preserva conteúdo, mostra prévia e permite mover pontas sem redimensionar a linha',async({page})=>{
-    test.setTimeout(300000);
+    test.setTimeout(420000);
     const f=await setup(),user=e2eUser(),client=await loginAs(user.email,user.password,user.id);
     await mockProduction(page);
     const [cycle]=await sql<{updated_at:string}>(`select updated_at from campaign_cycles where id='${f.cycle}'`);
@@ -134,6 +134,48 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     const movedPoints=movedConnector.path as Array<[string,number,number]>;
     expect(movedPoints[0]).toEqual(points[0]);expect(movedPoints[1]).toEqual(points[1]);
     expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
+    // Marcos (12/11): revisar o rótulo selecionado sem reescrever o título aprovado.
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    pt=await point(770,595);await page.mouse.click(pt.x,pt.y);
+    await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Visível');
+    await dialog.getByRole('button',{name:'Revisar elementos selecionados',exact:true}).click();
+    await expect(dialog.getByRole('radio',{name:'Elementos selecionados',exact:true})).toBeChecked();
+    await expect(dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true})).toHaveValue('Visível');
+    await dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true}).fill('Aparente');
+    await dialog.getByRole('button',{name:'Conferir proposta desta parte',exact:true}).click();
+    await expect(dialog.getByRole('img',{name:'Visual proposto'})).toBeVisible({timeout:60000});
+    expect((await sql<PostUnit>(`select * from post_units where id='${moved.id}'`))[0]).toEqual(moved);
+    await dialog.getByRole('button',{name:'Descartar proposta',exact:true}).click();
+    await expect(dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true})).toHaveValue('Aparente');
+    await dialog.getByRole('button',{name:'Conferir proposta desta parte',exact:true}).click();
+    await expect(dialog.getByRole('img',{name:'Visual proposto'})).toBeVisible({timeout:60000});
+    await dialog.getByRole('button',{name:'Aplicar nesta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
+    const [relabeled]=await sql<PostUnit>(`select * from post_units where id='${moved.id}'`);
+    const relabeledJson=relabeled.fabric_json as typeof json,movedJson=moved.fabric_json as typeof json;
+    relabeledJson.objects.forEach((o,i)=>{if(o.name==='diagram-label-0')expect(o.text).toBe('Aparente');else expect(o).toEqual(movedJson.objects[i]);});
+    expect(relabeled.title).toBe(moved.title);expect(relabeled.body).toBe(moved.body);
+    // As alternativas não dependem da IA visual adiada; descarte preserva a página.
+    await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();
+    await dialog.getByRole('button',{name:'Revisar diagrama e textos',exact:true}).click();
+    await dialog.getByRole('radio',{name:'Diagrama completo e seus textos',exact:true}).check();
+    for(const representation of ['Blocos','Etapas','Texto']){
+      await dialog.getByRole('button',{name:representation,exact:true}).click();
+      await dialog.getByRole('textbox',{name:'Conteúdo da nova representação',exact:true}).fill('O que aparece\nO padrão que se repete\nO que sustenta o padrão');
+      await dialog.getByRole('button',{name:'Conferir proposta desta parte',exact:true}).click();
+      await expect(dialog.getByRole('img',{name:'Visual proposto'})).toBeVisible({timeout:60000});
+      expect((await sql<PostUnit>(`select * from post_units where id='${relabeled.id}'`))[0]).toEqual(relabeled);
+      if(representation!=='Texto')await dialog.getByRole('button',{name:'Descartar proposta',exact:true}).click();
+    }
+    await dialog.getByRole('button',{name:'Aplicar nesta página',exact:true}).click();await expect(dialog).toHaveCount(0,{timeout:60000});
+    const [explained]=await sql<PostUnit>(`select * from post_units where id='${relabeled.id}'`);
+    const explainedJson=explained.fabric_json as typeof json;
+    for(const name of ['headline','signature'])expect(explainedJson.objects.find(o=>o.name===name)).toEqual(relabeledJson.objects.find(o=>o.name===name));
+    expect(explainedJson.objects.some(o=>o.type==='Circle')).toBe(false);
+    expect(explained.title).toBe(relabeled.title);expect(explained.body).toBe(relabeled.body);
+    expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
+    expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe('Legenda que não muda.');
+    expect(visualCalls).toHaveLength(0);
   });
   test('contratos autenticados: uma base gera imagem/carrossel/Stories; entregas preservam o material e exigem reconfirmação de conta',async()=>{
     test.setTimeout(180000);
@@ -341,6 +383,9 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
     expect(after[1].body).toBe('Uma leitura ainda mais clara.');expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Alterar visual',exact:true}).click();
+    await expect(dialog.getByRole('button',{name:'Refazer esta página',exact:true})).toBeVisible();
+    await dialog.getByText('Revisar também o texto principal',{exact:true}).click();
+    await dialog.getByRole('textbox',{name:'Título da página refeita',exact:true}).fill('Título e composição refeitos');
     await dialog.getByRole('button',{name:'Leitura em fundo escuro',exact:false}).click();
     await expect(dialog.getByRole('img',{name:'Visual proposto'})).toBeVisible({timeout:60000});
     // Propor não muda a página ativa: só Aplicar registra a nova composição.
@@ -348,7 +393,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await dialog.getByRole('button',{name:'Aplicar nesta página',exact:true}).click();
     await expect(dialog).toHaveCount(0,{timeout:60000});
     after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
-    expect(after[1].assets.page_direction?.theme).toBe('escuro');expect(after[1].title).toBe('Título editado na arte');
+    expect(after[1].assets.page_direction?.theme).toBe('escuro');expect(after[1].title).toBe('Título e composição refeitos');
     expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     await page.getByRole('button',{name:'Editar legenda',exact:true}).click();
     const caption='Um texto longo, com uma leitura completa para revisar.\n'.repeat(25)+'FIM DA LEGENDA';

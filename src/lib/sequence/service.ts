@@ -21,6 +21,7 @@ import { imageKind } from '@/lib/campaign/produce';
 import type { CampaignCycle, Content, FormatCapability, PiecePlan, PostUnit, SequenceExport, UserPost } from '@/types';
 import { registerManualPublication } from '@/lib/approval';
 import { pageTextFromCanvas, reflowEditedPage } from './editing';
+import { revisePagePart } from './pageRevision';
 
 export const ARCHITECTURE_LABELS: Record<string, string> = {
   historia: 'História e aprendizagem', perspectiva: 'Mudança de perspectiva', conceito: 'Exploração de conceito',
@@ -290,14 +291,14 @@ export async function proposeSequenceText(post:UserPost,units:PostUnit[],texts:A
 
 // Edição na arte usa o mesmo contrato de candidatos: uma página, versão esperada,
 // histórico e aprovação invalidada. Nenhuma gravação paralela em rendered_slides.
-async function prepareCanvasCandidate(post:UserPost,unit:PostUnit,state:EditorSnapshot,instruction:string,impact:string):Promise<UnitCandidate>{
+async function prepareCanvasCandidate(post:UserPost,unit:PostUnit,state:EditorSnapshot,instruction:string,impact:string,preserveText=false):Promise<UnitCandidate>{
   if(['scheduled','published','archived'].includes(post.status))throw new Error('Este material já está na agenda, publicado ou arquivado. Abra o fluxo específico de revisão para alterá-lo.');
   const text=pageTextFromCanvas(state.fabricJson,unit);
   const canvas=post.format==='story'?{width:1080,height:1920}:{width:1080,height:1350};
   const jpeg=await renderFabricToDataUrl(state.fabricJson,{...canvas,format:'jpeg'});
   if(!jpeg)throw new Error('Não foi possível finalizar a arte com todos os elementos. Reabra a página e tente novamente.');
   const {publicUrl}=await uploadAssetImage({immutable:true,userId:post.user_id,assetId:post.id,dataUrl:jpeg,filename:`unit-${unit.id}-edit-${crypto.randomUUID()}.jpg`});
-  return insertCandidate(post,{action:'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:['text','visual'],instruction,proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact});
+  return insertCandidate(post,{action:preserveText?'swap_template':'adjust_text',scope:'units',unit_ids:[unit.id],mutable_paths:preserveText?['visual']:['text','visual'],instruction,proposal:{units:[{id:unit.id,...text,fabric_json:state.fabricJson as PostUnit['fabric_json'],rendered_url:publicUrl,assets:{...unit.assets,manual_canvas:true}}]},impact});
 }
 export async function savePageCanvas(post:UserPost,unit:PostUnit,state:EditorSnapshot):Promise<UserPost>{
   if(!state.dataUrl)throw new Error('A arte ainda está carregando. Aguarde antes de salvar.');
@@ -311,14 +312,25 @@ export async function proposeDiagramOrganization(post:UserPost,unit:PostUnit,sta
   return prepareCanvasCandidate(post,unit,{...state,fabricJson},'Organizar este diagrama de camadas','Rótulos alinhados e conexões reorganizadas, preservando as palavras e os círculos. Confira a prévia. Outras páginas, fotografias e legenda serão preservadas.');
 }
 
-export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro'}):Promise<UnitCandidate>{
+/** A mesma proposta versionada da edição direta, com escopo validado antes do render. */
+export async function proposePagePart(post:UserPost,unit:PostUnit,state:EditorSnapshot,req:Parameters<typeof revisePagePart>[1]):Promise<UnitCandidate>{
+  const fabricJson=revisePagePart(state.fabricJson,req);
+  // Uma edição visual ainda não salva não pode entrar silenciosamente nesta revisão.
+  const text=pageTextFromCanvas(fabricJson,unit);
+  if(text.title!==(unit.title??'')||text.body!==(unit.body??''))throw new Error('Há alterações no texto principal feitas na arte. Salve-as primeiro ou reabra a página antes de revisar apenas o diagrama.');
+  return prepareCanvasCandidate(post,unit,{...state,fabricJson},req.scope==='selected'?'Revisar elementos selecionados':'Revisar diagrama e textos ligados a ele','Texto principal, assinatura, fotografias, demais páginas e legenda preservados. Somente esta página precisará de nova revisão visual.',true);
+}
+
+export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro';text?:{title:string;body:string}}):Promise<UnitCandidate>{
   const dir={...directionOf(post),...(next.theme?{theme:next.theme}:{})};
   const from=unit.assets?.variant??null,to=next.variant??from;
   const incompatible=!!to&&!!from&&imageKind(from)!==imageKind(to);
   if(next.variant&&unit.layout!=='cover')throw new Error('As famílias de capa não se aplicam a páginas de leitura. Use a edição da arte para ajustar a composição.');
-  const input={...unit,assets:{...unit.assets,manual_canvas:false,...(next.theme?{page_direction:{theme:next.theme}}:{})}};
+  if(next.text&&!(next.text.title.trim()||next.text.body.trim()))throw new Error('A página precisa ter texto.');
+  const changedText=!!next.text&&(next.text.title!==(unit.title??'')||next.text.body!==(unit.body??''));
+  const input={...unit,...next.text,assets:{...unit.assets,manual_canvas:false,...(next.theme?{page_direction:{theme:next.theme}}:{})}};
   const r=await renderOne(post,input,units.length,dir,{fileTag:`preview-${crypto.randomUUID()}`,coverVariant:next.variant,newImage:incompatible});
-  return insertCandidate(post,{action:'swap_template',scope:'units',unit_ids:[unit.id],mutable_paths:incompatible?['visual','image']:['visual'],instruction:'Escolha visual da página',proposal:{units:[{id:unit.id,...r,fabric_json:r.fabric_json as PostUnit['fabric_json'],assets:{...r.assets,...(next.theme?{page_direction:{theme:next.theme}}:{})}}]},impact:incompatible?'Este modelo usa outro tipo de imagem. Confira a proposta antes de aplicar.':'As demais páginas, o texto e a legenda serão preservados.'});
+  return insertCandidate(post,{action:changedText?'adjust_text':'swap_template',scope:'units',unit_ids:[unit.id],mutable_paths:[...incompatible?['visual','image']:['visual'],...changedText?['text']:[]],instruction:'Refazer somente esta página',proposal:{units:[{id:unit.id,...next.text,...r,fabric_json:r.fabric_json as PostUnit['fabric_json'],assets:{...r.assets,...(next.theme?{page_direction:{theme:next.theme}}:{})}}]},impact:`${changedText?'O texto e a composição desta página serão alterados.':'O texto principal será preservado.'} ${incompatible?'Este modelo usa outro tipo de imagem. ':''}As demais páginas e a legenda permanecem preservadas. Confira antes de aplicar.`});
 }
 
 // ---------------- exportação (mesmo pacote aprovado) ----------------
