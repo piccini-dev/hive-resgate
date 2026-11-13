@@ -143,6 +143,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Visível');
     await dialog.getByRole('button',{name:'Revisar elementos selecionados',exact:true}).click();
     await dialog.getByRole('button',{name:'Editar manualmente',exact:true}).click();
+    await dialog.getByText('Escopo e forma de representar a ideia',{exact:true}).click();
     await expect(dialog.getByRole('radio',{name:'Elementos selecionados',exact:true})).toBeChecked();
     await expect(dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true})).toHaveValue('Visível');
     await dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true}).fill('Aparente');
@@ -190,6 +191,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     pt=await point(300,150);await page.mouse.click(pt.x,pt.y);
     await dialog.getByRole('button',{name:'Revisar elementos selecionados',exact:true}).click();
     await dialog.getByRole('button',{name:'Editar manualmente',exact:true}).click();
+    await dialog.getByText('Escopo e forma de representar a ideia',{exact:true}).click();
     await expect(dialog.getByRole('alert')).toContainText('A seleção inclui texto principal');
     await expect(dialog.getByRole('button',{name:'Conferir proposta desta parte',exact:true})).toBeDisabled();
     await dialog.getByRole('button',{name:'Voltar à revisão',exact:true}).click();
