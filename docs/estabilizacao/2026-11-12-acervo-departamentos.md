@@ -22,6 +22,7 @@ Nenhuma peça real, agendamento, campanha ou base é migrada automaticamente. Ne
 - F30 cobre catálogo versus importações, criação e validação sem post, revisão independente preservando o uso de campanha e a peça programada integralmente, adoção sem geração de ideias/bases, reaberturas e recuperação de imagem com falha.
 - Testes de navegador: executar no GitHub; não executados localmente.
 - A regressão completa precisa passar no mesmo commit antes do merge.
+- No commit `da9367e`, os nove testes direcionados passaram; a suíte completa teve 272 aprovações e uma falha no F10: um listener de resposta tentava ler o corpo após o fim do teste. O teste agora aguarda explicitamente a resposta de status e seu corpo, confirma o registro esperado e mantém a verificação de ausência do token. Nova regressão obrigatória antes da publicação.
 
 ## Próximos blocos
 
