@@ -246,7 +246,9 @@ export function composeM01(input: ComposeInput): ComposedSlide {
       const cy = layout
         ? (layout.zone === 'top' ? pctH(26) : pctH(68))
         : pctH(g.cy ?? 43);
-      const top = Math.round(cy - textHeight / 2);
+      const minTop = pctH(8), maxBottom = spiralTop - pctH(4);
+      if (textHeight > maxBottom - minTop) throw new Error('Este texto não cabe com leitura confortável neste modelo. Encurte a frase ou escolha outro formato.');
+      const top = Math.round(Math.max(minTop, Math.min(cy - textHeight / 2, maxBottom - textHeight)));
       headlineBottom = top + textHeight; // ancora a linha estrutural (ver 'linha')
       const left = align === 'center' ? Math.round((W - boxW) / 2) : Math.round(pctW(g.x ?? 9));
       const styles = highlight?.target ? highlightStyles(lines, highlight.target, laranja) : {};

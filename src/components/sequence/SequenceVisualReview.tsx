@@ -47,7 +47,7 @@ export function SequenceVisualReview({piece,units,onReload,onApproved,onTools,on
     <p className="text-sm text-muted-foreground">{units.length} {piece.format==='story'?'telas':'páginas'} · percorra a sequência e revise o conjunto.</p>
     <div className="flex w-full gap-4 overflow-x-auto pb-3" data-testid="visual-review-strip" aria-label={`Páginas do ${label}`}>
       {[...units].sort((a,b)=>a.position-b.position).map(u=><article key={u.id} className="w-64 shrink-0 space-y-2" data-testid="visual-review-page">
-        <button type="button" disabled={busy||locked||!u.fabric_json} onClick={()=>setEditing({id:u.id,mode:'canvas'})} aria-label={`Editar arte da página ${u.position}`} className={`block w-full overflow-hidden rounded-xl border bg-card ${piece.format==='story'?'aspect-[9/16]':'aspect-[4/5]'}`}>
+        <button type="button" disabled={busy||locked||!u.fabric_json} onClick={()=>setEditing({id:u.id,mode:'all'})} aria-label={`Editar arte da página ${u.position}`} className={`block w-full overflow-hidden rounded-xl border bg-card ${piece.format==='story'?'aspect-[9/16]':'aspect-[4/5]'}`}>
           {u.rendered_url?<img src={u.rendered_url} alt={`Página ${u.position}`} className="h-full w-full object-contain"/>:<div className="flex h-full flex-col justify-center gap-3 p-5"><p className="font-semibold">{u.title}</p><p className="text-sm">{u.body}</p><p className="text-xs text-muted-foreground">Imagem a produzir</p></div>}
         </button>
         <p className="text-xs text-muted-foreground">{u.position} / {units.length}{needsSequenceRender(u)?' · imagem pendente':u.review_status==='approved'?' · revisada':' · para revisar'}</p>

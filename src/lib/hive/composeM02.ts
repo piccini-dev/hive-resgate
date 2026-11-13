@@ -182,6 +182,7 @@ export function composeM02(input: ComposeM02Input): ComposedSlide {
     const textH = lines.length * fontSize * 1.16;
     const cardH = pad * 2 + kickerFs + pctH(1.4) + textH;
     const cardTop = Math.round(pctH(78) - cardH);
+    if (cardTop < pctH(8)) throw new Error('Este texto não cabe no cartão. Encurte a frase ou escolha outro formato.');
     objects.push({
       type: 'Rect', version: '6.0.0', left: Math.round(cardX), top: cardTop,
       width: Math.round(cardW), height: Math.round(cardH), rx: 6, ry: 6,
@@ -234,6 +235,9 @@ export function composeM02(input: ComposeM02Input): ComposedSlide {
     else if (zone.vAnchor === 'top') top = Math.round(pctH(zone.vRef));
     else top = Math.round(pctH(zone.vRef) - totalH / 2);
 
+    const maxBottom=pctH(90)-pctW(6.6)/2-pctH(4);
+    if(totalH>maxBottom-pctH(8))throw new Error('Este texto não cabe com leitura confortável. Encurte a frase ou escolha outro formato.');
+    top=Math.round(Math.max(pctH(8),Math.min(top,maxBottom-totalH)));
     const styles = highlight?.target ? highlightStyles(lines, highlight.target, laranja) : {};
     objects.push({
       type: 'Textbox', version: '6.0.0', text: lines.join('\n'),

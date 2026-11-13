@@ -77,7 +77,7 @@ function randomOf(pool: string[]): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-export async function ensureM01Asset(kind: 'photo' | 'texture', postId: string): Promise<DesignAsset | null> {
+export async function ensureM01Asset(kind: 'photo' | 'texture', postId: string, context?: string): Promise<DesignAsset | null> {
   const key = `${kind}|${postId}`;
   const cached = _m01Cache.get(key);
   if (cached) return cached;
@@ -91,6 +91,7 @@ export async function ensureM01Asset(kind: 'photo' | 'texture', postId: string):
     const scene = pickDistinct(M01_TEXTURE_SCENES, key);
     prompt = `Textura orgânica sutil e elegante: ${scene}. Baixo contraste, luz suave, fundo predominantemente claro/creme, muito espaço negativo. Sem texto, sem logo.`;
   }
+  if (context?.trim()) prompt += ` Contexto editorial e pedido do produtor (represente a ideia com uma cena nova, sem reproduzir fotos da biblioteca): ${context}`;
   // Rodízio de modelos (teste): alterna Nano Banana × GPT Image 2.5 no dia a dia.
   const model = nextImageModel();
   const isGpt = model.startsWith('gpt-image');

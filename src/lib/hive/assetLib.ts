@@ -2,6 +2,8 @@
 // 'design' (público, mesmo projeto -> CORS ok pro render client-side) + CRUD na
 // tabela design_assets. Usado pela tela de curadoria.
 
+import { db } from '@/lib/db';
+import type { PhotoUsage } from './imagePolicy';
 import { supabase } from '@/lib/supabase';
 
 const BUCKET = 'design';
@@ -12,6 +14,8 @@ export interface DesignAssetRow {
   title: string;
   url: string;
   storage_path: string | null;
+  width?: number | null;
+  height?: number | null;
   origin: string;
   tags: string[] | null;
   is_active: boolean;
@@ -81,13 +85,15 @@ export async function listDesignAssets(): Promise<DesignAssetRow[]> {
 
 export interface MarcosPhotoRow extends DesignAssetRow {
   semantic: Record<string, unknown>;
+  updated_at: string;
+  brand_id: string | null;
 }
 
 // Fotos REAIS do Marcos — o topo da hierarquia de imagem da M02.
 export async function listMarcosPhotos(): Promise<MarcosPhotoRow[]> {
   const { data, error } = await supabase
     .from('design_assets')
-    .select('id,kind,title,url,storage_path,origin,tags,is_active,semantic')
+    .select('id,kind,title,url,storage_path,origin,tags,is_active,semantic,updated_at,brand_id,width,height')
     .eq('kind', 'photo')
     .eq('person_slug', 'marcos')
     .order('created_at', { ascending: false });
@@ -111,7 +117,7 @@ export async function saveMarcosPhoto(row: {
   const id = await saveDesignAsset({
     kind: 'photo', title: row.title, url: row.url, storage_path: row.storage_path,
     mime_type: row.mime_type, width: row.width, height: row.height,
-    origin: row.origin ?? 'real', semantic: row.semantic, tags: row.tags ?? [], person_slug: 'marcos',
+    origin: row.origin ?? 'real', semantic: { usage_policy: 'reference_only', ...row.semantic }, tags: row.tags ?? [], person_slug: 'marcos',
   });
   // Foto real e a ancestral de si mesma (source_image_id = proprio id) — deriva­coes
   // futuras (real_adapted) apontam pra ca, e a diversidade conta por fonte.
@@ -130,4 +136,11 @@ export async function deleteDesignAsset(id: string, storagePath: string | null):
 export async function setAssetActive(id: string, active: boolean): Promise<void> {
   const { error } = await supabase.from('design_assets').update({ is_active: active }).eq('id', id);
   if (error) throw error;
+}
+
+/** Altera somente a regra escolhida, sem sobrescrever uma curadoria concorrente. */
+export async function setPhotoUsage(photo: MarcosPhotoRow, usage: PhotoUsage): Promise<void> {
+  const rows = await db.update('design_assets', { id: `eq.${photo.id}`, updated_at: `eq.${photo.updated_at}` },
+    { semantic: { ...photo.semantic, usage_policy: usage } });
+  if (!rows.length) throw new Error('Esta foto foi alterada por outra revisão. Recarregue a lista antes de salvar.');
 }

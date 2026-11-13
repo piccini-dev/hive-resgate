@@ -1,7 +1,7 @@
 import {prepareLegacyReview,openLegacyReview} from './helpers/legacy-production';
 import { test, expect } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
-import { mockProduction } from './helpers/mocks';
+import { mockEdge, mockProduction } from './helpers/mocks';
 import { seedAccounts, seedCampaign, seedValidatedContents } from './helpers/fixtures';
 
 // F5 — Telas 12–12C: produção visual, galeria, escolha, edição, aprovação, conclusão.
@@ -60,8 +60,11 @@ test.describe('F5 · produção visual do ciclo', () => {
 
     // trocar template: frase e legenda idênticas, só o visual muda
     await page.getByTestId('action-swap_template').click();
-    const opt = page.getByTestId('template-option').filter({ hasText: 'mantém a imagem' }).first();
+    // Decisão 13/11: modelos visuais; uma resposta divergente não substitui a escolha.
+    await mockEdge(page,'hive-decide',()=>({success:true,decision:{mode:'M02',variant:'M02-B',highlight:null,asset:null,subtitle:null}}));
+    const opt = page.locator('[data-testid="template-option"]:enabled').filter({ hasText: 'mantém a imagem' }).first();
     const target = await opt.getAttribute('data-template');
+    await expect(opt.getByRole('img')).toBeVisible();
     await opt.click();
     await expect(page.getByTestId('candidate')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('candidate-preserved')).toContainText('Frase mantida');

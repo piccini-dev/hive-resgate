@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { templateApi } from '@/lib/api';
 import { templateFields } from '@/lib/templates/hydrate';
 import { TemplateThumb } from '@/components/templates/TemplateThumb';
+import { PhotoUsagePanel } from '@/components/templates/PhotoUsagePanel';
 import { HiveMatrix } from '@/components/hive/HiveMatrix';
 import type { PostTemplate } from '@/types';
 import { toast } from 'sonner';
@@ -94,6 +95,7 @@ export function Templates() {
         </Button>
       </header>
 
+      <PhotoUsagePanel />
       <HiveMatrix />
 
       {loading ? (

@@ -465,7 +465,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
           <section className="space-y-3 rounded-2xl border bg-card p-4" data-testid="piece-text">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Texto</p>
             <p className="font-display text-base font-semibold" data-testid="piece-quote">{quote}</p>
-            <p className="line-clamp-6 whitespace-pre-line text-sm text-muted-foreground" data-testid="piece-caption">{piece.caption}</p>
+            <p className="whitespace-pre-line break-words text-sm text-muted-foreground" data-testid="piece-caption">{piece.caption}</p>
             {(piece.version ?? 1) > 1 && <p className="text-[11px] text-muted-foreground" data-testid="piece-version">Versão v{piece.version}</p>}
           </section>
           {isApproved && piece.status !== 'published' && piece.metadata?.production_flow !== 'base_v2' && (

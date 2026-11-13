@@ -4,6 +4,7 @@
 // loadHiveDesign() traz TODAS as manifestacoes congeladas (M01 + M02) — o motor
 // pode escolher entre elas. loadM01Design() mantem o recorte M01 (labs/matriz).
 
+import { photoUsage } from './imagePolicy';
 import { supabase } from '@/lib/supabase';
 import type { M01Recipe, DesignAsset } from './composeM01';
 
@@ -17,7 +18,7 @@ export interface DesignData {
 async function loadTokensAndAssets(): Promise<{ colors: Record<string, string>; spiralUrl: string; assets: DesignData['assets'] }> {
   const [tokRes, assetRes] = await Promise.all([
     supabase.from('design_tokens').select('slug,kind,value'),
-    supabase.from('design_assets').select('kind,url,width,height,person_slug').eq('is_active', true).in('kind', ['photo', 'texture']),
+    supabase.from('design_assets').select('kind,url,width,height,person_slug,semantic').eq('is_active', true).in('kind', ['photo', 'texture']),
   ]);
   if (tokRes.error) throw tokRes.error;
   if (assetRes.error) throw assetRes.error;
@@ -33,6 +34,7 @@ async function loadTokensAndAssets(): Promise<{ colors: Record<string, string>; 
   const photos: DesignAsset[] = [];
   const textures: DesignAsset[] = [];
   for (const a of assetRes.data ?? []) {
+    if (photoUsage(a.semantic as Record<string, unknown>) === 'reference_only') continue;
     const asset: DesignAsset = { url: a.url as string, width: a.width as number | undefined, height: a.height as number | undefined };
     // photos alimenta SÓ o M01-D ("Campo" = paisagem contemplativa). O pool de
     // kind='photo' também guarda os retratos de estúdio do Marcos (person_slug),

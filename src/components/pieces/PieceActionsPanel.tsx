@@ -8,7 +8,7 @@ import { ArrowLeftRight, Check, ImageIcon, LayoutTemplate, Loader2, PenLine, Ref
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { loadHiveDesign } from '@/lib/hive/loadDesign';
+import { VisualTemplateGallery } from './VisualTemplateGallery';
 import { imageKind } from '@/lib/campaign/produce';
 import {
   ACTION_LABELS, PRESERVED_LABELS, applyCandidate, availability, componentsOf, createCandidate, discardCandidate, templateImpact, updateScheduledPackage,
@@ -37,12 +37,8 @@ export function PieceActionsPanel({ piece, userId, onApplied, externalRequest }:
   // "Pedir outro ajuste": base = proposta exibida (null = versão atual).
   const [baseCand, setBaseCand] = useState<PieceCandidate | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<{ id: string; impact: string } | null>(null);
-  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; manifestacao_id: string; operacao?: string }>>([]);
   const cur = componentsOf(piece);
 
-  useEffect(() => {
-    loadHiveDesign().then((d) => setTemplates((d.variacoes as Array<{ id: string; nome: string; manifestacao_id: string; operacao?: string }>).filter((v) => v.manifestacao_id !== 'M04'))).catch(() => setTemplates([]));
-  }, []);
   // Pedido vindo de fora (ex.: revisão da foto do Marcos → "gerar outra foto").
   useEffect(() => {
     if (!externalRequest) return;
@@ -170,18 +166,10 @@ export function PieceActionsPanel({ piece, userId, onApplied, externalRequest }:
           {action === 'swap_template' && (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">Templates ativos. A frase e a legenda ficam exatamente iguais; a imagem atual é mantida quando o template é compatível.</p>
-              <div className="grid gap-2 sm:grid-cols-2" data-testid="template-gallery">
-                {templates.filter((t) => t.id !== cur.variant).map((t) => {
-                  const ti = templateImpact(cur.variant, t.id);
-                  return (
-                    <button key={t.id} type="button" disabled={!!busy} onClick={() => (ti.compatible ? generate({ action: 'swap_template', templateId: t.id }) : setPendingTemplate({ id: t.id, impact: ti.impact ?? '' }))}
-                      className="rounded-lg border bg-background p-2 text-left text-xs hover:border-accent" data-testid="template-option" data-template={t.id}>
-                      <span className="font-semibold">{t.id} {t.nome}</span>
-                      <span className="block text-muted-foreground">{KIND_LABEL[imageKind(t.id)]}{ti.compatible ? ' · mantém a imagem' : ' · muda a imagem'}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              <VisualTemplateGallery text={cur.quote} decision={piece.visual_decision as Record<string,unknown>|null} disabled={!!busy} onSelect={id=>{
+                const ti=templateImpact(cur.variant,id);
+                if(ti.compatible)void generate({action:'swap_template',templateId:id});else setPendingTemplate({id,impact:ti.impact??''});
+              }}/>
               {pendingTemplate && (
                 <div className="rounded-lg bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-300" data-testid="template-impact">
                   {pendingTemplate.impact}
@@ -228,8 +216,8 @@ export function PieceActionsPanel({ piece, userId, onApplied, externalRequest }:
           {(cand.diff ?? []).filter((d) => d.component === 'quote' || d.component === 'caption').map((d) => (
             <div key={d.component} className="space-y-1 text-sm" data-testid={`candidate-diff-${d.component}`}>
               <p className="text-xs text-muted-foreground">{d.component === 'quote' ? 'Frase' : 'Legenda'}</p>
-              <p className="whitespace-pre-line text-muted-foreground line-through decoration-muted-foreground/50">{(d.before ?? '').slice(0, 400)}</p>
-              <p className="whitespace-pre-line" data-testid={`candidate-new-${d.component}`}>{(d.after ?? '').slice(0, 800)}</p>
+              <p className="whitespace-pre-line text-muted-foreground line-through decoration-muted-foreground/50">{d.before ?? ''}</p>
+              <p className="whitespace-pre-line" data-testid={`candidate-new-${d.component}`}>{d.after ?? ''}</p>
             </div>
           ))}
           {(cand.diff ?? []).some((d) => d.component === 'template') && <p className="text-xs">Template: {(cand.diff ?? []).find((d) => d.component === 'template')?.before} → <b>{(cand.diff ?? []).find((d) => d.component === 'template')?.after}</b></p>}
