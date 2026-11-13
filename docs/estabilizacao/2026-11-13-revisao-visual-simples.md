@@ -37,3 +37,12 @@ Aprovação e continuação, contas padrão, confirmação em lote, distribuiç�
 Build TypeScript/Vite e 61 testes puros aprovados localmente. Nenhum E2E foi executado localmente. F31 cobre revisão assistida e de página inteira com comparação e preservação das demais páginas/legenda, falha de geração sem estilo aprovado, leitura da legenda inteira e configuração de uso de foto preservando os metadados. F5 força uma resposta de modelo divergente e exige o formato realmente escolhido pelo produtor. F29 mantém seus cenários manuais e abre explicitamente a edição avançada.
 
 Validação específica no GitHub: execução 43489376971 (F31, F5 e F29) com 14 aprovados e uma falha de automação, que tentava conferir controles dentro da seção recolhida de opções. O teste passou a abrir essa seção, mantendo suas asserções. Repetição isolada do cenário manual na execução 43491492038: 2 aprovados, zero falhas (incluindo preparação). A regressão completa no commit final permanece como portão obrigatório; seu resultado será registrado no PR antes da integração.
+
+
+## Regressão completa e complemento de fotografia
+
+A execução 43492158266, no commit 1b2ae3c9d98147559989476b15b3df1fd5f2b086, terminou com 279 testes aprovados e uma falha em F12: o teste de rejeição de foto simulava cada nova geração com a mesma foto de referência. A nova proteção recusa essa repetição e não cria a proposta esperada pela simulação antiga.
+
+F12 passa a servir imagens sintéticas distintas para cada geração simulada, sem gerar fotos reais nem gravar arquivos no Storage. As asserções existentes de preservação de frase, legenda e template continuam presentes, e a aplicação exige uma referência de imagem diferente. Um cenário adicional devolve propositalmente a mesma imagem e exige sua recusa, ausência de proposta aplicável e preservação integral da peça ativa.
+
+Pendente: executar F12 no GitHub; após aprovação, congelar o novo commit e repetir a regressão completa. O pacote não está liberado para integração ou publicação sem esse resultado verde.

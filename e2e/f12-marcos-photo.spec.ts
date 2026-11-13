@@ -36,9 +36,16 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
   });
 
   const REF_URL = 'https://djlorvdehedcupeykyes.supabase.co/storage/v1/object/public/design/hive/marcos-1788357859-03.jpg';
-  // Simula a edge marcos-photo: grava a geração de verdade (a revisão lê do banco) com uma foto real como imagem.
-  async function mockPhotoEngine(page: import('@playwright/test').Page, calls: Array<Record<string, unknown>> = []) {
+  // Simula a edge e suas imagens sem gravar arquivos ou gerar fotos reais.
+  async function mockPhotoEngine(page: import('@playwright/test').Page, calls: Array<Record<string, unknown>> = [], repeatImage = false) {
     const { id: userId } = e2eUser();
+    const images = new Map<string, string>();
+    let previousImage: string | undefined, imageNumber = 0;
+    await page.route('**/storage/v1/object/public/design/e2e-generated-photo/**', async route => {
+      const image = images.get(route.request().url());
+      if (!image) throw new Error('Imagem fotográfica simulada não encontrada.');
+      await route.fulfill({ status: 200, contentType: 'image/svg+xml', headers: { 'Access-Control-Allow-Origin': '*' }, body: image });
+    });
     await mockEdge(page, 'marcos-photo', async (b) => {
       if (b.action === 'review') {
         const st = b.decision === 'approve' ? 'approved' : b.decision === 'adjust' ? 'adjust' : 'rejected';
@@ -46,8 +53,15 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
         return { success: true, generation: g };
       }
       const variant = String(b.force_variant ?? 'F01-A');
+      const imageUrl = repeatImage && previousImage ? previousImage
+        : `https://djlorvdehedcupeykyes.supabase.co/storage/v1/object/public/design/e2e-generated-photo/${crypto.randomUUID()}.svg`;
+      if (!images.has(imageUrl)) {
+        imageNumber++;
+        images.set(imageUrl, `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="hsl(${imageNumber * 61 % 360},35%,45%)"/><circle cx="${400 + imageNumber * 20}" cy="500" r="180" fill="white"/></svg>`);
+      }
+      previousImage = imageUrl;
       const [g] = await sql(`insert into photo_generations (user_id, producer_profile_version, post_id, purpose, origin, source_ref_keys, style_id, variant_id, expression_id, wardrobe_id, environment_id, gaze, crop, text_space, aspect, mother_text, model, image_url, auto_status, identity_status, gates, plan, attempt)
-        values ('${userId}', 'marcos_piccini_v1.1', ${b.post_id ? `'${b.post_id}'` : 'null'}, '${b.purpose === 'validation_board' ? 'validation_board' : 'post'}', 'gerada', array['HAR_0472','HAR_0476'], '${variant.slice(0, 3)}', '${variant}', 'E01', 'camiseta_preta', 'janela_luz', 'camera', 'bust', 'left', '4:5', 'texto', 'gemini-3-pro-image (mock)', '${REF_URL}',
+        values ('${userId}', 'marcos_piccini_v1.1', ${b.post_id ? `'${b.post_id}'` : 'null'}, '${b.purpose === 'validation_board' ? 'validation_board' : 'post'}', 'gerada', array['HAR_0472','HAR_0476'], '${variant.slice(0, 3)}', '${variant}', 'E01', 'camiseta_preta', 'janela_luz', 'camera', 'bust', 'left', '4:5', 'texto', 'gemini-3-pro-image (mock)', '${imageUrl}',
           'revisar', 'aprovada', '{"failures":["composição: pouco espaço à esquerda"],"G1_identidade":{"score":0.82}}'::jsonb,
           '{"sufficiency":{"a0":0,"body_allowed":false,"note":"Sem referências A0"},"comparison":{"front":{"key":"HAR_0472","url":"${REF_URL}"},"three_quarter":{"key":"HAR_0476","url":"${REF_URL}"}}}'::jsonb, ${Number(b.attempt ?? 1)}) returning *`);
       return { success: true, status: 'generated', generation: g, plan: {} };
@@ -132,11 +146,13 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
     await expect.poll(async () => (await sql<{ s: string; bg: string }>(`select status s, metadata->>'bg_approved' bg from user_posts where id='${piece.id}'`))[0]).toEqual({ s: 'approved', bg: 'true' });
   });
 
-  test('revisão da foto: rejeitar vira PROPOSTA de troca de imagem (mesma frase, legenda e template)', async ({ page }) => {
+  for (const repeatImage of [false, true]) test(repeatImage
+    ? 'revisão da foto: uma geração repetida é recusada sem alterar a peça'
+    : 'revisão da foto: rejeitar vira PROPOSTA de troca de imagem (mesma frase, legenda e template)', async ({ page }) => {
     test.setTimeout(180_000);
     const calls: Array<Record<string, unknown>> = [];
     await mockProduction(page);
-    await mockPhotoEngine(page, calls);
+    await mockPhotoEngine(page, calls, repeatImage);
     await mockEdge(page, 'hive-decide', (b) => {
       const variant = b.platform === 'linkedin' ? 'M01-A' : 'M02-A';
       return { success: true, model_used: 'mock', decision: { mode: variant.split('-')[0], variant, highlight: null, subtitle: null, asset: null, diagram: null, explanation: {} } };
@@ -151,7 +167,15 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
     await page.getByRole('button', { name: /Revisar produção/ }).click();
     await page.getByRole('button', { name: /Revisar propostas/ }).first().click();
     const gensBefore = calls.filter((c) => c.action === 'generate').length;
+    const [before] = await sql<Record<string, unknown>>(`select * from user_posts where id='${piece.id}'`);
     await page.getByTestId('marcos-photo-review').getByTestId('photo-reject').click();
+    if (repeatImage) {
+      await expect(page.getByText('A Hive devolveu uma imagem já existente.', { exact: false })).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId('candidate')).toHaveCount(0);
+      expect(calls.filter((c) => c.action === 'generate').length).toBe(gensBefore + 1);
+      expect((await sql<Record<string, unknown>>(`select * from user_posts where id='${piece.id}'`))[0]).toEqual(before);
+      return;
+    }
     await expect(page.getByTestId('candidate')).toBeVisible({ timeout: 60_000 });
     for (const t of ['Frase mantida', 'Legenda mantida', 'Template mantido']) await expect(page.getByTestId('candidate-preserved')).toContainText(t);
     expect(calls.filter((c) => c.action === 'generate').length).toBe(gensBefore + 1);
@@ -162,5 +186,8 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
     const [after] = await sql<{ gid: string; variant: string; quote: string; caption: string; version: number }>(`select visual_decision->'asset'->>'photo_generation_id' gid, visual_decision->>'variant' variant, carousel_text->>'quote' quote, caption, version from user_posts where id='${piece.id}'`);
     expect(after).toMatchObject({ variant: 'M02-A', quote: piece.quote, caption: piece.caption, version: 2 });
     expect(after.gid).not.toBe(piece.gid);
+    const vd = before.visual_decision as { image_ref: string };
+    const [newImage] = await sql<{ image_ref: string }>(`select visual_decision->>'image_ref' image_ref from user_posts where id='${piece.id}'`);
+    expect(newImage.image_ref).not.toBe(vd.image_ref);
   });
 });
