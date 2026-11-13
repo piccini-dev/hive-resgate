@@ -180,12 +180,20 @@ test.describe('F10 · importação do Instagram', () => {
     const { id: userId } = e2eUser();
     await sql(`insert into meta_connections (user_id, access_token, status, last_synced_at, sync_state) values ('${userId}', 'tok-secreto-e2e', 'no_ads_permission', now(),
       '{"summary":{"businesses":2,"ad_accounts":0,"campaigns":0,"ads":0},"last_error":"Sem permissão de anúncios (ads_read)."}'::jsonb)`);
-    const bodies: string[] = [];
-    page.on('response', async (r) => { if (r.url().includes('/rest/v1/meta_connections')) bodies.push(await r.text()); });
+    // Aguarda a resposta e seu corpo dentro do teste: um listener assíncrono
+    // solto podia terminar a leitura após o encerramento da página.
+    const statusResponse = page.waitForResponse((r) =>
+      r.url().includes('/rest/v1/meta_connections') && r.request().method() === 'GET');
     await page.goto('/configuracoes?tab=contas');
     await page.getByRole('tab', { name: 'Contas' }).click();
+    const response = await statusResponse;
+    expect(response.ok()).toBe(true);
+    const body = await response.text();
+    expect(JSON.parse(body)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'no_ads_permission' }),
+    ]));
     await expect(page.getByTestId('meta-ads-summary')).toContainText('2 BMs · 0 contas de anúncio');
     await expect(page.getByTestId('meta-ads-line')).toContainText('cadastre ads_read no app da Meta');
-    expect(bodies.join('')).not.toContain('tok-secreto-e2e');
+    expect(body).not.toContain('tok-secreto-e2e');
   });
 });

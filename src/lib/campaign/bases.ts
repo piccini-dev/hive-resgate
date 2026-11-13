@@ -4,6 +4,14 @@ import type { Content, ContentBody } from '@/types';
 import { resolveBases, type BaseUse, type BaseVersion } from './base-state';
 export type { BaseVersion } from './base-state';
 export const baseApi = {
+  async catalog(): Promise<Array<{ content: Content; version: BaseVersion | null }>> {
+    const [contents, versions] = await Promise.all([
+      contentApi.listAll(), db.select<BaseVersion>('content_base_versions', { status: 'eq.validated', order: 'ordinal.desc' }),
+    ]);
+    // Posts históricos importados não são promovidos silenciosamente a conteúdos mãe.
+    return contents.filter(c => c.status !== 'discarded' && (versions.some(v => v.content_id === c.id) || c.validation_format === 'knowledge_base' || c.metadata?.purpose === 'knowledge_base'))
+      .map(content => ({ content, version: versions.find(v => v.content_id === content.id) ?? null }));
+  },
   async listByCycle(cycleId: string, includeDrafts = true): Promise<Content[]> {
     const [originals, uses, drafts] = await Promise.all([
       contentApi.listByCycle(cycleId),

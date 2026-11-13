@@ -48,8 +48,13 @@ test.describe('F5 · produção visual do ciclo', () => {
     // 12C: ajustes viram PROPOSTAS (candidatos) — a peça ativa só muda ao aplicar
     await page.getByRole('button', { name: /Revisar propostas/ }).first().click();
     await expect(page.getByTestId('edit-view')).toBeVisible();
+    // A produção é paralela: ordem de gravação não identifica a peça aberta.
+    // As frases do mock são iguais; compare sempre o ID exibido na revisão.
+    const editorHref = await page.getByRole('link', { name: 'Abrir no editor completo' }).getAttribute('href');
+    const openedId = editorHref?.match(/^\/posts\/([0-9a-f-]{36})$/i)?.[1];
+    expect(openedId).toBeTruthy();
     const [before] = await sql<{ id: string; slide1: string; quote: string; caption: string; variant: string }>(`select id, rendered_slides->>'slide1' as slide1, carousel_text->>'quote' quote, caption, visual_decision->>'variant' variant
-      from user_posts where cycle_id='${cycleId}' and piece_role='unfold' and status<>'archived' order by alternative_rank, created_at limit 1`);
+      from user_posts where id='${openedId}' and cycle_id='${cycleId}' and piece_role='unfold' and status<>'archived'`);
     await expect(page.getByTestId('piece-quote')).toHaveText(before.quote);
     await expect(page.getByTestId('action-swap_image')).toHaveAttribute('title', /não usa imagem/); // M01 sem imagem
 

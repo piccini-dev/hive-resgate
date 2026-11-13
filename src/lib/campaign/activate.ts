@@ -54,6 +54,7 @@ export async function activateCampaign(p: {
     cadence: p.cadence,
     activated_at: new Date().toISOString(),
     profile_id: p.profileId ?? null,
+    metadata: { content_source: 'archive' },
   });
   const cycles = await cycleApi.createMany(buildCycleRanges(start, p.weeks).map((r) => ({
     campaign_id: campaign.id,

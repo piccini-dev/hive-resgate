@@ -20,6 +20,7 @@ import { UploadsPanel } from './panels/UploadsPanel';
 import { BrandPanel } from './panels/BrandPanel';
 import { TemplatePreviewBar } from './TemplatePreviewBar';
 import { useEditor, CANVAS_PRESETS } from './useEditor';
+import { Button } from '@/components/ui/button';
 
 export interface CanvasStudioChangeState {
   fabricJson: object;
@@ -76,6 +77,7 @@ export function CanvasStudio({
   const [saving, setSaving] = useState(false);
   const [lastState, setLastState] = useState<CanvasStudioChangeState | null>(null);
   const [loadError,setLoadError]=useState<string|null>(null);
+  const [retryLoad, setRetryLoad] = useState(0);
   // Modo template: enquanto o preview esta ligado o canvas mostra o texto de
   // exemplo hidratado, mas o desenho de verdade fica aqui — e e ele que salva.
   const [previewing, setPreviewing] = useState(false);
@@ -100,20 +102,24 @@ export function CanvasStudio({
   // canvasEpoch muda a cada canvas novo, entao a carga acompanha.
   const readyEpochRef = useRef<number>(-1);
   const [readyEpoch,setReadyEpoch]=useState(-1);
-  const loadedEpochRef = useRef<number>(-1);
-  useEffect(() => {
-    readyEpochRef.current = -1;setReadyEpoch(-1);
-    return () => { readyEpochRef.current = -1; };
-  }, [api.canvasEpoch]);
   useEffect(() => {
     const canvas = api.fabric.current;
-    if (!canvas || loadedEpochRef.current === api.canvasEpoch) return;
-    loadedEpochRef.current = api.canvasEpoch;
+    if (!canvas) return;
+    const controller = new AbortController();
+    let active = true;
     readyEpochRef.current = -1;setReadyEpoch(-1);
+    setLoadError(null);
+    // Uma carga antiga nunca pode marcar como pronto o canvas de outra época.
+    // O prazo também cobre fontes/imagens que nunca concluem a promessa.
+    const deadline = window.setTimeout(() => {
+      if (!active) return;
+      controller.abort();
+      setLoadError('A arte demorou para carregar. O material salvo foi preservado. Tente carregar novamente.');
+    }, 20000);
     void (async()=>{
       if(sequenceMode)await ensureFontsLoaded([{family:'Playfair Display',weight:'bold'},{family:'Inter',weight:'400'},{family:'Inter',weight:'600'}]);
-      if(api.fabric.current!==canvas)return;
-      if(initialFabricJson)await api.loadFromJson(initialFabricJson,{strict:sequenceMode});
+      if(!active || controller.signal.aborted || api.fabric.current!==canvas)return;
+      if(initialFabricJson)await api.loadFromJson(initialFabricJson,{strict:true,signal:controller.signal});
       if(sequenceMode){
         api.fitToContainer();
         // A edição só libera quando fontes, tamanho e posição do canvas estão
@@ -121,7 +127,7 @@ export function CanvasStudio({
         let previous='',stable=0;
         for(let i=0;i<60&&stable<3;i++){
           await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
-          if(api.fabric.current!==canvas)return;
+          if(!active || controller.signal.aborted || api.fabric.current!==canvas)return;
           const rect=canvas.upperCanvasEl.getBoundingClientRect();
           const signature=[rect.x,rect.y,rect.width,rect.height].map(v=>Math.round(v*10)).join(':');
           stable=signature===previous&&rect.width>0&&rect.height>0?stable+1:0;previous=signature;
@@ -129,13 +135,17 @@ export function CanvasStudio({
         if(stable<3)throw new Error('A janela ainda está mudando de tamanho. Reabra a arte quando ela estiver estável.');
         canvas.calcOffset();canvas.requestRenderAll();
       }
-      if(api.fabric.current===canvas){readyEpochRef.current=api.canvasEpoch;setReadyEpoch(api.canvasEpoch);}
-    })().catch((e)=>{if(sequenceMode&&api.fabric.current===canvas)setLoadError((e as Error).message);});
+      if(active && !controller.signal.aborted && api.fabric.current===canvas){readyEpochRef.current=api.canvasEpoch;setReadyEpoch(api.canvasEpoch);}
+    })().catch((e)=>{if(active&&!controller.signal.aborted&&api.fabric.current===canvas)setLoadError((e as Error).message);})
+      .finally(() => { window.clearTimeout(deadline); });
+    return () => { active = false; window.clearTimeout(deadline); controller.abort(); readyEpochRef.current = -1; };
+    // initialFabricJson é uma carga inicial. As notificações de edição não devem
+    // reiniciar a hidratação; o hospedeiro remonta o editor quando troca a arte.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFabricJson, api.canvasEpoch]);
+  }, [!!initialFabricJson, api.canvasEpoch, retryLoad]);
 
   useEffect(()=>{
-    onReadyChange?.(!sequenceMode||readyEpoch===api.canvasEpoch);
+    onReadyChange?.(readyEpoch===api.canvasEpoch);
     return()=>onReadyChange?.(false);
   },[onReadyChange,sequenceMode,readyEpoch,api.canvasEpoch]);
 
@@ -167,9 +177,9 @@ export function CanvasStudio({
   }
 
   return (
-    <div data-canvas-ready={!sequenceMode||readyEpoch===api.canvasEpoch?'true':'false'} className={embedded ? 'relative flex h-full min-h-0 flex-col bg-background' : 'relative flex h-screen flex-col bg-background'} onPointerDownCapture={e=>{if(sequenceMode&&readyEpoch!==api.canvasEpoch){e.preventDefault();e.stopPropagation();}}}>
-      {sequenceMode&&readyEpoch!==api.canvasEpoch&&!loadError&&<div role="status" className="absolute inset-0 z-30 grid place-items-center bg-background/80 text-sm">Preparando arte…</div>}
-      {loadError&&<p role="alert" className="p-3 text-sm text-destructive">{loadError}</p>}
+    <div data-canvas-ready={readyEpoch===api.canvasEpoch?'true':'false'} className={embedded ? 'relative flex h-full min-h-0 flex-col bg-background' : 'relative flex h-screen flex-col bg-background'}>
+      {readyEpoch!==api.canvasEpoch&&!loadError&&<div role="status" className="absolute inset-0 z-30 grid place-items-center bg-background/80 text-sm">Preparando arte…</div>}
+      {loadError&&<div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-background/95 p-4"><p role="alert" className="text-sm text-destructive">{loadError}</p><Button variant="outline" onClick={() => setRetryLoad(n => n + 1)}>Tentar carregar arte novamente</Button></div>}
       {embedded ? (
         <EmbeddedToolbar api={api} preset={preset} onPresetChange={setPreset} lockPreset={sequenceMode} />
       ) : (

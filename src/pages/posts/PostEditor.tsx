@@ -89,6 +89,7 @@ export function PostEditor() {
   const [variation, setVariation] = useState<AiVariation | null>(null);
   const [textDirty, setTextDirty] = useState(false);
   const [canvasDirty, setCanvasDirty] = useState(false);
+  const [canvasReady, setCanvasReady] = useState(false);
   const lastUploadedHash = useRef<{ hash: string; url: string } | null>(null);
   // Quando o post carregou. O CanvasStudio dispara onChange na hidratação
   // inicial (não é edição do humano) — usamos isso pra IGNORAR essas mudanças
@@ -689,7 +690,7 @@ export function PostEditor() {
               Hive
             </Button>
           )}
-          <Button variant="accent" size="sm" onClick={() => void saveAll()} disabled={saving}>
+          <Button variant="accent" size="sm" onClick={() => void saveAll()} disabled={saving || (post.format !== ('video' as typeof post.format) && !canvasReady)}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {isDirty ? 'Salvar' : 'Salvo'}
           </Button>
@@ -698,7 +699,7 @@ export function PostEditor() {
               variant="outline"
               size="sm"
               onClick={() => void handleStandby()}
-              disabled={approving}
+              disabled={approving || (post.format !== ('video' as typeof post.format) && !canvasReady)}
               className="border-emerald-500 text-emerald-600 hover:bg-emerald-50"
               title={post.status === 'scheduled' ? 'Aprovar a peça como está — continua agendada na mesma data' : 'Peça aprovada · sem data: prepara a imagem final e deixa a peça pronta para agendar'}
             >
@@ -799,6 +800,7 @@ export function PostEditor() {
               key={`${post.id}:${canvasKey}`}
               embedded
               snapshotRef={snapshotRef}
+              onReadyChange={setCanvasReady}
               initialPreset={derivePreset(post.platform, post.format, post.metadata?.canvas_size as string | undefined, !!post.visual_decision)}
               // Nunca passa undefined na montagem: o state `fabricJson` só é
               // preenchido por um effect DEPOIS do mount, e abrir o post direto

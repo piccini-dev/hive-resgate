@@ -528,19 +528,19 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
   }, [bump, notify]);
 
   // ---------- LOAD/EXPORT ----------
-  const loadFromJson = useCallback(async (json: object, options: {strict?:boolean} = {}) => {
+  const loadFromJson = useCallback(async (json: object, options: {strict?:boolean; signal?: AbortSignal} = {}) => {
     const c = fabricRef.current;
     if (!c) return;
     mutatingRef.current = true;
     const expected = (json as { objects?: unknown[] }).objects?.length ?? 0;
     let failure: unknown;
     try {
-      await c.loadFromJSON(pickAllLayers?normalizeEditorLines(json):json);
+      await c.loadFromJSON(pickAllLayers?normalizeEditorLines(json):json, undefined, { signal: options.signal });
       // HARDENING anti-tela-branca: às vezes o loadFromJSON resolve com 0 objetos
       // (hidratação intermitente, mais comum no dev/StrictMode) — tenta 1x de novo.
       if (expected > 0 && c.getObjects().length === 0) {
         console.warn('[useEditor] loadFromJSON carregou 0 objetos — retry');
-        await c.loadFromJSON(pickAllLayers?normalizeEditorLines(json):json);
+        await c.loadFromJSON(pickAllLayers?normalizeEditorLines(json):json, undefined, { signal: options.signal });
       }
     } catch (e) {
       failure=e;
@@ -549,12 +549,13 @@ export function useEditor({ width, height, background = '#FFFFFF', pickAllLayers
       // que deu, em vez de abortar tudo.
       console.warn('[useEditor] loadFromJSON parcial', e);
     } finally {
-      c.renderAll();
+      if (!options.signal?.aborted && fabricRef.current === c) c.renderAll();
       // 2º render no próximo frame: imagens/fontes que chegaram tarde (a espiral
       // é cross-origin) às vezes não entram no 1º renderAll.
       requestAnimationFrame(() => { try { fabricRef.current?.renderAll(); } catch { /* noop */ } });
       mutatingRef.current = false;
     }
+    if (options.signal?.aborted || fabricRef.current !== c) throw new Error('Carregamento da arte interrompido.');
     if(options.strict&&(failure||c.getObjects().length!==expected))throw new Error('A arte não carregou por completo. Reabra a página para editar sem perder elementos.');
     pushHistory();
     notify();
