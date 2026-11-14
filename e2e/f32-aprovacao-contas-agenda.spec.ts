@@ -124,9 +124,20 @@ test.describe('F32 · aprovação, contas e distribuição diária',()=>{
     await page.route('**/rest/v1/rpc/approve_piece',async route=>{if(route.request().method()==='OPTIONS')return route.fulfill({status:200,headers:CORS});return route.fulfill({status:409,headers:CORS,body:JSON.stringify({message:'Aprovação recusada no teste.'})});});
     await page.goto('/posts/'+id);const next=page.getByTestId('editor-next');await expect(next).toHaveText('Aprovar e seguir');await expect(next).toBeEnabled({timeout:30000});
     await expect(page.getByRole('button',{name:'Publicar',exact:true})).toHaveCount(0);
-    await next.click();await expect(page.getByText(/Aprovação recusada no teste/)).toBeVisible();await expect(page).toHaveURL(new RegExp('/posts/'+id+'$'));
+    // Erro no fluxo, sem toast sobre o cabeçalho: é possível tentar novamente com o aviso visível.
+    const approvalError=page.getByTestId('editor-approval-error');
+    await next.click();await expect(approvalError).toContainText('Aprovação recusada no teste.');await expect(page).toHaveURL(new RegExp('/posts/'+id+'$'));
+    await expect(page.getByRole('alert')).toContainText('Aprovação recusada no teste.');
+    await expect(page.locator('#caption')).toHaveValue('Legenda preservada');
+    await expect(next).toBeEnabled();
+    await expect.poll(async()=>next.evaluate(el=>{const b=el.getBoundingClientRect(),hit=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return hit===el||el.contains(hit);})).toBe(true);
     expect((await sql<{status:string}>(`select status from user_posts where id='${id}'`))[0].status).toBe('pending_approval');
-    await page.unroute('**/rest/v1/rpc/approve_piece');await next.click();await expect(page).toHaveURL(/\/agenda/,{timeout:30000});
+    await page.unroute('**/rest/v1/rpc/approve_piece');
+    // Mantém o aviso na tela e não move o cursor nem espera a mensagem desaparecer.
+    await expect(approvalError).toBeVisible();
+    const beforeRetry=await next.evaluate(el=>({disabled:(el as HTMLButtonElement).disabled,canvasReady:document.querySelector('[data-canvas-ready]')?.getAttribute('data-canvas-ready'),hit:document.elementFromPoint(el.getBoundingClientRect().x+el.getBoundingClientRect().width/2,el.getBoundingClientRect().y+el.getBoundingClientRect().height/2)?.tagName}));
+    try{await next.click();}catch(e){throw new Error('Nova tentativa de aprovação: '+JSON.stringify(beforeRetry)+' '+String(e));}
+    await expect(page).toHaveURL(/\/agenda/,{timeout:30000});
     expect((await sql(`select status,caption from user_posts where id='${id}'`))[0]).toEqual({status:'approved',caption:'Legenda preservada'});
   });
 });

@@ -84,6 +84,7 @@ export function PostEditor() {
   const [saving, setSaving] = useState(false);
   const [postingLive, setPostingLive] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
   const [hiveBusy, setHiveBusy] = useState(false);
   const [bgBusy, setBgBusy] = useState(false);
   const [variation, setVariation] = useState<AiVariation | null>(null);
@@ -148,6 +149,7 @@ export function PostEditor() {
 
   useEffect(() => {
     if (!post) return;
+    setApprovalError(null);
     setTitle(post.title ?? '');
     setBriefing(post.briefing ?? '');
     setCaption(post.caption ?? '');
@@ -441,16 +443,17 @@ export function PostEditor() {
   async function approveCurrent() {
     if (!post || !currentUser) return;
     setApproving(true);
+    setApprovalError(null);
     try {
-      try { await flushPending(); } catch (e) { toast.error(`Aprovação não concluída. ${userMessage(e)}`); return; }
+      try { await flushPending(); } catch (e) { setApprovalError(`Aprovação não concluída. ${userMessage(e)}`); return; }
       let rendered: string | null = post.rendered_slides?.slide1 ?? null;
       if (post.format !== ('video' as typeof post.format)) {
         rendered = await exportImage();
-        if (!rendered) { toast.error('Stand-by não concluído: a imagem final não ficou pronta. A peça continua como estava.'); return; }
+        if (!rendered) { setApprovalError('Stand-by não concluído: a imagem final não ficou pronta. A peça continua como estava.'); return; }
       }
       let approved;
       try { assertCurrentSaved(); approved = await approvePieceOnServer(post.id, rendered); }
-      catch (e) { toast.error(`Não foi possível salvar esta aprovação: ${userMessage(e)}`); return; }
+      catch (e) { setApprovalError(`Não foi possível salvar esta aprovação: ${userMessage(e)}`); return; }
       applyServer(approved);
       const where = approved.status === 'scheduled' && approved.scheduled_date
         ? `continua agendada para ${formatInZone(approved.scheduled_date)}` : 'aprovada · sem data';
@@ -477,7 +480,7 @@ export function PostEditor() {
       return approved;
     } catch (e) {
       console.error(e);
-      toast.error(`Erro ao aprovar: ${userMessage(e)}`);
+      setApprovalError(`Erro ao aprovar: ${userMessage(e)}`);
     } finally {
       setApproving(false);
     }
@@ -741,6 +744,8 @@ export function PostEditor() {
       </header>
 
       {!isAlreadyPublished&&<p className="border-b bg-accent/5 px-6 py-2 text-sm text-muted-foreground" data-testid="editor-flow">Revise a arte e a legenda → aprove a peça → confira as contas e a agenda.</p>}
+      {/* Erro persistente no fluxo: nunca cobre o botão de nova tentativa. */}
+      {approvalError&&<p role="alert" data-testid="editor-approval-error" className="border-b border-destructive/30 bg-destructive/5 px-6 py-3 text-sm text-destructive">{approvalError}</p>}
       {/* Portão do fundo de IA (M01-D Campo / M01-E Matéria): revisar antes de publicar. */}
       {bgGatePending(post) && !photoGenId && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/10 px-6 py-2.5">

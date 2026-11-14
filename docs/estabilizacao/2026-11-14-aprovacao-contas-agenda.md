@@ -39,10 +39,16 @@ Arquivos: `src/lib/schedule.ts`, novo planejador/política em `src/lib/distribut
 ## Execução
 
 1. Implementar e executar build/testes puros.
-2. GitHub: testes específicos F6/F22/F24/F25/F29/F32; corrigir cenário isolado antes de repetir o conjunto quando necessário.
+2. GitHub: testes específicos da área e uma verificação de estabilidade dos cenários alterados com operações assíncronas. Na falha recorrente, executar o cenário isolado três vezes consecutivas (`--repeat-each=3`, uma execução por vez, sem retries); qualquer falha interrompe a liberação da suíte completa. Ver protocolo em `docs/agentes/09-VALIDACAO-POR-PACOTE.md`.
 3. Congelar o commit e iniciar a regressão completa no GitHub. Registrar o link no PR e encerrar a etapa no chat, permitindo aguardar fora da conversa.
 4. Na retomada, conferir o resultado do mesmo commit; com tudo verde, integrar e confirmar a publicação exata no Netlify.
 
 ## Estado
 
 Implementação concluída a partir de `6c1e290da94ef2f79a9384cd5c54aa90caede74b`. Build e 77 testes puros aprovados localmente. Validação de interface/contratos pendente no GitHub (F6/F22/F24/F25/F29/F32). O PR registra os links, o commit validado e a regressão completa; este documento não antecipa o resultado desses portões.
+
+## Correção após a regressão completa
+
+No commit inicial, os testes específicos passaram, mas as duas execuções completas falharam no segundo clique de aprovação do F32. A segunda terminou em 300 aprovados e 1 falha. O HTTP 401 da primeira rodada não voltou; credenciais permanecem intocadas.
+
+A recusa da aprovação agora aparece como alerta persistente abaixo do cabeçalho, preservando a edição e deixando o botão de nova tentativa livre. O teste confere o aviso, a legenda, o estado pendente no banco e a possibilidade de clicar novamente com o erro visível; inclui diagnóstico resumido em caso de falha. Não há espera fixa, aumento de prazo, clique forçado, retries ou remoção de verificação. A validação desta correção ainda está pendente; evidências finais ficam no PR #56.

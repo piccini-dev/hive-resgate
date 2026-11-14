@@ -83,3 +83,7 @@ A regressão roda contra o **banco de produção**, então um PR que depende de 
 ## A prévia do Netlify
 
 Cada PR ganha um link de prévia ("Deploy Preview") para **ver** a mudança. Atenção: a prévia usa o **banco real**. O que se clica nela (aprovar, agendar, publicar) acontece de verdade na conta do Marcos. Use-a para olhar, não para testar ações.
+
+## Validação curta antes de repetir a suíte completa
+
+Na operação `hive-resgate`, que usa disparo manual, seguir também [09 · Validação por pacote](09-VALIDACAO-POR-PACOTE.md): specs afetados e três repetições dos cenários alterados com operações assíncronas/recuperação de erro antes de liberar a execução completa. Toda repetição precisa passar. Esse procedimento usa o campo Specs existente e mantém a regressão completa obrigatória, sem alterar workflows ou configurar retries.
