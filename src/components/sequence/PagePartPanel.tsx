@@ -12,10 +12,11 @@ const representations: Array<[PageRepresentation, string, string]> = [
   ['steps', 'Etapas', 'Mostrar uma sequência numerada.'],
 ];
 
-export function PagePartPanel({ snapshot, variant, height, busy, onPropose, onCanvas }: {
+export function PagePartPanel({ snapshot, variant, height, busy, onPropose, onCanvas, onAskHive }: {
   snapshot: EditorSnapshot; variant?: string; height: number; busy: boolean;
-  onPropose: (req: Request) => void; onCanvas: () => void;
+  onPropose: (req: Request) => void; onCanvas: () => void; onAskHive: (req: Request, instruction: string) => void;
 }) {
+  const [manual,setManual]=useState(false),[instruction,setInstruction]=useState('');
   const elements = useMemo(() => pageElements(snapshot.fabricJson, variant), [snapshot, variant]);
   const [scope, setScope] = useState<'selected' | 'diagram'>(snapshot.selectedPaths?.length ? 'selected' : 'diagram');
   const [selected, setSelected] = useState(snapshot.selectedPaths ?? []);
@@ -28,6 +29,7 @@ export function PagePartPanel({ snapshot, variant, height, busy, onPropose, onCa
   const fields = targets.filter(e => e.text !== undefined && !e.protected);
   return <section className="space-y-4" data-testid="page-part-panel">
     <p className="text-sm">Revise a ideia representada e os textos que fazem parte dela. O texto principal acima da imagem permanece preservado.</p>
+    <details className="rounded-lg border p-3"><summary className="cursor-pointer text-sm">Escopo e forma de representar a ideia</summary><div className="mt-3 space-y-3">
     <fieldset disabled={busy} className="flex flex-wrap gap-3 text-sm">
       <legend className="mb-2 font-medium">O que será revisado?</legend>
       <label className="flex items-center gap-2"><input type="radio" name="part-scope" checked={scope === 'selected'} onChange={() => { setScope('selected'); setRepresentation('diagram'); }}/>Elementos selecionados</label>
@@ -43,10 +45,13 @@ export function PagePartPanel({ snapshot, variant, height, busy, onPropose, onCa
       <legend className="mb-2 text-sm font-medium">Como representar esta ideia?</legend>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">{representations.map(([value, label, description]) => <button key={value} type="button" aria-label={label} aria-pressed={representation === value} className={`rounded-lg border p-3 text-left text-sm ${representation === value ? 'border-accent bg-accent/10' : ''}`} onClick={() => setRepresentation(value)}><span className="block font-medium">{label}</span><span className="text-xs text-muted-foreground">{description}</span></button>)}</div>
     </fieldset>}
+    </div></details>
+    <div className="flex gap-2"><Button size="sm" variant={!manual?'accent':'outline'} disabled={busy} onClick={()=>setManual(false)}>Pedir à Hive</Button><Button size="sm" variant={manual?'accent':'outline'} disabled={busy} onClick={()=>setManual(true)}>Editar manualmente</Button></div>
+    {!manual ? <div className="space-y-3"><label className="block space-y-2 text-sm">O que você quer diferente?<Textarea aria-label="Pedido de revisão do diagrama" rows={3} value={instruction} onChange={e=>setInstruction(e.target.value)} disabled={busy} placeholder="Ex.: este diagrama não explica a relação entre causa e sintoma. Torne a ideia mais clara."/></label><Button variant="accent" disabled={busy||!instruction.trim()||!targets.length||blocked} onClick={()=>onAskHive({variant,scope,selected,texts,representation,content,height},instruction)}>Conferir sugestão da Hive</Button></div> : <>
     {representation === 'diagram' ? <div className="space-y-3">
       {fields.map((e, i) => <label key={e.path.join('.')} className="block space-y-1 text-sm">Texto ligado à imagem {i + 1}<Textarea aria-label={`Texto ligado à imagem ${i + 1}`} value={texts[e.path.join('.')] ?? e.text} rows={2} disabled={busy} onChange={ev => setTexts(old => ({ ...old, [e.path.join('.')]: ev.target.value }))}/></label>)}
       {!fields.length && <p className="text-sm text-muted-foreground">Para mover formas, trocar imagens ou ajustar linhas, volte à arte. Selecione um texto para revisá-lo aqui.</p>}
     </div> : <label className="block space-y-1 text-sm">Conteúdo da nova representação<Textarea aria-label="Conteúdo da nova representação" rows={8} value={content} disabled={busy} onChange={ev => setContent(ev.target.value)}/><span className="block text-xs text-muted-foreground">{representation === 'text' ? 'Escreva a explicação que substituirá o diagrama.' : 'Use uma linha por bloco ou etapa. A ordem das linhas será mantida.'}</span></label>}
-    <div className="flex flex-wrap gap-2"><Button variant="accent" disabled={busy || !targets.length || blocked || (representation === 'diagram' ? !fields.some(e => texts[e.path.join('.')] !== undefined && texts[e.path.join('.') ] !== e.text) : !content.trim())} onClick={() => onPropose({ variant, scope, selected, texts, representation, content, height })}>Conferir proposta desta parte</Button><Button variant="outline" disabled={busy} onClick={onCanvas}>Voltar à arte</Button></div>
+    <div className="flex flex-wrap gap-2"><Button variant="accent" disabled={busy || !targets.length || blocked || (representation === 'diagram' ? !fields.some(e => texts[e.path.join('.')] !== undefined && texts[e.path.join('.') ] !== e.text) : !content.trim())} onClick={() => onPropose({ variant, scope, selected, texts, representation, content, height })}>Conferir proposta desta parte</Button></div></>}<div><Button variant="outline" disabled={busy} onClick={onCanvas}>Voltar à arte</Button></div>
   </section>;
 }

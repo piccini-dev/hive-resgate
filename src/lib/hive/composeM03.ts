@@ -133,6 +133,7 @@ export function composeM03(input: ComposeM03Input): ComposedSlide {
   }
   const titleH = lines.length * fontSize * 1.1;
   const titleTop = Math.round(pctH(hg.cy ?? 22) - titleH / 2);
+  if(titleTop<pctH(7)||titleTop+titleH>pctH(34))throw new Error('Este texto invade o espaço do diagrama. Encurte a frase ou escolha outro formato.');
   const titleStyles = highlight?.target ? highlightStyles(lines, highlight.target, laranja) : {};
   objects.push({
     type: 'Textbox', version: '6.0.0', text: lines.join('\n'),

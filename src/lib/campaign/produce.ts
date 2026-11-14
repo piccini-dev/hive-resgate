@@ -30,11 +30,11 @@ export const AI_IMAGE_VARIANT = (v?: string) => v === 'M01-D' || v === 'M01-E' |
 
 // Mesmo template da decisão atual (re-render sem 2ª IA) — igual ao PostEditor.runHive.
 export function seedFromDecision(vd: unknown): HiveSeed | undefined {
-  const d = vd as { variant?: string; highlight?: HiveSeed['highlight']; subtitle?: string | null } | null | undefined;
+  const d = vd as { variant?: string; highlight?: HiveSeed['highlight']; subtitle?: string | null; diagram?: {poleA?:string;poleB?:string} | null } | null | undefined;
   if (!d?.variant) return undefined;
   return {
     variant: d.variant, manifestation: d.variant.split('-')[0], highlight: d.highlight ?? null, subtitle: d.subtitle ?? null,
-    poles: null, image_scene_hint: '', human_presence_adds_meaning: d.variant.startsWith('M02-'), mode_reason: '', variant_reason: 're-render mesmo template',
+    poles: d.diagram ? {a:d.diagram.poleA,b:d.diagram.poleB} : null, image_scene_hint: '', human_presence_adds_meaning: d.variant.startsWith('M02-'), mode_reason: '', variant_reason: 're-render mesmo template',
   };
 }
 

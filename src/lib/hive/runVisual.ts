@@ -17,6 +17,7 @@ import { composeM03 } from './composeM03';
 import { ensureM01Asset, clearM01AssetCache } from './marcosImage';
 import { generateMarcosPhoto, TEXT_SPACE_TO_PLACE } from './marcosPhoto';
 import { imageDims, listMarcosPhotos } from './assetLib';
+import { generationUnavailable, photoUsage, requireNewImage } from './imagePolicy';
 import { renderFabricToDataUrl } from '@/lib/templates/renderPost';
 import { uploadAssetImage } from '@/lib/storage';
 
@@ -65,7 +66,7 @@ export async function generateHiveImage(params: {
   // 1) Decisão (a IA lê as regras da base e escolhe manifestação/variante/destaque
   //    + a imagem na hierarquia: foto real do Marcos primeiro, gerar só se preciso).
   //    Com seed, executa a variante fixa (sem re-decidir).
-  const { decision } = await edge.hiveDecide({
+  const { decision: proposedDecision } = await edge.hiveDecide({
     text,
     platform: params.platform,
     editorial_slug: params.editorialSlug,
@@ -74,6 +75,11 @@ export async function generateHiveImage(params: {
     seed: params.seed,
     persist: params.persistDecision !== false,
   });
+
+  // A escolha explícita é autoridade; o servidor não pode substituir o modelo.
+  const decision = { ...proposedDecision, ...(params.seed ? { variant: params.seed.variant, mode: params.seed.manifestation,
+    highlight: params.seed.highlight?.target ? { target: params.seed.highlight.target, reason: params.seed.highlight.reason ?? '' } : null,
+    subtitle: params.seed.subtitle, diagram: params.seed.poles ? { poleA: params.seed.poles.a, poleB: params.seed.poles.b } : null } : {}) };
 
   // 2) Composição: pega a receita frozen da variante escolhida (M01 ou M02).
   const design = await loadHiveDesign();
@@ -85,6 +91,7 @@ export async function generateHiveImage(params: {
 
   let slide: ComposedSlide;
   if (recipe.manifestacao_id === 'M03') {
+    decision.asset = null; (decision as Record<string,unknown>).image_ref = null;
     slide = composeM03({
       recipe, colors: design.colors, spiralUrl: design.spiralUrl,
       text, highlight, canvas, diagram: decision.diagram ?? null,
@@ -110,19 +117,27 @@ export async function generateHiveImage(params: {
       const r = await generateMarcosPhoto({ text: [params.context, text].filter(Boolean).join('\n\n'), postId: params.postId, adjustNote: params.photoAdjust });
       if (r.status === 'generated' && r.generation.image_url) {
         const g = r.generation;
-        const url = g.image_url as string;
+        if (g.auto_status === 'rejeitada') throw new Error('A nova foto foi rejeitada na verificação de qualidade. Peça outra proposta.');
+        const previous = params.keepAsset?.url ?? prev?.url ?? params.previousDecision?.image_ref as string | undefined;
+        const references = params.forceBg || params.photoAdjust ? (await listMarcosPhotos()).map(p => p.url) : [];
+        const url = requireNewImage(g.image_url, params.forceBg || params.photoAdjust ? previous : null, references);
         const dims = await imageDims(url).catch(() => ({ w: 0, h: 0 }));
         asset = { url, width: dims.w || null, height: dims.h || null, espaco_texto: TEXT_SPACE_TO_PLACE[g.text_space] ?? 'esquerda', texto_cor: 'claro', origin: 'generated', preComposed: true };
         photoMeta = { photo_generation_id: g.id, photo_style: g.style_id, photo_variant: g.variant_id, photo_auto_status: g.auto_status, photo_attempts: r.attempts.length };
       } else {
-        const real = decision.asset?.url ? decision.asset : (await listMarcosPhotos().catch(() => [])).find((p) => p.is_active !== false && p.origin === 'real');
-        if (!real?.url) throw new Error('Sem foto real do Marcos para este post.');
+        if (r.status === 'generated') throw new Error('O motor fotográfico não devolveu uma imagem completa.');
+        if (params.forceBg || params.photoAdjust) throw generationUnavailable(r.status, r.reason);
+        const photos = await listMarcosPhotos();
+        const allowed = photos.filter(p => p.is_active !== false && photoUsage(p.semantic) === 'reusable' && (r.status !== 'needs_real_photo' || ['real','real_adapted'].includes(p.origin)));
+        const real = allowed.find(p => p.id === decision.asset?.id || p.url === decision.asset?.url) ?? allowed[0];
+        if (!real?.url) throw new Error('Não há foto autorizada para reutilização. Configure Fotos e geração em Templates ou aprove um estilo para gerar uma nova imagem.');
         const tags = (real as { semantic?: { espaco_texto?: string; texto_cor?: string } }).semantic;
         asset = { url: real.url, width: (real as { width?: number }).width ?? null, height: (real as { height?: number }).height ?? null,
-          espaco_texto: (decision.asset?.espaco_texto ?? tags?.espaco_texto ?? 'esquerda') as string, texto_cor: (decision.asset?.texto_cor ?? tags?.texto_cor ?? 'claro') as string, origin: 'real' };
-        photoMeta = { photo_origin: 'real', photo_fallback: r.status === 'needs_real_photo' ? `prova real: ${r.reason}` : 'nenhum estilo fotográfico aprovado ainda' };
+          espaco_texto: (tags?.espaco_texto ?? 'esquerda') as string, texto_cor: (tags?.texto_cor ?? 'claro') as string, origin: real.origin };
+        photoMeta = { photo_origin: real.origin, reused_library: true, photo_fallback: r.status === 'needs_real_photo' ? `prova real: ${r.reason}` : 'nenhum estilo fotográfico aprovado ainda' };
       }
     }
+    if (!asset.width || !asset.height) { const dims = await imageDims(asset.url); asset.width = dims.w; asset.height = dims.h; }
     slide = composeM02({
       recipe, colors: design.colors, spiralUrl: design.spiralUrl,
       text, subtitle: decision.subtitle ?? null, highlight, canvas, asset,
@@ -133,16 +148,19 @@ export async function generateHiveImage(params: {
     // M01-D (Campo) e M01-E (Matéria) têm fundo de IA: se a biblioteca não tem
     // asset, gera um agora (senão fica placeholder). Demais M01 = sem imagem.
     // forceBg = "Regenerar fundo": ignora o pool e gera um novo do zero.
+    decision.asset = null;
     let assets = design.assets;
     const isD = recipe.id === 'M01-D', isE = recipe.id === 'M01-E';
     const keepBg = params.keepAsset?.kind === 'bg' && !params.forceBg ? params.keepAsset : null;
     if (keepBg && (isD || isE)) {
       // Preservação: o MESMO fundo, independentemente do texto.
-      const a = { url: keepBg.url } as (typeof design.assets.photos)[number];
+      const dims = await imageDims(keepBg.url);
+      const a = { url: keepBg.url, width: keepBg.width ?? dims.w, height: keepBg.height ?? dims.h };
       assets = isD ? { ...design.assets, photos: [a] } : { ...design.assets, textures: [a] };
     } else if (params.forceBg && (isD || isE)) {
       clearM01AssetCache(params.postId);
-      const a = await ensureM01Asset(isD ? 'photo' : 'texture', params.postId);
+      const a = await ensureM01Asset(isD ? 'photo' : 'texture', params.postId, [params.context, text, params.photoAdjust].filter(Boolean).join('\n\n'));
+      requireNewImage(a?.url, params.previousDecision?.image_ref as string | undefined);
       if (a) { assets = isD ? { ...design.assets, photos: [a] } : { ...design.assets, textures: [a] }; clearZoneCache(a.url); }
     } else if (isD && design.assets.photos.length === 0) {
       const a = await ensureM01Asset('photo', params.postId);
@@ -153,6 +171,7 @@ export async function generateHiveImage(params: {
     }
     // Posicionamento pós-imagem (D/E): leva o texto pra zona de espaço negativo.
     const bgUrl = pickM01BgUrl(recipe, assets, text);
+    if ((isD || isE) && !bgUrl) throw new Error('Não foi possível preparar o fundo deste modelo. Tente gerar outra imagem ou escolha um formato sem fundo.');
     (decision as Record<string, unknown>).image_ref = bgUrl ?? null;
     const layout = bgUrl ? await analyzeTextZone(bgUrl) : null;
     slide = composeM01({

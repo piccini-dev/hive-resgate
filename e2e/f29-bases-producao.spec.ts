@@ -90,6 +90,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     units=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
     await page.getByRole('button',{name:'Revisar peça',exact:true}).click();
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Editar na arte',exact:true}).click();
     const dialog=page.getByRole('dialog');await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
     const art=dialog.locator('canvas.upper-canvas');
     const point=async(x:number,y:number)=>{await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();const b=await art.boundingBox();if(!b)throw new Error('Arte não visível');return {x:b.x+x*b.width/1080,y:b.y+y*b.height/1350};};
@@ -118,6 +119,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect(after[0].rendered_url).not.toBe(units[0].rendered_url);
     expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe('Legenda que não muda.');
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Editar na arte',exact:true}).click();
     await expect(dialog.getByRole('button',{name:'Assinatura',exact:true})).toBeVisible();
     // O primeiro segmento do conector é horizontal; seleciona pelo traço e arrasta só a ponta final.
     const json=after[0].fabric_json as {objects:Array<Record<string,unknown>>};
@@ -136,9 +138,12 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect((await sql<PostUnit>(`select * from post_units where id='${units[1].id}'`))[0]).toEqual(units[1]);
     // Marcos (12/11): revisar o rótulo selecionado sem reescrever o título aprovado.
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Editar na arte',exact:true}).click();
     pt=await point(770,595);await page.mouse.click(pt.x,pt.y);
     await expect(dialog.getByRole('textbox',{name:'Texto selecionado',exact:true})).toHaveValue('Visível');
     await dialog.getByRole('button',{name:'Revisar elementos selecionados',exact:true}).click();
+    await dialog.getByRole('button',{name:'Editar manualmente',exact:true}).click();
+    await dialog.getByText('Escopo e forma de representar a ideia',{exact:true}).click();
     await expect(dialog.getByRole('radio',{name:'Elementos selecionados',exact:true})).toBeChecked();
     await expect(dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true})).toHaveValue('Visível');
     await dialog.getByRole('textbox',{name:'Texto ligado à imagem 1',exact:true}).fill('Aparente');
@@ -156,9 +161,12 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect(relabeled.title).toBe(moved.title);expect(relabeled.body).toBe(moved.body);
     // As alternativas não dependem da IA visual adiada; descarte preserva a página.
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Editar na arte',exact:true}).click();
     await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();
     await dialog.getByRole('button',{name:'Revisar diagrama e textos',exact:true}).click();
+    await dialog.getByText('Escopo e forma de representar a ideia',{exact:true}).click();
     await dialog.getByRole('radio',{name:'Diagrama completo e seus textos',exact:true}).check();
+    await dialog.getByRole('button',{name:'Editar manualmente',exact:true}).click();
     for(const representation of ['Blocos','Etapas','Texto']){
       await dialog.getByRole('button',{name:representation,exact:true}).click();
       await dialog.getByRole('textbox',{name:'Conteúdo da nova representação',exact:true}).fill('O que aparece\nO padrão que se repete\nO que sustenta o padrão');
@@ -177,10 +185,13 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe('Legenda que não muda.');
     expect(visualCalls).toHaveLength(0);
     await page.getByRole('button',{name:'Editar arte da página 1',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Editar na arte',exact:true}).click();
     await expect(dialog.locator('[data-canvas-ready="true"]')).toBeVisible();
     await expect(dialog.getByRole('button',{name:'Organizar diagrama',exact:true})).toHaveCount(0);
     pt=await point(300,150);await page.mouse.click(pt.x,pt.y);
     await dialog.getByRole('button',{name:'Revisar elementos selecionados',exact:true}).click();
+    await dialog.getByRole('button',{name:'Editar manualmente',exact:true}).click();
+    await dialog.getByText('Escopo e forma de representar a ideia',{exact:true}).click();
     await expect(dialog.getByRole('alert')).toContainText('A seleção inclui texto principal');
     await expect(dialog.getByRole('button',{name:'Conferir proposta desta parte',exact:true})).toBeDisabled();
     await dialog.getByRole('button',{name:'Voltar à revisão',exact:true}).click();
@@ -313,6 +324,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(page.getByTestId('gallery-pages-strip').getByRole('img')).toHaveCount(3);
     await page.getByRole('button',{name:'Revisar peça',exact:true}).click();
     await page.getByRole('button',{name:'Editar arte da página 2',exact:true}).click();
+    await page.getByRole('dialog').getByRole('button',{name:'Editar na arte',exact:true}).click();
     const dialog=page.getByRole('dialog');
     await expect(dialog.getByTestId('sequence-page-canvas')).toBeVisible();
     // Mouse real no canvas escalado: não selecionar a camada pelo menu lateral.
@@ -384,6 +396,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     expect(after[1].rendered_url).not.toBe(before[1].rendered_url);
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Ajustar texto',exact:true}).click();
+    await dialog.getByText('Editar manualmente',{exact:true}).click();
     await dialog.getByRole('textbox',{name:'Texto desta página',exact:true}).fill('Uma leitura ainda mais clara.');
     await dialog.getByRole('button',{name:'Conferir alteração',exact:true}).click();
     await expect(dialog.getByTestId('page-edit-candidate')).toBeVisible();
@@ -392,7 +405,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     after=await sql<PostUnit>(`select * from post_units where post_id='${pid}' order by position`);
     expect(after[1].body).toBe('Uma leitura ainda mais clara.');expect(after[0]).toEqual(before[0]);expect(after[2]).toEqual(before[2]);
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Alterar visual',exact:true}).click();
-    await expect(dialog.getByRole('button',{name:'Refazer esta página',exact:true})).toBeVisible();
+    await expect(dialog.getByRole('button',{name:'Trocar formato',exact:true})).toBeVisible();
     await dialog.getByText('Revisar também o texto principal',{exact:true}).click();
     await dialog.getByRole('textbox',{name:'Título da página refeita',exact:true}).fill('Título e composição refeitos');
     await dialog.getByRole('button',{name:'Leitura em fundo escuro',exact:false}).click();
@@ -418,6 +431,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     // Uma correção posterior desfaz só a aprovação do post, mantendo páginas não alteradas.
     await page.getByRole('button',{name:'Ver peça aprovada',exact:true}).click();
     await page.getByTestId('visual-review-page').nth(1).getByRole('button',{name:'Ajustar texto',exact:true}).click();
+    await dialog.getByText('Editar manualmente',{exact:true}).click();
     await dialog.getByRole('textbox',{name:'Título desta página'}).fill('Nova revisão');
     await dialog.getByRole('button',{name:'Conferir alteração',exact:true}).click();await dialog.getByRole('button',{name:'Aplicar nesta página',exact:true}).click();
     await expect(dialog).toHaveCount(0,{timeout:60000});

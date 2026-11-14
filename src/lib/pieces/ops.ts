@@ -177,7 +177,7 @@ async function render(userId: string, piece: UserPost, opts: { text: string; cap
 }
 
 const seedFor = (base: UserPost, variant?: string | null): HiveSeed | undefined => {
-  const s = seedFromDecision(base.visual_decision);
+  const s = seedFromDecision(base.visual_decision) ?? (variant ? seedFromDecision({variant}) : undefined);
   if (!s) return undefined;
   if (!variant || variant === s.variant) return s;
   return { ...s, variant, manifestation: variant.split('-')[0], human_presence_adds_meaning: variant.startsWith('M02-'), variant_reason: 'template escolhido pelo autor' };

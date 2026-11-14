@@ -21,7 +21,8 @@ import { imageKind } from '@/lib/campaign/produce';
 import type { CampaignCycle, Content, FormatCapability, PiecePlan, PostUnit, SequenceExport, UserPost } from '@/types';
 import { registerManualPublication } from '@/lib/approval';
 import { pageTextFromCanvas, reflowEditedPage } from './editing';
-import { revisePagePart } from './pageRevision';
+import { pageElements, revisePagePart } from './pageRevision';
+import { partFields, readRevision, revisionText, type PartRequest } from './assistedRevision';
 
 export const ARCHITECTURE_LABELS: Record<string, string> = {
   historia: 'História e aprendizagem', perspectiva: 'Mudança de perspectiva', conceito: 'Exploração de conceito',
@@ -127,7 +128,7 @@ const needsRender = needsSequenceRender;
 
 interface Rendered { fabric_json: unknown; rendered_url: string; assets: PostUnit['assets'] }
 
-async function renderOne(post: UserPost, u: PostUnit, total: number, dir: SequenceDirection, opts: { fileTag: string; newImage?: boolean; coverVariant?: string | null }): Promise<Rendered> {
+async function renderOne(post: UserPost, u: PostUnit, total: number, dir: SequenceDirection, opts: { fileTag: string; newImage?: boolean; coverVariant?: string | null; instruction?: string }): Promise<Rendered> {
   // Stories (9:16): todas as telas, inclusive a capa, pelo compositor da sequência no tamanho da capacidade.
   const story = post.format === 'story';
   const canvas = story ? { w: 1080, h: 1920 } : { w: 1080, h: 1350 };
@@ -148,10 +149,10 @@ async function renderOne(post: UserPost, u: PostUnit, total: number, dir: Sequen
         : { url: u.assets!.image_ref!, kind: 'bg' as const })
       : null;
     const r = await generateHiveImage({
-      userId: post.user_id, postId: post.id, canvas, text: [u.title, u.body].filter(Boolean).join(' — ').slice(0, 200) || post.title || '',
+      userId: post.user_id, postId: post.id, canvas, text: [u.title, u.body].filter(Boolean).join(' — ') || post.title || '',
       platform: post.platform as 'linkedin' | 'instagram', editorialSlug: post.metadata?.editorial_slug as string | undefined,
       seed: variant ? seedForVariant(variant, u.assets?.decision as Record<string,unknown>|undefined) : undefined, forceBg: !!opts.newImage, keepAsset: keep, persistDecision: false,
-      context: post.caption ?? undefined, fileName: `unit-${u.id}-${opts.fileTag}.jpg`,
+      context: post.caption ?? undefined, previousDecision: {...u.assets?.decision as Record<string,unknown>,...u.assets}, photoAdjust: opts.instruction, fileName: `unit-${u.id}-${opts.fileTag}.jpg`,
     });
     const d = r.decision as Record<string, unknown>;
     return { fabric_json: r.slide, rendered_url: `${r.publicUrl.split('?')[0]}?v=${Date.now()}`,
@@ -243,11 +244,11 @@ export async function proposeText(post: UserPost, units: PostUnit[], req: { scop
 }
 
 // Trocar a imagem da CAPA: texto, template, ordem e demais páginas preservados.
-export async function proposeCoverImage(post: UserPost, units: PostUnit[]): Promise<UnitCandidate> {
+export async function proposeCoverImage(post: UserPost, units: PostUnit[], instruction?:string): Promise<UnitCandidate> {
   const cover = units.find((u) => u.layout === 'cover');
   if (!cover?.assets?.variant || imageKind(cover.assets.variant) === 'none') throw new Error('A capa usa um template sem imagem. Para ter imagem, troque o template.');
   const cid = crypto.randomUUID().slice(0, 8);
-  const r = await renderOne(post, cover, units.length, directionOf(post), { fileTag: `cand-${cid}`, newImage: true });
+  const r = await renderOne(post, cover, units.length, directionOf(post), { fileTag: `cand-${cid}`, newImage: true, instruction });
   return insertCandidate(post, { action: 'swap_image', scope: 'units', unit_ids: [cover.id], mutable_paths: ['image', 'visual'], instruction: null,
     proposal: { units: [{ id: cover.id, ...r, fabric_json: r.fabric_json as PostUnit['fabric_json'] }] }, impact: null, preserved: { title: cover.title, body: cover.body } });
 }
@@ -321,7 +322,7 @@ export async function proposePagePart(post:UserPost,unit:PostUnit,state:EditorSn
   return prepareCanvasCandidate(post,unit,{...state,fabricJson},req.scope==='selected'?'Revisar elementos selecionados':'Revisar diagrama e textos ligados a ele','Texto principal, assinatura, fotografias, demais páginas e legenda preservados. Somente esta página precisará de nova revisão visual.',true);
 }
 
-export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro';text?:{title:string;body:string}}):Promise<UnitCandidate>{
+export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:PostUnit,next:{variant?:string;theme?:'claro'|'escuro';text?:{title:string;body:string};newImage?:boolean;instruction?:string}):Promise<UnitCandidate>{
   const dir={...directionOf(post),...(next.theme?{theme:next.theme}:{})};
   const from=unit.assets?.variant??null,to=next.variant??from;
   const incompatible=!!to&&!!from&&imageKind(from)!==imageKind(to);
@@ -329,8 +330,36 @@ export async function proposePageVisual(post:UserPost,units:PostUnit[],unit:Post
   if(next.text&&!(next.text.title.trim()||next.text.body.trim()))throw new Error('A página precisa ter texto.');
   const changedText=!!next.text&&(next.text.title!==(unit.title??'')||next.text.body!==(unit.body??''));
   const input={...unit,...next.text,assets:{...unit.assets,manual_canvas:false,...(next.theme?{page_direction:{theme:next.theme}}:{})}};
-  const r=await renderOne(post,input,units.length,dir,{fileTag:`preview-${crypto.randomUUID()}`,coverVariant:next.variant,newImage:incompatible});
-  return insertCandidate(post,{action:changedText?'adjust_text':'swap_template',scope:'units',unit_ids:[unit.id],mutable_paths:[...incompatible?['visual','image']:['visual'],...changedText?['text']:[]],instruction:'Refazer somente esta página',proposal:{units:[{id:unit.id,...next.text,...r,fabric_json:r.fabric_json as PostUnit['fabric_json'],assets:{...r.assets,...(next.theme?{page_direction:{theme:next.theme}}:{})}}]},impact:`${changedText?'O texto e a composição desta página serão alterados.':'O texto principal será preservado.'} ${incompatible?'Este modelo usa outro tipo de imagem. ':''}As demais páginas e a legenda permanecem preservadas. Confira antes de aplicar.`});
+  const r=await renderOne(post,input,units.length,dir,{fileTag:`preview-${crypto.randomUUID()}`,coverVariant:next.variant,newImage:incompatible||next.newImage,instruction:next.instruction});
+  return insertCandidate(post,{action:changedText?'adjust_text':'swap_template',scope:'units',unit_ids:[unit.id],mutable_paths:[...(incompatible||next.newImage)?['visual','image']:['visual'],...changedText?['text']:[]],instruction:'Refazer somente esta página',proposal:{units:[{id:unit.id,...next.text,...r,fabric_json:r.fabric_json as PostUnit['fabric_json'],assets:{...r.assets,...(next.theme?{page_direction:{theme:next.theme}}:{})}}]},impact:`${changedText?'O texto e a composição desta página serão alterados.':'O texto principal será preservado.'} ${incompatible?'Este modelo usa outro tipo de imagem. ':''}As demais páginas e a legenda permanecem preservadas. Confira antes de aplicar.`});
+}
+
+
+async function askPageRevision(post:UserPost,fields:Record<string,string>,instruction:string,allowUnchanged=false):Promise<Record<string,string>> {
+  if(!instruction.trim())throw new Error('Descreva o que você quer diferente.');
+  const r=await edge.editText({field:'titulo',text:revisionText(fields),post_id:post.id,counterpart:post.caption??'',
+    editorial_slug:post.metadata?.editorial_slug as string|undefined,target_platform:post.platform as 'instagram'|'linkedin',max_chars:6000,
+    instruction:`Estes são trechos de UMA página de uma peça, incluindo textos internos de um diagrama. Revise somente estes trechos. Preserve exatamente os marcadores [[identificador]], cada um em sua linha, e devolva todos eles com o texto em seguida. Não adicione marcadores, comentários, aspas nem cercas de código. Mantenha os textos curtos para caber nos mesmos espaços. Pedido do produtor: ${instruction}`});
+  return readRevision(r.text,fields,allowUnchanged);
+}
+
+export async function proposePagePartWithHive(post:UserPost,unit:PostUnit,state:EditorSnapshot,req:PartRequest,instruction:string):Promise<UnitCandidate> {
+  const fields=partFields(state.fabricJson,req),answer=await askPageRevision(post,fields,instruction);
+  return proposePagePart(post,unit,state,{...req,...(req.representation==='diagram'?{texts:answer}:{content:answer.content})});
+}
+
+export async function proposeWholePage(post:UserPost,units:PostUnit[],unit:PostUnit,state:EditorSnapshot,instruction:string):Promise<UnitCandidate> {
+  const variant=unit.assets?.variant as string|undefined,diagram=pageElements(state.fabricJson,variant).some(e=>e.diagram&&e.text!==undefined);
+  const withImage=imageKind(variant)!=='none';
+  if(diagram&&withImage)throw new Error('Esta composição combina foto e diagrama. Revise a foto e o diagrama em pedidos separados para preservar o desenho manual.');
+  const req:PartRequest={variant,scope:'diagram',selected:[],texts:{},representation:'diagram',content:'',height:post.format==='story'?1920:1350};
+  const fields={title:unit.title??'',body:unit.body??'',...(diagram?partFields(state.fabricJson,req):{})};
+  const answer=await askPageRevision(post,fields,instruction,withImage),text={title:answer.title,body:answer.body};
+  if(!diagram)return proposePageVisual(post,units,unit,{variant:unit.layout==='cover'?variant:undefined,text,newImage:withImage,instruction});
+  const labels=Object.fromEntries(Object.entries(answer).filter(([id])=>id!=='title'&&id!=='body'));
+  const fabricJson=revisePagePart(state.fabricJson,{...req,texts:labels});
+  const final=reflowEditedPage({...unit,...text,fabric_json:fabricJson as PostUnit['fabric_json']});
+  return prepareCanvasCandidate(post,unit,{...state,fabricJson:final},instruction,'Somente os textos desta página e de seu diagrama mudam. Confira a composição. A legenda e as demais páginas permanecem preservadas.');
 }
 
 // ---------------- exportação (mesmo pacote aprovado) ----------------

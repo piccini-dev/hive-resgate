@@ -2,7 +2,45 @@ import {test,expect} from '@playwright/test';
 import {legacyDiagram} from './helpers/diagram-fixture';
 import {organizeLayerDiagram,type DiagramNode,nodeBox,updateConnections} from '../src/lib/hive/diagramConnections';
 import {pageElements,revisePagePart} from '../src/lib/sequence/pageRevision';
+import {partFields,readRevision,revisionText} from '../src/lib/sequence/assistedRevision';
+import {photoUsage,requireNewImage,generationUnavailable} from '../src/lib/hive/imagePolicy';
+import {composeM01,type M01Recipe} from '../src/lib/hive/composeM01';
 type Diagram={objects:DiagramNode[]};
+
+test('revisão assistida preserva o escopo e recusa resposta incompleta, duplicada ou com elemento protegido',()=>{
+  const source=legacyDiagram(),fields=partFields(source,partRequest());
+  expect(Object.values(fields)).not.toContain('Título do diagrama');expect(Object.values(fields)).not.toContain('AUTOR DE TESTE');
+  const id=Object.keys(fields).find(id=>fields[id]==='Visível')!,answer={...fields,[id]:'Aparente'};
+  expect(readRevision(revisionText(answer),fields)).toEqual(answer);
+  expect(()=>readRevision(revisionText(fields),fields)).toThrow('manteve');
+  expect(()=>readRevision(`[[0]]\nOutro título\n${revisionText(answer)}`,fields)).toThrow('fora');
+  expect(()=>readRevision(revisionText(answer)+`\n[[${id}]]\nDuplicado`,fields)).toThrow('fora');
+  expect(()=>readRevision(`[[${id}]]\nAparente`,fields)).toThrow('incompleta');
+  expect(()=>readRevision('Texto sem identificação',fields)).toThrow('completa');
+  expect(()=>partFields(source,{...partRequest(),scope:'selected',selected:[[0]]})).toThrow('apenas');
+});
+
+test('referência não é reutilização; trocar a imagem recusa URL antiga mesmo com outro cache-buster',()=>{
+  expect(photoUsage({usage_policy:'reference_only',nivel:'A0'})).toBe('reference_only');
+  expect(photoUsage({})).toBe('reusable');
+  expect(()=>requireNewImage('https://x/foto.jpg?v=2','https://x/foto.jpg?v=1')).toThrow('existente');
+  expect(()=>requireNewImage('https://x/ref.jpg',null,['https://x/ref.jpg'])).toThrow('existente');
+  expect(()=>requireNewImage(null)).toThrow('não conseguiu');
+  expect(requireNewImage('https://x/nova.jpg','https://x/antiga.jpg')).toBe('https://x/nova.jpg');
+  expect(generationUnavailable('needs_real_photo','Um evento ocorrido.').message).toContain('foto real');
+  expect(generationUnavailable('no_approved_style','').message).toContain('estilo fotográfico aprovado');
+});
+
+test('fundo vertical cobre o canvas e frase em zona inferior mantém distância da assinatura',()=>{
+  const recipe:M01Recipe={id:'M01-E',nome:'Matéria',manifestacao_id:'M01',limites:{max_linhas:5},layer_stack:[
+    {role:'texture'},{role:'headline',geometry:{w:70,cy:68}},{role:'bee_spiral_official',geometry:{w:10,cy:80}},
+  ]};
+  const result=composeM01({recipe,colors:{},spiralUrl:'espiral',text:'Uma frase longa precisa de espaço para ser lida sem invadir a assinatura do autor.',canvas:{w:1080,h:1350},assets:{textures:[{url:'textura',width:768,height:1536}]},layout:{zone:'bottom'}}) as {objects:Array<Record<string,unknown>>};
+  const bg=result.objects.find(o=>o.name==='texture')!,headline=result.objects.find(o=>o.name==='headline')!,spiral=result.objects.find(o=>o.name==='bee-spiral')!;
+  expect(768*Number(bg.scaleX)).toBeGreaterThanOrEqual(1080);expect(1536*Number(bg.scaleY)).toBeGreaterThanOrEqual(1350);
+  const bottom=Number(headline.top)+String(headline.text).split('\n').length*Number(headline.fontSize)*1.08;
+  expect(bottom).toBeLessThan(Number(spiral.top)-40);
+});
 test('repara diagrama legado com ligações exatas nos anéis e no núcleo; preserva palavras e entrada',()=>{
   const old=legacyDiagram(),snapshot=JSON.stringify(old);
   const result=organizeLayerDiagram(old,1080,1350,'M03-B') as Diagram;
