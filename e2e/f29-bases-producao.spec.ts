@@ -60,16 +60,16 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(page.getByTestId('unit-status')).toHaveText('Aprovado');
     await page.getByRole('button',{name:/Escolher contas e preparar publicação/}).click();
     await expect(page.getByTestId('destination-piece')).toHaveCount(1);
-    await page.getByRole('checkbox',{name:'E2E',exact:true}).check();
-    await page.getByRole('checkbox',{name:'E2E segunda',exact:true}).check();
-    await page.getByRole('button',{name:'Confirmar destinos'}).click();
-    await expect(page.getByText('Destinos confirmados para este material')).toBeVisible();
+    await page.getByRole('checkbox',{name:'Conta E2E',exact:true}).check();
+    await page.getByRole('checkbox',{name:'Conta E2E segunda',exact:true}).check();
+    // Aprovação em lote confirma e segue, sem um segundo botão por peça.
+    await page.getByRole('button',{name:'Confirmar destinos e seguir'}).click();
+    await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
     rows=await sql(`select id,account_id,text_approved,status from user_posts where cycle_id='${f.cycle}' and status<>'archived'`);
     expect(rows).toHaveLength(2);expect(rows.every(r=>r.status==='approved'&&r.text_approved)).toBe(true);
     expect(rows.map(r=>r.account_id).sort()).toEqual([f.accounts.instagram,f.other].sort());
     const editorial=await sql(`select id from user_posts where cycle_id='${f.cycle}' and status<>'archived' and metadata->>'delivery_of' is null`);
     expect(editorial).toHaveLength(1);
-    await page.getByRole('button',{name:/Seguir para a agenda/}).click();
     await expect(page).toHaveURL(new RegExp(`/agenda\\?campaign=${f.camp.id}`));
   });
   test('organização local do diagrama preserva conteúdo, mostra prévia e permite mover pontas sem redimensionar a linha',async({page})=>{

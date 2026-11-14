@@ -2,6 +2,8 @@
 // Abas: Perfil, Contas e Integrações.
 
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { PublicationDefaultsPanel } from '@/components/settings/PublicationDefaultsPanel';
 import {
   CheckCircle2, Loader2, Save, Sparkles, User as UserIcon,
 } from 'lucide-react';
@@ -17,6 +19,7 @@ import { toast } from 'sonner';
 import { AccountsPanel, IG_ACCOUNT_STATE_KEY } from '@/components/settings/AccountsPanel';
 
 export function SettingsPage() {
+  const location=useLocation();
   const { currentUser, settings, updateProfile, updateSettings } = useAuthStore();
   const [name, setName] = useState(currentUser?.name ?? '');
   const [geminiKey, setGeminiKey] = useState(settings?.gemini_api_key ?? '');
@@ -189,7 +192,7 @@ export function SettingsPage() {
       </header>
 
       {/* Volta do OAuth de uma conta (Contas) abre direto na aba Contas. */}
-      <Tabs defaultValue={typeof window !== 'undefined' && sessionStorage.getItem(IG_ACCOUNT_STATE_KEY) ? 'accounts' : 'profile'}>
+      <Tabs defaultValue={(location.state as {tab?:string}|null)?.tab==='accounts'||(typeof window !== 'undefined' && sessionStorage.getItem(IG_ACCOUNT_STATE_KEY)) ? 'accounts' : 'profile'}>
         <TabsList>
           <TabsTrigger value="profile">Perfil</TabsTrigger>
           <TabsTrigger value="accounts">Contas</TabsTrigger>
@@ -198,6 +201,7 @@ export function SettingsPage() {
 
         {/* ============ CONTAS ============ */}
         <TabsContent value="accounts" className="space-y-4">
+          <PublicationDefaultsPanel />
           <AccountsPanel />
         </TabsContent>
 
