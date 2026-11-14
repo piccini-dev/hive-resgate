@@ -299,6 +299,7 @@ export function PostEditor() {
 
   const saveAll = () => queueEditor(saveAllCurrent).catch(warnSave);
   const handleStandby = () => queueEditor(approveCurrent).catch(warnSave);
+  const handleApproveContinue = () => queueEditor(async()=>{const approved=await approveCurrent();if(approved){if(back.to.startsWith('/producao'))back.go();else navigate('/agenda?focus='+approved.id);}}).catch(warnSave);
   const handleSchedule = (value: string) => queueEditor(() => scheduleCurrent(value)).catch(warnSave);
   const handlePublishLive = () => queueEditor(publishCurrent).catch(warnSave);
 
@@ -456,10 +457,10 @@ export function PostEditor() {
 
       // Posts de EXEMPLO e peças sem geração pristina não entram na medição.
       const variation = (post.metadata as { is_sample?: boolean })?.is_sample ? null : await aiApi.variationForPost(post.id).catch(() => null);
-      if (!variation) { toast.success(`Peça ${where}.`); return; }
+      if (!variation) { toast.success(`Peça ${where}.`); return approved; }
       const quoteFinal = extractSlotText(snapshotRef.current?.()?.fabricJson ?? post.carousel_fabric_json?.[0]) ?? '';
       const m = await recordReviewSafely(currentUser.id, { post_id: post.id, variation, quote_final: quoteFinal, caption_final: latestText.current.caption });
-      if (!m.review) { toast.success(`Peça ${where}.${m.state === 'pending' ? ' (A medição da IA fica para depois.)' : ''}`); return; }
+      if (!m.review) { toast.success(`Peça ${where}.${m.state === 'pending' ? ' (A medição da IA fica para depois.)' : ''}`); return approved; }
 
       // Régua graduada (item 2): ajuste cosmético não é erro cheio e não vira
       // lição — destilar de uma vírgula gasta uma chamada Gemini à toa.
@@ -473,6 +474,7 @@ export function PostEditor() {
       } else {
         toast.success(`Peça ${where} — sem alterações, a IA acertou 🎯`);
       }
+      return approved;
     } catch (e) {
       console.error(e);
       toast.error(`Erro ao aprovar: ${userMessage(e)}`);
@@ -646,7 +648,8 @@ export function PostEditor() {
 
   const isDirty = textDirty || canvasDirty;
   const platformLabel = post.platform === 'instagram' ? 'Instagram' : 'LinkedIn';
-  const isAlreadyPublished = !!post.published_url;
+  const isAlreadyPublished = isPublishedHistory(post);
+  const needsApproval = !isAlreadyPublished && (isDirty || !['approved','scheduled'].includes(post.status) || post.approved_version !== post.version);
 
   // Foto do Marcos gerada pelo motor fotográfico (M02): id da geração pra revisão.
   const photoGenId = ((post?.visual_decision as { asset?: { photo_generation_id?: string } } | null)?.asset?.photo_generation_id) ?? null;
@@ -672,6 +675,14 @@ export function PostEditor() {
         <div className="flex items-center gap-2">
           <PlatformBadge platform={post.platform} />
           <StatusBadge status={post.status} />
+          <Button variant="outline" size="sm" onClick={() => void saveAll()} disabled={saving || (post.format !== ('video' as typeof post.format) && !canvasReady)}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {isDirty ? 'Salvar' : 'Salvo'}
+          </Button>
+          <Button variant="accent" size="sm" data-testid="editor-next" disabled={saving||approving||(!isAlreadyPublished&&post.format!==('video' as typeof post.format)&&!canvasReady)} onClick={()=>{if(needsApproval){void handleApproveContinue();}else if(isAlreadyPublished&&post.published_url){window.open(post.published_url,'_blank');}else if(back.to.startsWith('/producao'))back.go();else navigate('/agenda?focus='+post.id);}}>
+            {approving?<Loader2 className="h-4 w-4 animate-spin"/>:<CheckCircle2 className="h-4 w-4"/>}{needsApproval?'Aprovar e seguir':isAlreadyPublished?'Ver publicação':back.to.startsWith('/producao')?'Seguir na produção':'Seguir para a agenda'}
+          </Button>
+          <details className="relative" data-testid="editor-more"><summary className="cursor-pointer rounded-md border px-3 py-2 text-xs">Mais ações</summary><div className="absolute right-0 top-full z-50 mt-2 flex w-64 flex-wrap gap-2 rounded-lg border bg-background p-3 shadow-lg">
           <Select value={post.status} onValueChange={(v) => void setStatus(v as PostStatus)} disabled={isPublishedHistory(post)}>
             <SelectTrigger className="h-8 w-36 text-xs">
               <SelectValue />
@@ -690,10 +701,6 @@ export function PostEditor() {
               Hive
             </Button>
           )}
-          <Button variant="accent" size="sm" onClick={() => void saveAll()} disabled={saving || (post.format !== ('video' as typeof post.format) && !canvasReady)}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {isDirty ? 'Salvar' : 'Salvo'}
-          </Button>
           {!isAlreadyPublished && (
             <Button
               variant="outline"
@@ -729,9 +736,11 @@ export function PostEditor() {
               Publicar
             </Button>
           )}
+          </div></details>
         </div>
       </header>
 
+      {!isAlreadyPublished&&<p className="border-b bg-accent/5 px-6 py-2 text-sm text-muted-foreground" data-testid="editor-flow">Revise a arte e a legenda → aprove a peça → confira as contas e a agenda.</p>}
       {/* Portão do fundo de IA (M01-D Campo / M01-E Matéria): revisar antes de publicar. */}
       {bgGatePending(post) && !photoGenId && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-500/40 bg-amber-500/10 px-6 py-2.5">

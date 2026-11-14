@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { CampaignTimeline } from '@/components/agenda/CampaignTimeline';
 import { ScheduleQueue, type QueueGroup } from '@/components/agenda/ScheduleQueue';
-import { campaignApi, cycleApi, metricsApi } from '@/lib/campaignApi';
+import { accountApi, campaignApi, cycleApi, metricsApi } from '@/lib/campaignApi';
 import { bestTimes, metricsByPost } from '@/lib/campaign/performance';
 import { formatRange } from '@/lib/campaign/dates';
 import { scheduleQueue, suggestionsFor, type HiveSuggestion } from '@/lib/campaign/priority';
@@ -43,15 +43,17 @@ import { useAuthStore } from '@/store/authStore';
 import { beeApi } from '@/lib/api';
 import { edge } from '@/lib/edge';
 import {
-  DEFAULT_DISTRIBUTION, atTime, cadenceFor, distributeGuided, distributeStandby,
-  editorialGapDays, guideFor, isoToLocalInput, localInputToIso, mergePrefs, nowLocalInput, toZoned, weekKey,
+  DEFAULT_DISTRIBUTION, atTime, cadenceDays, cadenceFor,
+  editorialGapDays, guideFor, isoToLocalInput, localInputToIso, mergePrefs, nowLocalInput, toZoned,
   type GuidedPlatformCfg, type MergedPrefs,
 } from '@/lib/schedule';
 import {
   PLATFORM_COLORS, PLATFORM_LABELS, type BeeEditorial, type Campaign, type CampaignCycle,
-  type DistributionPrefs, type Platform, type PostMetrics, type UserPost,
+  type DistributionPrefs, type Platform, type PostMetrics, type SocialAccount, type UserPost,
 } from '@/types';
 import { cn } from '@/lib/utils';
+import { planDistribution, distributionProblems, parseSlot, type DistributionRule, type DistributionSuggestion } from '@/lib/distribution';
+import { calendarPositions, deliveryGroups, deliveryRoot } from '@/lib/publicationDefaults';
 import { isPublishedHistory, PUBLISHED_HISTORY_MSG, userMessage } from '@/lib/errors';
 import { scheduleAt, unschedule } from '@/lib/scheduling';
 import { ScheduledPackageCard } from '@/components/publication/ScheduledPackageCard';
@@ -90,7 +92,7 @@ const dayKey = (d: Date) => format(d, 'yyyy-MM-dd');
 const isPostDrag = (e: React.DragEvent) => e.dataTransfer.types.includes('text/plain');
 
 // Linha do plano em lote + resultado REAL da gravação (doc 02 §10): só "ok" conta como agendada.
-type PlanRow = { post: UserPost; date: string; time: string; reason: string; command_id: string; result?: { state: 'ok' | 'skipped' | 'error'; msg: string } };
+type PlanRow = { post: UserPost; date: string; time: string; reason: string; command_id: string; rule?: DistributionRule; expected_version?: number; result?: { state: 'ok' | 'skipped' | 'error'; msg: string } };
 type StoredPlanRow = Omit<PlanRow, 'post'> & { post_id: string };
 
 // Data em que o post "acontece" no calendário.
@@ -108,6 +110,7 @@ export function Agenda() {
   const settings = useAuthStore((s) => s.settings);
   const updateSettings = useAuthStore((s) => s.updateSettings);
 
+  const [accounts,setAccounts]=useState<SocialAccount[]>([]);
   const [editorials, setEditorials] = useState<BeeEditorial[]>([]);
   const [cursor, setCursor] = useState<Date>(new Date());
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
@@ -150,7 +153,7 @@ export function Agenda() {
     const p = posts.find((x) => x.id === focusId);
     if (!p) return;
     const d = eventDate(p);
-    if (d) setCursor(startOfMonth(d));
+    if (d) setCursor(d);
     setHiddenPlatforms(new Set());
     setHiddenEditorials(new Set());
     const n = new URLSearchParams(searchParams);
@@ -181,6 +184,7 @@ export function Agenda() {
 
   useEffect(() => {
     void load();
+    void accountApi.list().then(setAccounts).catch(()=>setAccounts([]));
     void beeApi.listEditorials().then(setEditorials).catch(console.error);
     void campaignApi.list().then(setCampaigns).catch(console.error);
     void cycleApi.listAll().then(setCycles).catch(console.error);
@@ -224,6 +228,7 @@ export function Agenda() {
     return m;
   }, [editorials]);
 
+  const accountLabel=(p:UserPost)=>accounts.find(a=>a.id===p.account_id)?.label??(p.account_id?'Conta indisponível · '+p.account_id.slice(0,8):'Conta não definida');
   const editorialOf = (p: UserPost) => (p.metadata?.editorial_slug as string | undefined);
   const colorOf = (p: UserPost) => edMap.get(editorialOf(p) ?? '')?.color ?? NEUTRAL;
 
@@ -327,7 +332,7 @@ export function Agenda() {
     if (!post || blockedByHistory(post)) return;
     const existing = eventDate(post);
     // Mantém o horário se já tinha; senão usa o 1º horário da cadência da plataforma.
-    const time = existing ? format(existing, 'HH:mm') : cadenceFor(prefs, post.platform).times[0];
+    const time = existing ? format(existing, 'HH:mm') : (cadenceFor(prefs, post.platform).times[0]??prefs.default_time);
     let when = atTime(day, time);
     // Se o horário herdado já passou NESTE dia (ex.: mover um post pra hoje de
     // manhã, à tarde), não recusamos o arraste: empurramos pro próximo horário
@@ -389,103 +394,31 @@ export function Agenda() {
     }
   }
 
-  // Distribuição LOCAL (regra determinística) — usada como fallback se a IA falhar.
-  function localDistribute(toPlace: UserPost[]): Array<{ postId: string; date: Date }> {
-    // Ordem = prioridade da fila (janela + posição na campanha), não só viralidade.
-    const ordered = [...toPlace].sort(byPriority);
-    const lastByEditorial: Record<string, Date> = {};
-    const countByDay: Record<string, number> = {};
-    const countByWeekPlatform: Record<string, number> = {};
-    for (const p of posts) {
-      const d = eventDate(p);
-      if (!d) continue;
-      const slug = editorialOf(p) ?? '__none__';
-      if (!lastByEditorial[slug] || d > lastByEditorial[slug]) lastByEditorial[slug] = d;
-      const k = dayKey(d);
-      countByDay[k] = (countByDay[k] ?? 0) + 1;
-      const wpk = `${weekKey(d)}|${p.platform}`;
-      countByWeekPlatform[wpk] = (countByWeekPlatform[wpk] ?? 0) + 1;
-    }
-    return distributeStandby({
-      standby: ordered.map((p) => ({ id: p.id, platform: p.platform, editorialSlug: editorialOf(p) })),
-      gapForEditorial: (slug) => editorialGapDays(slug ? edMap.get(slug)?.freq : undefined),
-      lastByEditorial, countByDay, countByWeekPlatform, prefs, from: new Date(),
-    });
+  // Os dois modos passam pelo mesmo planejador. A IA sugere ordem; as regras escolhem os slots.
+  async function createDistribution(toPlace:UserPost[],summary:string,suggestions:DistributionSuggestion[]=[],perPlatform?:Partial<Record<Platform,GuidedPlatformCfg>>){
+    const result=planDistribution({standby:[...toPlace].sort(byPriority),occupied:posts,prefs,perPlatform,now:new Date(),suggestions,editorialGap:slug=>editorialGapDays(edMap.get(slug)?.freq)});
+    const byId=new Map(toPlace.map(p=>[p.id,p]));
+    const rows:PlanRow[]=result.rows.flatMap(r=>{const post=byId.get(r.postId);return post?[{post,date:r.date,time:r.time,reason:r.reason,rule:r.rule,expected_version:post.version??undefined,command_id:crypto.randomUUID()}]:[];});
+    const missing=result.unplaced.map(r=>((byId.get(r.postId)?.carousel_text?.quote as string)||byId.get(r.postId)?.title||'Peça')+' · '+accountLabel(byId.get(r.postId)!)+': '+r.reason);
+    const text=summary+(missing.length?'\n'+missing.length+' entrega(s) pendente(s):\n'+missing.join('\n'):'');
+    setPlan({id:await savePlan(text,rows),summary:text,rows});
   }
-
-
-  // "IA distribui": a IA de verdade PROPÕE o calendário (dia + hora + porquê).
-  // Não grava — abre o modal de revisão pra você aprovar/ajustar antes de aplicar.
   async function handleAutoDistribute() {
-    const toPlace = posts.filter((p) => p.status === 'approved' && !p.scheduled_date && isVisible(p));
-    if (toPlace.length === 0) {
-      toast.info('Nada na fila pra distribuir.');
-      return;
-    }
+    const toPlace=standby;
+    if(!toPlace.length){toast.info('Nada na fila pra distribuir.');return;}
     setDistributing(true);
     try {
-      const occupied = posts
-        .map((p) => ({ p, d: eventDate(p) }))
-        .filter((x) => x.d)
-        .map((x) => ({ date: dayKey(x.d!), platform: x.p.platform, editorial_slug: editorialOf(x.p) }));
-
-      const res = await edge.distributeSchedule({
-        today_date: format(new Date(), 'yyyy-MM-dd'),
-        standby: toPlace.map((p) => ({
-          id: p.id,
-          platform: p.platform,
-          editorial_slug: editorialOf(p),
-          editorial_name: edMap.get(editorialOf(p) ?? '')?.name,
-          title: (p.carousel_text?.quote as string | undefined) || p.title || p.caption || undefined,
-          virality_score: p.virality_score ?? undefined,
-          campaign_name: p.campaign_id ? campaignById.get(p.campaign_id)?.name : undefined,
-          priority: queueInfo.get(p.id)?.rank,
-          priority_label: queueInfo.get(p.id)?.label,
-          window_start: queueInfo.get(p.id)?.windowStart,
-          window_end: queueInfo.get(p.id)?.windowEnd,
-        })),
-        occupied,
-        prefs: {
-          skip_weekends: prefs.skip_weekends,
-          per_day_limit: prefs.per_day_limit,
-          start_offset_days: prefs.start_offset_days,
-          platform_cadence: prefs.platform_cadence as Record<string, { per_week: number; times: string[] }>,
-        },
+      const representatives=deliveryGroups([...toPlace].sort(byPriority),prefs.mirror_accounts).map(g=>g[0]);
+      const res=await edge.distributeSchedule({
+        today_date:format(toZoned(new Date()),'yyyy-MM-dd'),
+        standby:representatives.map(p=>({id:p.id,platform:p.platform,editorial_slug:editorialOf(p),editorial_name:edMap.get(editorialOf(p)??'')?.name,title:(p.carousel_text?.quote as string)||p.title||p.caption||undefined,virality_score:p.virality_score??undefined,campaign_name:p.campaign_id?campaignById.get(p.campaign_id)?.name:undefined,priority:queueInfo.get(p.id)?.rank,priority_label:queueInfo.get(p.id)?.label,window_start:queueInfo.get(p.id)?.windowStart,window_end:queueInfo.get(p.id)?.windowEnd})),
+        occupied:deliveryGroups(posts.filter(p=>eventDate(p))).map(g=>({date:dayKey(eventDate(g[0])!),platform:g[0].platform,editorial_slug:editorialOf(g[0])})),
+        prefs:{skip_weekends:prefs.skip_weekends,per_day_limit:prefs.per_day_limit,start_offset_days:prefs.start_offset_days,platform_cadence:prefs.platform_cadence},
       });
-
-      const byId = new Map(toPlace.map((p) => [p.id, p]));
-      const rows = res.plan
-        .map((r): PlanRow | null => {
-          const post = byId.get(r.post_id);
-          return post ? { post, date: r.date, time: r.time, reason: r.reason, command_id: crypto.randomUUID() } : null;
-        })
-        .filter((x): x is PlanRow => x !== null)
-        .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-
-      if (!rows.length) throw new Error('plano vazio');
-      setPlan({ id: await savePlan(res.summary, rows), summary: res.summary, rows });
-    } catch (e) {
-      console.error(e);
-      // Fallback: se a IA falhar, monta o plano pela regra local pra você revisar.
-      const local = localDistribute(toPlace);
-      const byId = new Map(toPlace.map((p) => [p.id, p]));
-      const rows = local
-        .map(({ postId, date }): PlanRow | null => {
-          const post = byId.get(postId);
-          return post ? { post, date: format(toZoned(date), 'yyyy-MM-dd'), time: format(toZoned(date), 'HH:mm'), reason: 'Regra local (IA indisponível)', command_id: crypto.randomUUID() } : null;
-        })
-        .filter((x): x is PlanRow => x !== null)
-        .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-      if (rows.length) {
-        const summary = 'A IA não respondeu; usei a distribuição local. Revise e ajuste.';
-        setPlan({ id: await savePlan(summary, rows), summary, rows });
-        toast.warning('IA indisponível — usei a regra local. Revise antes de aplicar.');
-      } else {
-        toast.error('Erro na distribuição.');
-      }
-    } finally {
-      setDistributing(false);
-    }
+      if(!Array.isArray(res.plan)||!res.plan.length)throw new Error('Plano vazio');
+      await createDistribution(toPlace,'A Hive sugeriu a ordem das peças. Dias e horários seguem o padrão do produtor.',res.plan);
+    }catch(e){console.error(e);await createDistribution(toPlace,'A sugestão da IA não pôde ser usada. Plano calculado pelas regras do produtor.');toast.warning('Plano calculado pelas suas regras. Confira antes de aplicar.');}
+    finally{setDistributing(false);}
   }
 
   // Plano em lote durável (schedule_plans): linhas + command_id de cada uma.
@@ -529,22 +462,28 @@ export function Agenda() {
   async function applyPlan() {
     if (!plan) return;
     setApplying(true);
+    try{await load();if(usePostStore.getState().error)throw new Error('Não foi possível conferir as peças atuais.');}catch(e){toast.error(userMessage(e));setApplying(false);return;}
+    const currentPosts=usePostStore.getState().posts;
+    const problems=distributionProblems(plan.rows,currentPosts,new Date());
     const rows = [...plan.rows];
     let firstDate: Date | null = null;
     for (const [i, row] of rows.entries()) {
       if (row.result?.state === 'ok') continue;
-      const [yy, mm, dd] = row.date.split('-').map(Number);
-      const when = atTime(new Date(yy, mm - 1, dd), row.time);
-      const current = posts.find((p) => p.id === row.post.id) ?? row.post;
+      const when = parseSlot(row.date,row.time);
+      const current = currentPosts.find((p) => p.id === row.post.id) ?? row.post;
       let result: NonNullable<PlanRow['result']>;
       if (isPublishedHistory(current)) result = { state: 'skipped', msg: 'Já publicada — permanece no histórico.' };
-      else if (when.getTime() < Date.now()) result = { state: 'skipped', msg: 'O horário já passou — escolha uma nova data.' };
+      else if (!when || when.getTime() < Date.now()) result = { state: 'skipped', msg: 'O horário já passou — escolha uma nova data.' };
+      else if(current.status==='scheduled'&&current.scheduled_date!==row.post.scheduled_date)result={state:'error',msg:'Esta entrega foi agendada em outra ação. A data atual foi preservada; gere um novo plano.'};
+      else if(problems.has(row.post.id))result={state:'error',msg:problems.get(row.post.id)!};
+      else if(row.expected_version!==undefined&&current.version!==row.expected_version)result={state:'error',msg:'A peça mudou depois deste plano. Confira a revisão e gere um novo plano.'};
       else {
         try {
           // command_id estável por linha: retomar/repetir não agenda duas vezes nem regrava o que já foi
           const r = await scheduleAt(current, when.toISOString(), { commandId: row.command_id, planId: plan.id ?? null });
-          result = { state: 'ok', msg: `${r.replayed ? 'Já estava aplicado' : 'Agendado'} para ${format(toZoned(when), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}` };
-          if (!firstDate) firstDate = when;
+          const confirmed=r.scheduled_date?new Date(r.scheduled_date):when;
+          result = { state: 'ok', msg: `${r.replayed ? 'Já estava aplicado' : 'Agendado'} para ${format(toZoned(confirmed), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}` };
+          if (!firstDate) firstDate = confirmed;
         } catch (e) {
           console.error(e);
           result = { state: 'error', msg: userMessage(e, 'Não foi possível agendar.') };
@@ -558,7 +497,7 @@ export function Agenda() {
     const newly = ok - plan.rows.filter((r) => r.result?.state === 'ok').length;
     const skipped = rows.filter((r) => r.result?.state === 'skipped').length;
     const failed = rows.filter((r) => r.result?.state === 'error').length;
-    if (firstDate) setCursor(startOfMonth(firstDate));
+    if (firstDate) setCursor(toZoned(firstDate));
     await storePlan(plan.id, rows, !skipped && !failed ? 'done' : 'open');
     if (!skipped && !failed) {
       toast.success(`${newly} agendamento(s) confirmado(s).`);
@@ -605,54 +544,8 @@ export function Agenda() {
     const toPlace = standby;
     if (!toPlace.length) { setWizardOpen(false); return; }
 
-    const ordered = [...toPlace].sort(byPriority);
-
-    const lastByEditorial: Record<string, Date> = {};
-    const countByDay: Record<string, number> = {};
-    const countByWeekPlatform: Record<string, number> = {};
-    for (const p of posts) {
-      const d = eventDate(p);
-      if (!d) continue;
-      const slug = editorialOf(p) ?? '__none__';
-      if (!lastByEditorial[slug] || d > lastByEditorial[slug]) lastByEditorial[slug] = d;
-      countByDay[dayKey(d)] = (countByDay[dayKey(d)] ?? 0) + 1;
-      countByWeekPlatform[`${weekKey(d)}|${p.platform}`] = (countByWeekPlatform[`${weekKey(d)}|${p.platform}`] ?? 0) + 1;
-    }
-
-    const result = distributeGuided({
-      standby: ordered.map((p) => ({ id: p.id, platform: p.platform, editorialSlug: editorialOf(p) })),
-      perPlatform: wizCfg,
-      gapForEditorial: (slug) => editorialGapDays(slug ? edMap.get(slug)?.freq : undefined),
-      lastByEditorial, countByDay, countByWeekPlatform,
-      perDayLimit: prefs.per_day_limit,
-      from: new Date(),
-      startOffsetDays: prefs.start_offset_days,
-    });
-
-    const byId = new Map(toPlace.map((p) => [p.id, p]));
-    const rows = result
-      .map(({ postId, date }): PlanRow | null => {
-        const post = byId.get(postId);
-        if (!post) return null;
-        // "Porquê" qualitativo: junta o motivo do dia + do horário (do guia).
-        const g = guideFor(prefs, post.platform);
-        const dSug = g.weekdays.find((d) => d.dow === date.getDay());
-        const tSug = g.times.find((t) => t.time === format(date, 'HH:mm'));
-        const reason = [dSug?.reason, tSug?.reason].filter(Boolean).join(' · ') || 'Semi-automático';
-        const z = toZoned(date);
-        return { post, date: format(z, 'yyyy-MM-dd'), time: format(z, 'HH:mm'), reason, command_id: crypto.randomUUID() as string };
-      })
-      .filter((x): x is PlanRow => x !== null)
-      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-
     setWizardOpen(false);
-    if (!rows.length) {
-      toast.error('Nenhum post coube nos dias/horários escolhidos. Selecione mais dias ou horários.');
-      return;
-    }
-    const missing = toPlace.length - rows.length;
-    const summary = `Semi-automático${missing > 0 ? ` · ${missing} post(s) não couberam nos dias escolhidos (revise ou rode de novo com mais dias)` : ''}`;
-    setPlan({ id: await savePlan(summary, rows), summary, rows });
+    await createDistribution(toPlace,'Semiautomático: dias, horários e frequência escolhidos pelo produtor.',[],wizCfg);
   }
 
   function openConfig() {
@@ -662,6 +555,8 @@ export function Agenda() {
 
   async function saveConfig() {
     const next: DistributionPrefs = {
+      ...useAuthStore.getState().settings?.distribution_prefs,
+      mirror_accounts: cfg.mirror_accounts,
       platform_times: cfg.platform_times,
       default_time: cfg.default_time,
       skip_weekends: cfg.skip_weekends,
@@ -680,10 +575,10 @@ export function Agenda() {
   }
 
   // Atualiza a cadência (posts/semana + horários) de uma plataforma no cfg.
-  function updateCadence(pl: Platform, patch: { per_week?: number; times?: string[] }) {
+  function updateCadence(pl: Platform, patch: { per_week?: number; times?: string[]; weekdays?:number[] }) {
     setCfg((c) => {
       const cur = c.platform_cadence[pl] ?? { per_week: 0, times: [] };
-      return { ...c, platform_cadence: { ...c.platform_cadence, [pl]: { per_week: cur.per_week, times: cur.times, ...patch } } };
+      return { ...c, platform_cadence: { ...c.platform_cadence, [pl]: { ...cur, ...patch } } };
     });
   }
 
@@ -703,7 +598,7 @@ export function Agenda() {
   }
 
   // ---- Chip de um post (arrastável) ----
-  function PostChip({ post, compact, big }: { post: UserPost; compact?: boolean; big?: boolean }) {
+  function PostChip({ post, compact, big, deliveryOnly }: { post: UserPost; compact?: boolean; big?: boolean; deliveryOnly?:boolean }) {
     const color = colorOf(post);
     // Sequência = UMA entrada na agenda (o agendador publica o pacote programado inteiro).
     const label = `${post.format === 'carousel' ? '▤ Carrossel · ' : post.format === 'story' ? '◫ Stories · ' : ''}${(post.carousel_text?.quote as string | undefined) || post.title || post.caption || 'Post'}`;
@@ -714,6 +609,8 @@ export function Agenda() {
         type="button"
         draggable={!locked}
         data-testid="agenda-chip"
+        data-post={post.id}
+        aria-label={`${label} · ${accountLabel(post)}${when ? ` · ${format(when, 'HH:mm')}` : ''}`}
         data-locked={locked ? 'true' : undefined}
         onDragStart={(e) => { if (locked) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', post.id); e.dataTransfer.effectAllowed = 'move'; setDraggingId(post.id); }}
         onDragEnd={() => { setDraggingId(null); setOverKey(null); }}
@@ -729,14 +626,16 @@ export function Agenda() {
         data-legacy={post.status === 'scheduled' && !post.scheduled_package_id ? 'true' : undefined}
       >
         <PlatformIcon platform={post.platform} className={cn('shrink-0', big ? 'h-3.5 w-3.5 mt-0.5' : 'h-3 w-3')} />
-        {big ? (
+        {deliveryOnly ? <span className="truncate text-[11px]">{when&&`${format(when,'HH:mm')} · `}<span data-testid="agenda-account">{accountLabel(post)}</span></span> : big ? (
           <span className="min-w-0 flex-1">
             {when && <span className="mr-1 text-[11px] font-semibold text-muted-foreground">{format(when, 'HH:mm')}</span>}
             <span className="text-[12px] font-medium leading-snug line-clamp-2">{post.status === 'scheduled' && !post.scheduled_package_id ? '⚠ ' : ''}{label}</span>
+            <span className="block truncate text-[10px]" data-testid="agenda-account">{accountLabel(post)}</span>
           </span>
         ) : (
           <span className={cn('truncate text-[11px] font-medium', compact ? 'max-w-[130px]' : '')}>
-            {when && !compact ? `${format(when, 'HH:mm')} · ` : ''}{label}
+            <span className="block truncate">{when && !compact ? `${format(when, 'HH:mm')} · ` : ''}{label}</span>
+            <span className="block truncate text-[10px] text-muted-foreground" data-testid="agenda-account">{accountLabel(post)}</span>
           </span>
         )}
         {post.virality_score != null && (
@@ -750,7 +649,7 @@ export function Agenda() {
   async function applySuggestion(post: UserPost, sg: HiveSuggestion) {
     const when = eventDate(post);
     if (sg.action.kind === 'move_day') {
-      const [h, m] = (when ? format(when, 'HH:mm') : cadenceFor(prefs, post.platform).times[0]).split(':').map(Number);
+      const [h, m] = (when ? format(when, 'HH:mm') : (cadenceFor(prefs, post.platform).times[0]??prefs.default_time)).split(':').map(Number);
       await moveToDayTime(post.id, parseISO(sg.action.day), h, m);
     } else if (when) {
       const [h, m] = sg.action.time.split(':').map(Number);
@@ -796,43 +695,25 @@ export function Agenda() {
     }
   }
 
-  // Bloco de um post posicionado pelo HORÁRIO na grade (arrastável verticalmente).
-  function EventBlock({ post }: { post: UserPost }) {
-    const when = eventDate(post);
-    if (!when) return null;
-    const color = colorOf(post);
-    const label = (post.carousel_text?.quote as string | undefined) || post.title || post.caption || 'Post';
-    const mins = (when.getHours() - GRID_START) * 60 + when.getMinutes();
-    const top = Math.max(0, Math.min(SLOTS * SLOT_H - 38, (mins / SLOT_MIN) * SLOT_H));
-    const locked = isPublishedHistory(post);
-    return (
-      <button
-        type="button"
-        draggable={!locked}
-        data-locked={locked ? 'true' : undefined}
-        onDragStart={(e) => { if (locked) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', post.id); e.dataTransfer.effectAllowed = 'move'; setDraggingId(post.id); }}
-        onDragEnd={() => { setDraggingId(null); setOverKey(null); }}
-        onClick={() => setSelected(post)}
-        className={cn(
-          'absolute left-0.5 right-0.5 z-10 overflow-hidden rounded-md border-l-[3px] px-1.5 py-0.5 text-left',
-          locked ? 'cursor-pointer opacity-70' : 'cursor-grab active:cursor-grabbing',
-          draggingId === post.id && 'opacity-40',
-        )}
-        style={{ top, height: 38, borderLeftColor: color, backgroundColor: `${color}22` }}
-        title={label}
-      >
-        <span className="flex items-center gap-1">
-          <PlatformIcon platform={post.platform} className="h-3 w-3 shrink-0" />
-          <span className="text-[10px] font-semibold text-muted-foreground">{format(when, 'HH:mm')}</span>
-        </span>
-        <span className="block truncate text-[11px] font-medium leading-tight">{label}</span>
-      </button>
-    );
+  // Uma peça compartilhada mantém as entregas juntas e cada conta continua consultável/arrastável.
+  function CalendarGroup({items}:{items:UserPost[]}) {
+    if(items.length===1)return <PostChip post={items[0]} big={view!=='month'}/>;
+    const label=(items[0].carousel_text?.quote as string)||items[0].title||items[0].caption||'Peça';
+    return <div data-testid="calendar-piece" data-root={deliveryRoot(items[0])} className="rounded-md border bg-card/90 p-0.5">
+      <p className="truncate px-1 text-[11px] font-semibold" title={label}>{label}</p>
+      <p className="px-1 text-[9px] text-muted-foreground">Mesma peça · {items.length} contas</p>
+      <div className="space-y-0.5">{items.map(post=><PostChip key={post.id} post={post} deliveryOnly/>)}</div>
+    </div>;
   }
 
   // Coluna de um dia na grade: 32 slots de 30min (drop zones) + os posts posicionados.
   function TimeColumn({ day }: { day: Date }) {
     const evs = eventsByDay.get(dayKey(day)) ?? [];
+    const positions=calendarPositions(deliveryGroups(evs).map(items=>{
+      const when=eventDate(items[0])!,height=items.length>1?40+items.length*28:68;
+      const minutes=(when.getHours()-GRID_START)*60+when.getMinutes();
+      return {items,height,top:Math.max(0,Math.min(SLOTS*SLOT_H-height,(minutes/SLOT_MIN)*SLOT_H))};
+    }));
     return (
       <div className="relative border-l border-border first:border-l-0" style={{ height: SLOTS * SLOT_H }}>
         {Array.from({ length: SLOTS }).map((_, i) => {
@@ -855,7 +736,7 @@ export function Agenda() {
             />
           );
         })}
-        {evs.map((p) => <EventBlock key={p.id} post={p} />)}
+        {positions.map(({items,top,height,lane,lanes})=><div key={items[0].id} data-testid="calendar-position" className="absolute z-10 overflow-hidden px-0.5" style={{top,minHeight:height,left:`${lane*100/lanes}%`,width:`${100/lanes}%`}}><CalendarGroup items={items}/></div>)}
       </div>
     );
   }
@@ -968,7 +849,7 @@ export function Agenda() {
         <div className={cn('space-y-1 overflow-y-auto', view === 'month' && 'flex-1')}>
           {dayEvents.length === 0 && view !== 'month'
             ? <p className="py-4 text-center text-[11px] text-muted-foreground">Sem posts</p>
-            : dayEvents.map((p) => <PostChip key={p.id} post={p} big={view !== 'month'} />)}
+            : deliveryGroups(dayEvents).map(items=><CalendarGroup key={items[0].id} items={items}/>)}
         </div>
       </div>
     );
@@ -1042,7 +923,7 @@ export function Agenda() {
           }}
         >
           <div className="max-h-[70vh] overflow-y-auto pr-1">
-            <ScheduleQueue
+            <ScheduleQueue accountLabel={accountLabel}
               groups={queueGroups} lens={lens} draggingId={draggingId}
               onDragStart={(p) => setDraggingId(p.id)}
               onDragEnd={() => { setDraggingId(null); setOverKey(null); }}
@@ -1179,6 +1060,7 @@ export function Agenda() {
                   ) : <p className="text-xs text-muted-foreground">Sem campanha{ed ? ` · ${ed.name}` : ''}</p>}
                   <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1"><PlatformIcon platform={selected.platform} className="h-3.5 w-3.5" />{PLATFORM_LABELS[selected.platform]}</span>
+                    <span data-testid="panel-account">{accountLabel(selected)}</span>
                     {selected.codigo && <Badge variant="outline" className="font-mono text-[10px]">{selected.codigo}</Badge>}
                     {selected.virality_score != null && <span>🚀 {selected.virality_score}/100</span>}
                     <Badge variant="secondary" className="text-[10px]">{isPublished ? 'Publicado' : when ? 'Agendado' : 'Para agendar'}</Badge>
@@ -1268,7 +1150,7 @@ export function Agenda() {
           <DialogHeader>
             <DialogTitle>Configurar distribuição</DialogTitle>
             <DialogDescription>
-              Regras que a "IA distribui" usa. Nada é fixo — você define aqui.
+              Padrão comum à IA e ao semiautomático. Frequência e limites valem para cada conta.
             </DialogDescription>
           </DialogHeader>
 
@@ -1276,7 +1158,7 @@ export function Agenda() {
             <div className="space-y-2">
               <Label className="text-xs font-semibold">Cadência por rede</Label>
               <p className="text-[11px] text-muted-foreground -mt-1">
-                Quantos posts por semana e em quais horários. A "IA distribui" respeita esse padrão (e alterna os horários).
+                Escolha dias e horários por rede. As contas espelhadas recebem a mesma peça juntas; cada conta mantém sua própria cadência.
               </p>
               {PLATFORM_ORDER.map((pl) => {
                 const cad = cfg.platform_cadence[pl] ?? { per_week: 0, times: [] };
@@ -1288,7 +1170,7 @@ export function Agenda() {
                       </span>
                       <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Input
-                          type="number" min={0} max={14}
+                          aria-label={"Frequência semanal no "+PLATFORM_LABELS[pl]} type="number" min={0} max={14}
                           className="h-7 w-14 text-center"
                           value={cad.per_week}
                           onChange={(e) => updateCadence(pl, { per_week: Math.max(0, Number(e.target.value) || 0) })}
@@ -1296,6 +1178,7 @@ export function Agenda() {
                         por semana <span className="text-[10px]">(0 = sem limite)</span>
                       </label>
                     </div>
+                    <div className="space-y-2"><Button size="sm" variant="outline" aria-label={'Todos os dias no '+PLATFORM_LABELS[pl]} onClick={()=>updateCadence(pl,{per_week:7,weekdays:[0,1,2,3,4,5,6]})}>Todos os dias</Button><div className="flex flex-wrap gap-1">{WEEKDAYS.map((name,dow)=><button key={dow} type="button" aria-label={name+' no '+PLATFORM_LABELS[pl]} aria-pressed={cadenceDays(cfg,pl).includes(dow)} className="rounded border px-2 py-1 text-xs aria-pressed:bg-accent/20" onClick={()=>{const days=cadenceDays(cfg,pl);updateCadence(pl,{weekdays:days.includes(dow)?days.filter(d=>d!==dow):[...days,dow]});}}>{name}</button>)}</div><p className="text-[10px] text-muted-foreground">Dias desta rede prevalecem sobre o padrão de fim de semana.</p>{cad.per_week>cadenceDays(cfg,pl).length*cfg.per_day_limit&&<p className="text-xs text-amber-700">Com os dias e o limite diário atuais cabem até {cadenceDays(cfg,pl).length*cfg.per_day_limit} conteúdos por semana em cada conta.</p>}</div>
                     <div className="space-y-1">
                       <Label className="text-[11px] text-muted-foreground">Horários (alternados)</Label>
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -1341,7 +1224,7 @@ export function Agenda() {
                   onChange={(e) => setCfg((c) => ({ ...c, default_time: e.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="perday" className="text-xs">Posts por dia</Label>
+                <Label htmlFor="perday" className="text-xs">Conteúdos por dia em cada conta</Label>
                 <Input id="perday" type="number" min={1} max={10} className="h-8" value={cfg.per_day_limit}
                   onChange={(e) => setCfg((c) => ({ ...c, per_day_limit: Math.max(1, Number(e.target.value) || 1) }))} />
               </div>
@@ -1354,12 +1237,13 @@ export function Agenda() {
                 <label className="flex items-center gap-2 text-sm cursor-pointer pb-1">
                   <input type="checkbox" className="h-4 w-4 accent-[hsl(var(--accent))]" checked={cfg.skip_weekends}
                     onChange={(e) => setCfg((c) => ({ ...c, skip_weekends: e.target.checked }))} />
-                  Pular fim de semana
+                  Pular fim de semana por padrão
                 </label>
               </div>
             </div>
           </div>
 
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={cfg.mirror_accounts} onChange={e=>setCfg(c=>({...c,mirror_accounts:e.target.checked}))}/>Espelhar dia e horário da mesma peça entre contas da mesma rede</label>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfigOpen(false)}>Cancelar</Button>
             <Button variant="accent" onClick={() => void saveConfig()}>Salvar</Button>
@@ -1372,22 +1256,24 @@ export function Agenda() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-accent" /> Plano de distribuição da IA
+              <Sparkles className="h-5 w-5 text-accent" /> Plano de distribuição
             </DialogTitle>
             <DialogDescription>
-              {plan?.summary || 'Revise dia, horário e o porquê de cada post. Nada é agendado até você aplicar.'}
+              <span className="whitespace-pre-line">{plan?.summary || 'Confira as contas, os dias e horários antes de aplicar.'}</span>
             </DialogDescription>
           </DialogHeader>
 
           <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-            {plan?.rows.map((row) => {
+            {plan&&deliveryGroups(plan.rows.map(r=>r.post)).map(group=><section key={group[0].id} data-testid="plan-piece" className="space-y-1 rounded-lg border p-1">
+              {group.length>1&&<p className="px-1 text-xs font-semibold">Mesma peça · {group.length} contas</p>}
+              {group.map(post=>plan.rows.find(r=>r.post.id===post.id)!).map((row) => {
               const slug = editorialOf(row.post);
               const ed = slug ? edMap.get(slug) : undefined;
               const label = (row.post.carousel_text?.quote as string | undefined) || row.post.title || row.post.caption || 'Post';
               const [yy, mm, dd] = row.date.split('-').map(Number);
               const dayLabel = format(new Date(yy, mm - 1, dd), "EEE, d 'de' MMM", { locale: ptBR });
               return (
-                <div key={row.post.id} data-testid="plan-row" data-result={row.result?.state}
+                <div key={row.post.id} data-testid="plan-row" data-post={row.post.id} data-root={deliveryRoot(row.post)} data-result={row.result?.state}
                   className={cn('rounded-lg border p-2.5', row.result?.state === 'ok' ? 'border-emerald-500/50 bg-emerald-500/5' : row.result ? 'border-destructive/50 bg-destructive/5' : 'border-border')}>
                   <div className="flex items-center gap-2">
                     <PlatformIcon platform={row.post.platform} className="h-3.5 w-3.5 shrink-0" />
@@ -1397,9 +1283,10 @@ export function Agenda() {
                       </Badge>
                     )}
                     <span className="ml-auto shrink-0 text-xs font-semibold capitalize text-foreground">
-                      {dayLabel} · {row.time}
+                      <span data-testid="plan-slot">{row.date} · {row.time}</span><span className="sr-only">{dayLabel}</span>
                     </span>
                   </div>
+                  <p className="mt-1 text-xs font-semibold" data-testid="plan-account">{accountLabel(row.post)}</p>
                   <p className="mt-1.5 line-clamp-2 text-[13px] font-medium leading-snug">{label}</p>
                   {row.reason && (
                     <p className="mt-1 text-[11px] italic text-muted-foreground">↳ {row.reason}</p>
@@ -1415,17 +1302,17 @@ export function Agenda() {
                       onChange={(e) => {
                         const [d, t] = e.target.value.split('T');
                         if (!d || !t) return;
-                        setPlan((cur) => cur && { ...cur, rows: cur.rows.map((r) => (r.post.id === row.post.id ? { ...r, date: d, time: t.slice(0, 5), result: undefined } : r)) });
+                        setPlan((cur) => cur && { ...cur, rows: cur.rows.map((r) => ((r.post.id === row.post.id || (row.rule?.mirror&&r.post.platform===row.post.platform&&deliveryRoot(r.post)===deliveryRoot(row.post)))&&r.result?.state!=='ok' ? { ...r, date: d, time: t.slice(0, 5), result: undefined } : r)) });
                       }} />
                   )}
                 </div>
               );
-            })}
+            })}</section>)}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={closePlan} disabled={applying}>{plan?.rows.some((r) => r.result?.state === 'ok') ? 'Fechar' : 'Cancelar'}</Button>
-            <Button variant="accent" onClick={() => void applyPlan()} disabled={applying}>
+            <Button variant="accent" onClick={() => void applyPlan()} disabled={applying||!plan?.rows.length}>
               {applying ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
               {plan?.rows.some((r) => r.result) ? 'Aplicar pendentes' : 'Aplicar'} {plan ? `(${plan.rows.filter((r) => r.result?.state !== 'ok').length})` : ''}
             </Button>
@@ -1451,7 +1338,7 @@ export function Agenda() {
                     <Wand2 className="h-5 w-5 text-accent" /> Distribuição semi-automática
                   </DialogTitle>
                   <DialogDescription>
-                    Plataforma {wizIdx + 1} de {wizPlatforms.length}: <b className="capitalize">{PLATFORM_LABELS[pl] ?? pl}</b>. Escolha frequência, dias e horários. As dicas são de boa prática geral — ainda não são seus dados reais.
+                    Plataforma {wizIdx + 1} de {wizPlatforms.length}: <b className="capitalize">{PLATFORM_LABELS[pl] ?? pl}</b>. Começa com seu padrão salvo. Ajuste frequência, dias e horários para este plano; as dicas ao lado são gerais.
                   </DialogDescription>
                 </DialogHeader>
 
@@ -1459,10 +1346,10 @@ export function Agenda() {
                   <div>
                     <p className="mb-1.5 text-sm font-semibold">Quantos posts por semana?</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <Button key={n} type="button" size="sm" variant={cfg.per_week === n ? 'accent' : 'outline'}
-                          onClick={() => patchWiz(pl, { per_week: n })}>
-                          {n}x
+                      {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
+                        <Button key={n} type="button" size="sm" aria-pressed={cfg.per_week===n} variant={cfg.per_week === n ? 'accent' : 'outline'}
+                          onClick={() => patchWiz(pl, { per_week: n, ...(n===7?{weekdays:[0,1,2,3,4,5,6]}:{}) })}>
+                          {n===0?'Sem limite':n===7?'Todos os dias':n+'x'}
                         </Button>
                       ))}
                     </div>
@@ -1474,7 +1361,7 @@ export function Agenda() {
                       {daysSorted.map((d) => {
                         const on = cfg.weekdays.includes(d.dow);
                         return (
-                          <button key={d.dow} type="button" onClick={() => toggleWizDay(pl, d.dow)}
+                          <button key={d.dow} type="button" aria-pressed={on} aria-label={d.label} onClick={() => toggleWizDay(pl, d.dow)}
                             className={cn('flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors',
                               on ? 'border-accent bg-accent/10' : 'border-border hover:bg-muted/50')}>
                             <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded border', on ? 'border-accent bg-accent text-accent-foreground' : 'border-muted-foreground/40')}>
@@ -1495,7 +1382,7 @@ export function Agenda() {
                       {g.times.map((t) => {
                         const on = cfg.times.includes(t.time);
                         return (
-                          <button key={t.time} type="button" onClick={() => toggleWizTime(pl, t.time)}
+                          <button key={t.time} type="button" aria-pressed={on} aria-label={t.time} onClick={() => toggleWizTime(pl, t.time)}
                             className={cn('flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left transition-colors',
                               on ? 'border-accent bg-accent/10' : 'border-border hover:bg-muted/50')}>
                             <span className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded border', on ? 'border-accent bg-accent text-accent-foreground' : 'border-muted-foreground/40')}>

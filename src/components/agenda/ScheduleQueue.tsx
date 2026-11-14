@@ -3,6 +3,7 @@
 // janela que a Hive sugere. Arraste pro calendário (mesmo dataTransfer da Agenda).
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, ImageIcon, Instagram, Linkedin, Lightbulb } from 'lucide-react';
+import { deliveryGroups } from '@/lib/publicationDefaults';
 import { formatRange } from '@/lib/campaign/dates';
 import type { QueueInfo } from '@/lib/campaign/priority';
 import type { UserPost } from '@/types';
@@ -11,19 +12,20 @@ export interface QueueGroup { id: string | null; name: string; color: string; it
 
 const LABEL_STYLE: Record<string, string> = { Alta: 'text-rose-500', Média: 'text-amber-500', Menor: 'text-muted-foreground' };
 
-export function ScheduleQueue({ groups, lens, draggingId, onDragStart, onDragEnd, onSelect }: {
-  groups: QueueGroup[]; lens: string | null; draggingId: string | null;
+export function ScheduleQueue({ groups, lens, draggingId, onDragStart, onDragEnd, onSelect, accountLabel }: {
+  accountLabel:(post:UserPost)=>string; groups: QueueGroup[]; lens: string | null; draggingId: string | null;
   onDragStart: (post: UserPost) => void; onDragEnd: () => void; onSelect: (post: UserPost) => void;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const total = groups.reduce((a, g) => a + g.items.length, 0);
+  const total = groups.reduce((a, g) => a + deliveryGroups(g.items.map(i=>i.post)).length, 0);
+  const deliveries=groups.reduce((a,g)=>a+g.items.length,0);
   const isOpen = (g: QueueGroup, i: number) => open[g.id ?? '__none__'] ?? (!!lens || i === 0);
   return (
     <div className="space-y-2" data-testid="schedule-queue">
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-semibold">Conteúdos para agendar <span className="ml-1 rounded-full bg-secondary px-1.5 text-xs" data-testid="queue-count">{total}</span></p>
       </div>
-      <p className="text-[11px] text-muted-foreground">Ordenados pela prioridade sugerida pela Hive. Arraste pro dia.</p>
+      <p className="text-[11px] text-muted-foreground">Ordenados pela prioridade sugerida pela Hive. Arraste a entrega de uma conta para o dia. {deliveries!==total&&`${deliveries} entregas em ${total} peças.`}</p>
       {total === 0 && <p className="py-6 text-center text-xs text-muted-foreground">Nada para agendar.</p>}
       {groups.map((g, gi) => {
         const expanded = isOpen(g, gi);
@@ -32,12 +34,14 @@ export function ScheduleQueue({ groups, lens, draggingId, onDragStart, onDragEnd
             <button type="button" onClick={() => setOpen({ ...open, [g.id ?? '__none__']: !expanded })} className="flex w-full items-center gap-2 px-2.5 py-2 text-left">
               <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: g.color }} />
               <span className="flex-1 truncate text-xs font-semibold">{g.name}</span>
-              <span className="text-[11px] text-muted-foreground">{g.items.length} conteúdo{g.items.length > 1 ? 's' : ''}</span>
+              <span className="text-[11px] text-muted-foreground">{deliveryGroups(g.items.map(i=>i.post)).length} peça(s)</span>
               {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
             {expanded && (
               <ol className="space-y-1 border-t p-1.5">
-                {g.items.map(({ post, info }) => {
+                {deliveryGroups(g.items.map(i=>i.post)).map(group=><li key={group[0].id} data-testid="queue-piece" className="rounded border border-border/50">
+                  {group.length>1&&<p className="px-2 pt-1 text-[10px] text-muted-foreground">Mesma peça · {group.length} contas</p>}
+                  <ul>{group.map(post=>({post,info:g.items.find(i=>i.post.id===post.id)?.info})).map(({ post, info }) => {
                   const img = post.rendered_slides?.slide1;
                   const label = (post.carousel_text?.quote as string | undefined) || post.title || post.caption || 'Peça';
                   return (
@@ -53,6 +57,7 @@ export function ScheduleQueue({ groups, lens, draggingId, onDragStart, onDragEnd
                         <span className="min-w-0 flex-1">
                           {info && <span className={`block text-[10px] font-semibold ${LABEL_STYLE[info.label]}`} data-testid="queue-priority">● {info.label} prioridade</span>}
                           <span className="block truncate text-xs font-medium">{label}</span>
+                          <span className="block truncate text-[11px]" data-testid="queue-account">{accountLabel(post)}</span>
                           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-muted-foreground">
                             <span className="inline-flex items-center gap-1">{post.platform === 'linkedin' ? <Linkedin className="h-3 w-3 text-[#0A66C2]" /> : <Instagram className="h-3 w-3 text-[#E1306C]" />}{post.format === 'reel' ? 'Vídeo' : post.format === 'carousel' ? 'Carrossel' : post.format === 'story' ? 'Stories' : 'Imagem'}</span>
                             {info && <span data-testid="queue-window">Hive sugere: {formatRange(info.windowStart, info.windowEnd)}</span>}
@@ -61,7 +66,7 @@ export function ScheduleQueue({ groups, lens, draggingId, onDragStart, onDragEnd
                       </button>
                     </li>
                   );
-                })}
+                })}</ul></li>)}
               </ol>
             )}
           </div>

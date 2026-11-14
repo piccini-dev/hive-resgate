@@ -5,12 +5,13 @@
 // usuário sobrescreve em user_settings.distribution_prefs (diálogo de config da
 // Agenda). Cor de editoria vem do banco; ritmo vem do frequency_hint da editoria.
 
-import { differenceInCalendarDays, getDay, set, startOfDay, startOfWeek } from 'date-fns';
+import { startOfWeek } from 'date-fns';
 import type { DistributionPrefs, Platform } from '@/types';
 
-export type PlatformCadenceMerged = { per_week: number; times: string[] };
+export type PlatformCadenceMerged = { per_week: number; times: string[]; weekdays?: number[] };
 
 export type MergedPrefs = {
+  mirror_accounts: boolean;
   platform_times: Partial<Record<Platform, string>>;
   default_time: string;
   skip_weekends: boolean;
@@ -22,6 +23,7 @@ export type MergedPrefs = {
 // Defaults editáveis (seed do diálogo de config). Não são regra fixa: o que
 // vale é o que estiver salvo em distribution_prefs.
 export const DEFAULT_DISTRIBUTION: MergedPrefs = {
+  mirror_accounts: true,
   platform_times: {
     linkedin: '10:00',
     instagram: '18:30',
@@ -49,10 +51,12 @@ export function mergePrefs(prefs?: DistributionPrefs | null): MergedPrefs {
     const base = cadence[plat as Platform] ?? { per_week: 0, times: [] };
     cadence[plat as Platform] = {
       per_week: Math.max(0, c?.per_week ?? base.per_week),
-      times: (c?.times && c.times.length ? c.times : base.times).filter(Boolean),
+      ...(c?.weekdays !== undefined ? { weekdays: [...new Set(c.weekdays.filter(d=>Number.isInteger(d)&&d>=0&&d<=6))] } : {}),
+      times: (c?.times ?? base.times).filter(Boolean),
     };
   }
   return {
+    mirror_accounts: prefs?.mirror_accounts ?? true,
     platform_times: { ...DEFAULT_DISTRIBUTION.platform_times, ...(prefs?.platform_times ?? {}) },
     default_time: prefs?.default_time ?? DEFAULT_DISTRIBUTION.default_time,
     skip_weekends: prefs?.skip_weekends ?? DEFAULT_DISTRIBUTION.skip_weekends,
@@ -66,8 +70,8 @@ export function mergePrefs(prefs?: DistributionPrefs | null): MergedPrefs {
 // simples (platform_times/default_time) quando não há cadência definida.
 export function cadenceFor(prefs: MergedPrefs, platform: Platform): PlatformCadenceMerged {
   const c = prefs.platform_cadence[platform];
-  const times = c?.times?.length ? c.times : [timeForPlatform(prefs, platform)];
-  return { per_week: Math.max(0, c?.per_week ?? 0), times };
+  const times = c?.times ?? [timeForPlatform(prefs, platform)];
+  return { per_week: Math.max(0, c?.per_week ?? 0), times, ...(c?.weekdays!==undefined?{weekdays:c.weekdays}:{}) };
 }
 
 // Chave da semana (segunda a domingo) pra contar cadência semanal.
@@ -179,33 +183,6 @@ export function editorialGapDays(frequencyHint?: string | null): number {
   return 2;
 }
 
-export interface DistributionInput {
-  // Posts em stand-by a agendar, JÁ na ordem de prioridade desejada (ex: melhor
-  // nota primeiro). Cada um traz o mínimo necessário.
-  standby: Array<{ id: string; platform: Platform; editorialSlug?: string }>;
-  // Ritmo por editoria (derivado do frequency_hint via editorialGapDays).
-  gapForEditorial: (slug?: string) => number;
-  // Última data já agendada por editoria (posts que já estão no calendário) —
-  // pra não empilhar a mesma editoria colada.
-  lastByEditorial: Record<string, Date>;
-  // Quantos posts JÁ existem agendados por dia (respeita o per_day_limit).
-  countByDay: Record<string, number>;
-  // Quantos posts JÁ existem por semana x plataforma (respeita a cadência
-  // semanal). Chave = `${weekKey}|${platform}`.
-  countByWeekPlatform?: Record<string, number>;
-  prefs: MergedPrefs;
-  // "Hoje". A distribuição começa em from + start_offset_days.
-  from: Date;
-  horizonDays?: number;
-}
-
-export interface DistributionResult {
-  postId: string;
-  date: Date;
-}
-
-const dayKey = (d: Date): string => startOfDay(d).toISOString().slice(0, 10);
-
 // ---------------------------------------------------------------------------
 // MODO SEMI-AUTOMÁTICO (guiado) — o assistente pergunta frequência, dias e
 // horários por plataforma; estas são as SUGESTÕES de boa prática que ele mostra.
@@ -257,144 +234,20 @@ export const PLATFORM_GUIDE: Partial<Record<Platform, PlatformGuide>> = {
 };
 
 // Guia genérico pra plataformas sem curadoria específica (usa a cadência padrão).
+export function cadenceDays(prefs: MergedPrefs, platform: Platform): number[] {
+  const cad = cadenceFor(prefs,platform);
+  return cad.weekdays ?? (cad.per_week >= 7 || !prefs.skip_weekends ? [0,1,2,3,4,5,6] : [1,2,3,4,5]);
+}
+
 export function guideFor(prefs: MergedPrefs, platform: Platform): PlatformGuide {
-  const g = PLATFORM_GUIDE[platform];
-  if (g) return g;
-  const cad = cadenceFor(prefs, platform);
+  const g = PLATFORM_GUIDE[platform], cad = cadenceFor(prefs,platform), days=cadenceDays(prefs,platform);
+  const weekdays = g?.weekdays ?? [1,2,3,4,5,6,0].map(dow=>({dow,label:['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dow],reason:'Dia escolhido pelo produtor',recommended:false}));
+  const times = [...new Set([...cad.times,...(g?.times.map(t=>t.time)??[])])];
   return {
-    defaultPerWeek: cad.per_week || 2,
-    weekdays: [1, 2, 3, 4, 5, 6, 0].map((dow) => ({
-      dow,
-      label: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][dow],
-      reason: 'Dia útil',
-      recommended: dow >= 1 && dow <= 5,
-    })),
-    times: (cad.times.length ? cad.times : ['09:00']).map((t, i) => ({ time: t, label: t.replace(':00', 'h'), reason: 'Horário da cadência', recommended: i === 0 })),
+    defaultPerWeek: cad.per_week,
+    weekdays: weekdays.map(d=>({...d,recommended:days.includes(d.dow)})),
+    times: times.map(time=>({time,label:time,reason:g?.times.find(t=>t.time===time)?.reason??'Horário do seu padrão',recommended:cad.times.includes(time)})),
   };
 }
 
 export interface GuidedPlatformCfg { per_week: number; weekdays: number[]; times: string[] }
-
-export interface GuidedInput {
-  // JÁ na ordem de prioridade (melhor nota primeiro).
-  standby: Array<{ id: string; platform: Platform; editorialSlug?: string }>;
-  perPlatform: Partial<Record<Platform, GuidedPlatformCfg>>;
-  gapForEditorial: (slug?: string) => number;
-  lastByEditorial: Record<string, Date>;
-  countByDay: Record<string, number>;
-  countByWeekPlatform: Record<string, number>;
-  perDayLimit: number;
-  from: Date;
-  startOffsetDays?: number;
-  horizonDays?: number;
-}
-
-// Distribui respeitando as escolhas do assistente: só nos DIAS DA SEMANA
-// escolhidos por plataforma, nos HORÁRIOS escolhidos, dentro da frequência
-// semanal, mantendo o ritmo (gap) por editoria e o limite por dia.
-export function distributeGuided(input: GuidedInput): DistributionResult[] {
-  const result: DistributionResult[] = [];
-  const queue = [...input.standby];
-  const lastByEd: Record<string, Date> = { ...input.lastByEditorial };
-  const perDay: Record<string, number> = { ...input.countByDay };
-  const perWeekPlat: Record<string, number> = { ...input.countByWeekPlatform };
-  const timeIdx: Partial<Record<Platform, number>> = {};
-
-  const base = startOfDay(input.from);
-  const startOffset = Math.max(0, input.startOffsetDays ?? 1);
-  const horizon = input.horizonDays ?? 180;
-
-  for (let offset = startOffset; offset <= startOffset + horizon; offset++) {
-    if (queue.length === 0) break;
-    const day = new Date(base);
-    day.setDate(day.getDate() + offset);
-    const dow = getDay(day);
-    const key = dayKey(day);
-    const wk = weekKey(day);
-    let assignedToday = perDay[key] ?? 0;
-
-    while (assignedToday < input.perDayLimit && queue.length > 0) {
-      const idx = queue.findIndex((p) => {
-        const cfg = input.perPlatform[p.platform];
-        if (!cfg || !cfg.weekdays.includes(dow)) return false;
-        if (cfg.per_week > 0 && (perWeekPlat[`${wk}|${p.platform}`] ?? 0) >= cfg.per_week) return false;
-        const slug = p.editorialSlug ?? '__none__';
-        const last = lastByEd[slug];
-        return !last || differenceInCalendarDays(day, last) >= input.gapForEditorial(p.editorialSlug);
-      });
-      if (idx === -1) break;
-
-      const [post] = queue.splice(idx, 1);
-      const cfg = input.perPlatform[post.platform]!;
-      const times = cfg.times.length ? cfg.times : ['09:00'];
-      const ti = timeIdx[post.platform] ?? 0;
-      const time = times[ti % times.length];
-      timeIdx[post.platform] = ti + 1;
-
-      result.push({ postId: post.id, date: atTime(day, time) });
-      lastByEd[post.editorialSlug ?? '__none__'] = day;
-      perWeekPlat[`${wk}|${post.platform}`] = (perWeekPlat[`${wk}|${post.platform}`] ?? 0) + 1;
-      assignedToday++;
-    }
-    perDay[key] = assignedToday;
-  }
-
-  return result;
-}
-
-// Espalha os posts em stand-by pelos próximos dias respeitando:
-// pular fim de semana, limite por dia e o ritmo (gap) de cada editoria.
-export function distributeStandby(input: DistributionInput): DistributionResult[] {
-  const { standby, gapForEditorial, prefs, from, horizonDays = 180 } = input;
-  const result: DistributionResult[] = [];
-  const queue = [...standby];
-  const lastByEd: Record<string, Date> = { ...input.lastByEditorial };
-  const perDay: Record<string, number> = { ...input.countByDay };
-  // Contagem por semana x plataforma (respeita a cadência semanal).
-  const perWeekPlat: Record<string, number> = { ...(input.countByWeekPlatform ?? {}) };
-  // Índice de rotação de horários por plataforma (horários alternados).
-  const timeIdx: Partial<Record<Platform, number>> = {};
-
-  const base = startOfDay(from);
-  for (let offset = prefs.start_offset_days; offset <= prefs.start_offset_days + horizonDays; offset++) {
-    if (queue.length === 0) break;
-    const day = new Date(base);
-    day.setDate(day.getDate() + offset);
-
-    const dow = getDay(day); // 0=Dom, 6=Sáb
-    if (prefs.skip_weekends && (dow === 0 || dow === 6)) continue;
-
-    const key = dayKey(day);
-    const wk = weekKey(day);
-    let assignedToday = perDay[key] ?? 0;
-
-    while (assignedToday < prefs.per_day_limit && queue.length > 0) {
-      // Primeiro post da fila que pode entrar HOJE: respeita o ritmo da editoria
-      // E a cadência semanal da plataforma (X posts por semana).
-      const idx = queue.findIndex((p) => {
-        const slug = p.editorialSlug ?? '__none__';
-        const last = lastByEd[slug];
-        const gapOk = !last || differenceInCalendarDays(day, last) >= gapForEditorial(p.editorialSlug);
-        if (!gapOk) return false;
-        const cad = cadenceFor(prefs, p.platform);
-        if (cad.per_week > 0 && (perWeekPlat[`${wk}|${p.platform}`] ?? 0) >= cad.per_week) return false;
-        return true;
-      });
-      if (idx === -1) break; // nada elegível hoje; anda pro próximo dia
-
-      const [post] = queue.splice(idx, 1);
-      const cad = cadenceFor(prefs, post.platform);
-      const ti = timeIdx[post.platform] ?? 0;
-      const time = cad.times[ti % cad.times.length];
-      timeIdx[post.platform] = ti + 1;
-
-      result.push({ postId: post.id, date: atTime(day, time) });
-      lastByEd[post.editorialSlug ?? '__none__'] = day;
-      perWeekPlat[`${wk}|${post.platform}`] = (perWeekPlat[`${wk}|${post.platform}`] ?? 0) + 1;
-      assignedToday++;
-    }
-    perDay[key] = assignedToday;
-  }
-
-  return result;
-}

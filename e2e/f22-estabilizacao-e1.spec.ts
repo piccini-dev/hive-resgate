@@ -113,13 +113,14 @@ test.describe('F22 · Estabilização E1', () => {
     // Imagem de IA (M01-D) ainda não aprovada: o export devolve nulo — antes, aprovava assim mesmo.
     const pid = await piece({ status: 'pending_approval', quote: 'Fundo de IA pendente', extra: { rendered_slides: null, visual_decision: { variant: 'M01-D' } } });
     await page.goto(`/posts/${pid}`);
+    await page.getByText('Mais ações', {exact:true}).click();
     await page.getByRole('button', { name: /Stand-by/ }).click();
     await expect(page.getByText(/Stand-by não concluído/)).toBeVisible();
     const [p] = await sql<{ status: string }>(`select status from user_posts where id='${pid}'`);
     expect(p.status).toBe('pending_approval');
   });
 
-  test('lote: só conta o que foi gravado; linha vencida fica pendente e é retomada (02/T17–T18)', async ({ page }) => {
+  test('lote: corrige datas inválidas da IA e retoma somente a entrega recusada pelo servidor (02/T17–T18)', async ({ page }) => {
     // agendar fecha o pacote imutável copiando a imagem: precisa de um arquivo real
     const img = await uploadE2EImage('e1-lote.jpg', readFileSync('e2e/fixtures/peca-a.jpg'));
     const { linkedin } = await seedAccounts();                        // agendar exige um destino
@@ -130,18 +131,25 @@ test.describe('F22 · Estabilização E1', () => {
       success: true, summary: 'Plano de teste.',
       plan: [{ post_id: ok, date: tomorrowKey, time: '12:00', reason: 'ok' }, { post_id: late, date: yesterday, time: '12:00', reason: 'vencida' }],
     }));
+    let refused=false;
+    await page.route('**/functions/v1/schedule-piece',async route=>{
+      if(route.request().method()==='POST'&&route.request().postDataJSON().post_id===late&&!refused){
+        refused=true;await route.fulfill({status:422,headers:{'access-control-allow-origin':'*','content-type':'application/json'},body:JSON.stringify({success:false,error:'Falha de teste ao preparar esta entrega.',code:'PT422'})});
+      }else await route.fallback();
+    });
     await page.goto('/agenda');
     await expect(page.getByTestId('queue-count')).toHaveText('2');
     await page.getByRole('button', { name: 'IA distribuir' }).click();
     await page.getByRole('button', { name: 'Aplicar (2)' }).click();
-    await expect(page.getByText(/1 agendamento\(s\) confirmado\(s\) · 1 precisa\(m\) de nova data/)).toBeVisible();
+    await expect(page.getByText(/1 agendamento\(s\) confirmado\(s\) · 1 com erro/)).toBeVisible();
     await expect(page.getByTestId('plan-row').filter({ hasText: 'Linha boa' })).toHaveAttribute('data-result', 'ok');
     const lateRow = page.getByTestId('plan-row').filter({ hasText: 'Linha vencida' });
-    await expect(lateRow).toHaveAttribute('data-result', 'skipped');
+    await expect(lateRow).toHaveAttribute('data-result', 'error');
     const st = async () => Object.fromEntries((await sql<{ id: string; status: string }>(`select id, status from user_posts where id in ('${ok}','${late}')`)).map((r) => [r.id, r.status]));
     expect(await st()).toEqual({ [ok]: 'scheduled', [late]: 'approved' });
     // ajusta a data da pendente e aplica só ela
-    await lateRow.getByLabel('Nova data e hora').fill(`${tomorrowKey}T15:00`);
+    const slot=(await lateRow.getByTestId('plan-slot').innerText()).split(' · ');
+    await lateRow.getByLabel('Nova data e hora').fill(`${format(addDays(new Date(slot[0]+'T12:00:00'),7),'yyyy-MM-dd')}T${slot[1]}`);
     await page.getByRole('button', { name: 'Aplicar pendentes (1)' }).click();
     await expect(page.getByText(/1 agendamento\(s\) confirmado\(s\)\./)).toBeVisible();
     expect(await st()).toEqual({ [ok]: 'scheduled', [late]: 'scheduled' });

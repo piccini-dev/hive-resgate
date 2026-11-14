@@ -119,6 +119,7 @@ test.describe('F25 · Publicação exclusiva e versão programada (E4)', () => {
     await expect(card).toContainText('Há alterações ainda não aprovadas');
     await expect(page.locator('canvas').first()).toBeVisible();
     await page.waitForTimeout(2500);                                               // canvas hidratado (o aprovar exporta a imagem final)
+    await page.getByText('Mais ações', {exact:true}).click();
     await page.getByRole('button', { name: /^Aprovar$/ }).click();
     await expect(page.getByText(/continua agendada/)).toBeVisible({ timeout: 30_000 });
     await expect(card.getByTestId('replace-package')).toBeEnabled();

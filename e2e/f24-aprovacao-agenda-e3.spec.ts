@@ -92,6 +92,7 @@ test.describe('F24 · Aprovação e agenda (E3)', () => {
     await page.goto(`/posts/${pid}`);
     // o editor prepara a imagem final sozinho quando o canvas renderiza (sem isso, aprovar recusa)
     await expect.poll(async () => (await sql<{ s: string | null }>(`select rendered_slides->>'slide1' s from user_posts where id='${pid}'`))[0].s, { timeout: 30_000 }).not.toBeNull();
+    await page.getByText('Mais ações', {exact:true}).click();
     await page.getByRole('button', { name: /Aprovar · Stand-by/ }).click();
     await expect(page.getByText(/Peça aprovada · sem data/)).toBeVisible({ timeout: 30_000 });
     const [a] = await sql<{ status: string; image_approved: boolean; slide: string | null }>(`select status, image_approved, rendered_slides->>'slide1' slide from user_posts where id='${pid}'`);
@@ -132,9 +133,11 @@ test.describe('F24 · Aprovação e agenda (E3)', () => {
     expect(saved.quote).toBe('Frase revisada para publicação');
     expect(saved.caption).toBe('Legenda completamente revisada');
     expect(saved.image).not.toBe(before.s);
+    await page.getByText('Mais ações', {exact:true}).click();
     await page.getByRole('button', { name: /Aprovar · Stand-by/ }).click();
     await expect(page.getByText(/Peça aprovada · sem data/)).toBeVisible({ timeout: 30_000 });
     await page.reload();
+    await page.getByText('Mais ações', {exact:true}).click();
     await expect(page.getByRole('combobox').first()).toContainText('Aprovado');
     await page.locator('#sched').fill(`${tomorrowKey}T15:00`);
     await expect(page.getByText(/Programado para .*Esta é a versão que será publicada/).first()).toBeVisible({ timeout: 30_000 });
@@ -156,6 +159,12 @@ test.describe('F24 · Aprovação e agenda (E3)', () => {
       { post_id: ok, date: tomorrowKey, time: '12:00', reason: 'ok' },
       { post_id: late, date: format(addDays(new Date(), -1), 'yyyy-MM-dd'), time: '12:00', reason: 'vencida' },
     ] }));
+    let refused=false;
+    await page.route('**/functions/v1/schedule-piece',async route=>{
+      if(route.request().method()==='POST'&&route.request().postDataJSON().post_id===late&&!refused){
+        refused=true;await route.fulfill({status:422,headers:{'access-control-allow-origin':'*','content-type':'application/json'},body:JSON.stringify({success:false,error:'Falha de teste ao preparar esta entrega.',code:'PT422'})});
+      }else await route.fallback();
+    });
     await page.goto('/agenda');
     await expect(page.getByTestId('queue-count')).toHaveText('2');
     await page.getByRole('button', { name: 'IA distribuir' }).click();
@@ -167,7 +176,8 @@ test.describe('F24 · Aprovação e agenda (E3)', () => {
     await page.getByRole('button', { name: 'Retomar pendências' }).click();
     await expect(page.getByTestId('plan-row').filter({ hasText: 'Linha boa' })).toHaveAttribute('data-result', 'ok');
     const lateRow = page.getByTestId('plan-row').filter({ hasText: 'Linha vencida' });
-    await lateRow.getByLabel('Nova data e hora').fill(`${tomorrowKey}T16:00`);
+    const slot=(await lateRow.getByTestId('plan-slot').innerText()).split(' · ');
+    await lateRow.getByLabel('Nova data e hora').fill(`${format(addDays(new Date(slot[0]+'T12:00:00'),7),'yyyy-MM-dd')}T${slot[1]}`);
     await page.getByRole('button', { name: 'Aplicar pendentes (1)' }).click();
     await expect(page.getByText(/1 agendamento\(s\) confirmado\(s\)\./)).toBeVisible();
     const st = await sql<{ status: string; n: number }>(`select status, count(*)::int n from user_posts where id in ('${ok}','${late}') group by status`);

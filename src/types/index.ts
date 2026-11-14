@@ -73,6 +73,9 @@ export interface UserSettings {
 // Regras que a Agenda usa no "IA distribui". Tudo opcional — o lib/schedule
 // aplica os defaults por cima. NADA é fixo no código de negócio: o usuário edita.
 export interface DistributionPrefs {
+  // Padrões de novas entregas; seleção explícita vazia significa escolher manualmente.
+  default_account_ids?: string[];
+  mirror_accounts?: boolean;
   // horário 'HH:mm' por plataforma; cai no default_time quando ausente.
   platform_times?: Partial<Record<Platform, string>>;
   default_time?: string;
@@ -87,6 +90,8 @@ export interface DistributionPrefs {
 }
 
 export interface PlatformCadence {
+  // Dias explícitos da rede (0=domingo); prevalecem sobre o padrão geral.
+  weekdays?: number[];
   // Máximo de posts por semana nessa plataforma. 0 = sem limite semanal.
   per_week?: number;
   // Horários 'HH:mm' que a distribuição alterna (rotaciona) entre os posts.
