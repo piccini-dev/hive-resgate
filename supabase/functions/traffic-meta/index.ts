@@ -78,6 +78,62 @@ const handlers: Record<string, Handler> = {
     if (q.length < 2) return jsonResponse({ success: true, items: [] });
     return jsonResponse({ success: true, items: await searchInterests(q, conn.access_token) });
   },
+  // Cria tudo PAUSADO. Ordem: conferências → trava (status creating) → Meta → grava ids.
+  async create(userId, conn, body) {
+    const c = await loadCampaign(userId, body.campaign_id ?? '');
+    if (!c) return errorResponse('Campanha não encontrada.', 404);
+    if (!['draft', 'failed'].includes(c.status)) return errorResponse('Esta campanha já foi criada na Meta.', 409);
+    if (!conn.ad_account_id || !conn.ig_user_id || !(Number(conn.monthly_cap) > 0)) {
+      return errorResponse('Configure a conta de anúncio, o Instagram e o teto em Tráfego › Configurações.', 400);
+    }
+    const ads = await rest<AdRow[]>(`/traffic_ads?campaign_id=eq.${c.id}&user_id=eq.${userId}&select=id,post_id,mode,primary_text,headline,cta,link_url&order=created_at.asc`);
+    const postIds = [...new Set(ads.map((a) => a.post_id))];
+    // Regra única de elegibilidade: a view (aprovada, agendada ou publicada, e com arte), filtrada pelo dono.
+    const posts = postIds.length
+      ? await rest<PostRow[]>(`/traffic_eligible_posts?user_id=eq.${userId}&id=in.(${postIds.join(',')})&select=id,format,ig_media_id,rendered_slides`)
+      : [];
+    if (posts.length !== postIds.length) {
+      return jsonResponse({ success: false, code: 'NOT_ELIGIBLE', error: 'Uma das peças não está aprovada (ou não tem arte) e não pode virar anúncio.' }, 422);
+    }
+    const errors = validateDraft(c, ads, posts);
+    if (errors.length) return jsonResponse({ success: false, code: 'INVALID', error: errors[0], errors }, 400);
+    const g = await guard(userId, c.id);
+    if (!g.ok) return jsonResponse({ success: false, code: 'PT402', error: `Passa do teto mensal. Ainda cabem ${brl(Math.max(0, Number(g.available)))} este mês.` }, 402);
+    const page = await ensurePage(userId, conn);
+    if (!page) return errorResponse('O Instagram escolhido não está ligado a uma Página do Facebook.', 400);
+    // Trava contra clique duplo: só um pedido consegue passar de draft/failed para creating.
+    if (await patchCampaign(c.id, { status: 'creating', error: null }, ['draft', 'failed']) === 0) {
+      return errorResponse('Esta campanha já está sendo criada.', 409);
+    }
+    const acc = { ad_account_id: conn.ad_account_id, page_id: page.id, ig_user_id: conn.ig_user_id };
+    const token = conn.access_token;
+    let fbCampaignId: string | null = null;
+    try {
+      fbCampaignId = (await graphPost<{ id: string }>(`${acc.ad_account_id}/campaigns`, campaignPayload(c), token)).id;
+      const fbAdsetId = (await graphPost<{ id: string }>(`${acc.ad_account_id}/adsets`, adsetPayload(c, acc, fbCampaignId), token)).id;
+      for (const [i, a] of ads.entries()) {
+        const p = posts.find((x) => x.id === a.post_id)!;
+        const creativeId = (await graphPost<{ id: string }>(`${acc.ad_account_id}/adcreatives`, creativePayload(c, a, p, acc, i + 1), token)).id;
+        const adId = (await graphPost<{ id: string }>(`${acc.ad_account_id}/ads`, adPayload(c, i + 1, fbAdsetId, creativeId), token)).id;
+        await rest(`/traffic_ads?id=eq.${a.id}`, {
+          method: 'PATCH', headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify({ fb_creative_id: creativeId, fb_ad_id: adId, error: null, updated_at: nowIso() }),
+        });
+      }
+      await patchCampaign(c.id, { status: 'paused', fb_campaign_id: fbCampaignId, fb_adset_id: fbAdsetId });
+      return jsonResponse({ success: true, status: 'paused', fb_campaign_id: fbCampaignId, fb_adset_id: fbAdsetId });
+    } catch (e) {
+      // Desfaz: apagar a campanha na Meta apaga junto o conjunto e os anúncios (criativos soltos não gastam).
+      if (fbCampaignId) await graphDelete(fbCampaignId, token).catch((d) => console.warn('[traffic-meta] desfazer:', (d as Error).message));
+      const msg = e instanceof MetaApiError ? e.message : 'Erro ao criar na Meta.';
+      await patchCampaign(c.id, { status: 'failed', error: msg, fb_campaign_id: null, fb_adset_id: null });
+      await rest(`/traffic_ads?campaign_id=eq.${c.id}`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ fb_creative_id: null, fb_ad_id: null, updated_at: nowIso() }),
+      });
+      console.error('[traffic-meta] create', e instanceof MetaApiError ? e.err : e);
+      return jsonResponse({ success: false, code: 'META', error: msg }, 502);
+    }
+  },
 };
 
 Deno.serve(async (req: Request) => {
