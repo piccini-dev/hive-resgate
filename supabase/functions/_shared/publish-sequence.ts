@@ -13,7 +13,7 @@ import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 import type { PackageRow } from './package.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const IG = 'https://graph.facebook.com/v21.0';
+const IG = 'https://graph.facebook.com/v26.0';
 // Versão da API REST do LinkedIn (YYYYMM). Configurável: a LinkedIn aceita versões dos últimos ~12 meses.
 const LI_VERSION = Deno.env.get('LINKEDIN_API_VERSION') ?? '202608';
 

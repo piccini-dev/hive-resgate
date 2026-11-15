@@ -13,7 +13,7 @@
 
 import { errorResponse, jsonResponse, preflight, userIdFromAuth, checkRateLimit } from '../_shared/security.ts';
 
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v26.0';
 
 interface Input { code: string; redirect_uri: string }
 
