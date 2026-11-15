@@ -3,7 +3,8 @@
 // Ações: assets, search_locations, search_interests (leitura) e create, set_status (escrita).
 import { checkRateLimit, errorResponse, jsonResponse, preflight, userIdFromAuth } from '../_shared/security.ts';
 import { svcHeaders } from '../_shared/gemini.ts';
-import { MetaApiError, findPageForInstagram, searchInterests, searchLocations } from '../_shared/meta-marketing.ts';
+import { MetaApiError, findPageForInstagram, graphDelete, graphPost, searchInterests, searchLocations } from '../_shared/meta-marketing.ts';
+import { adPayload, adsetPayload, campaignPayload, creativePayload, validateDraft, type AdRow, type CampaignRow, type PostRow } from '../_shared/traffic-spec.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 
@@ -35,6 +36,29 @@ async function ensurePage(userId: string, conn: Conn): Promise<{ id: string; nam
   });
   conn.page_id = page.id;
   return page;
+}
+
+type CampaignDb = CampaignRow & { status: string; fb_campaign_id: string | null; fb_adset_id: string | null };
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const nowIso = () => new Date().toISOString();
+
+async function loadCampaign(userId: string, id: string): Promise<CampaignDb | null> {
+  if (!UUID.test(id)) return null;
+  const rows = await rest<CampaignDb[]>(`/traffic_campaigns?id=eq.${id}&user_id=eq.${userId}&select=id,name,objective,status,draft,fb_campaign_id,fb_adset_id&limit=1`);
+  return rows[0] ?? null;
+}
+
+async function patchCampaign(id: string, patch: Record<string, unknown>, onlyIfStatus?: string[]): Promise<number> {
+  const cond = onlyIfStatus ? `&status=in.(${onlyIfStatus.join(',')})` : '';
+  const rows = await rest<unknown[]>(`/traffic_campaigns?id=eq.${id}${cond}`, {
+    method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...patch, updated_at: nowIso() }),
+  });
+  return rows.length;
+}
+
+async function guard(userId: string, campaignId: string): Promise<{ ok: boolean; available: number }> {
+  return rest(`/rpc/ads_spend_guard`, { method: 'POST', body: JSON.stringify({ p_user: userId, p_campaign: campaignId }) });
 }
 
 const handlers: Record<string, Handler> = {
