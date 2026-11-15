@@ -45,7 +45,7 @@ Planos anteriores: operação resgate (blocos 01–10) em [`PLANO-RESGATE.md`](P
 
 ### F1 · Configurar (uma vez)
 1. Configurações › Contas › Meta: reconectar o Facebook (o login passa a pedir `ads_management`).
-2. Tráfego › Configurações: escolher a **conta de anúncio**, a **Página** e o **Instagram** que anunciam, e o **teto mensal** (R$).
+2. Tráfego › Configurações: escolher a **conta de anúncio** e o **Instagram** que anunciam, e o **teto mensal** (R$). A **Página** do Facebook é achada pelo servidor a partir do Instagram (o banco não guarda o id da Página hoje).
 3. Sem configuração completa, as outras abas do módulo mostram só o aviso com o link para Configurações.
 
 ### F2 · Nova campanha (o wizard)
@@ -125,7 +125,7 @@ Tudo **aditivo** e idempotente, com rollback em `supabase/rollback/`. RLS `auth.
 | Coluna | Tipo | Para quê |
 |---|---|---|
 | `ad_account_id` | text | conta de anúncio que o módulo usa (`act_…`) |
-| `page_id` | text | Página que anuncia |
+| `page_id` | text | Página que anuncia; preenchida pelo `traffic-meta` (ação `assets`, bloco 12) a partir do Instagram; volta a nulo quando o Instagram muda |
 | `ig_user_id` | text | Instagram que anuncia |
 | `monthly_cap` | numeric | teto mensal em R$ (nulo = módulo não cria nem ativa) |
 
@@ -211,7 +211,7 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
 |---|---|---|---|---|---|
-| 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Página, Instagram e teto; migration §6 aplicada | — | 7 |
+| 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
 | 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com as 6 ações; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; prova real (campanha `PAUSED` na conta do Raul, arquivada); auditoria de segurança | 11 | 7 |
 | 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 7 |
 | 14 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 13 | 6 |
@@ -223,20 +223,13 @@ Ordem: 11 → 12 → 13 → 14 → 15, em sequência (13 e 14 mexem nos mesmos a
 
 Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `/integrar` do bloco anterior, sobre o código já integrado.
 
-**11 · Base do módulo**
-- `exec:claude` Migration aditiva: colunas §6.1, `traffic_campaigns`, `traffic_ads`, view `traffic_eligible_posts`, RLS e rollback. Deploy só com ordem.
-- `exec:gpt` Rota `/trafego` com as 4 abas (arquivos novos em `src/pages/trafego/`; Campanhas e Nova campanha como placeholder), item **Tráfego** no `Sidebar.tsx` e rota no `App.tsx`; sem configuração completa, as abas mostram o aviso com link para Configurações.
-- `exec:gpt` Aba Resultados renderiza a `PaidTrafficSection`; o `AccountsCompare` fica só com o orgânico e um link para `/trafego?aba=resultados`.
-- `exec:gpt` Trocar `v21.0` por `v26.0` nos 9 lugares (`grep -rn "v21.0" src supabase/functions`), com a lista conferida dos campos removidos entre v21 e v26 que o sync usa.
-- `exec:gpt` Somar `ads_management` ao `IG_SCOPE` do `AccountsPanel.tsx`.
-- `exec:gpt` Aba Configurações: conta de anúncio (de `meta_ad_accounts`), Página, Instagram e teto mensal, gravando em `meta_connections`. (Na v1 do bloco, as listas vêm do espelho e das contas sociais; o `assets` do bloco 12 passa a alimentá-las.)
-- `exec:claude` Cadastrar `hive-resgate.netlify.app` nas URIs de OAuth do app da Meta (o Raul faz no painel), conferir o papel do Facebook do Marcos no app, redeploy das funções em v26 (com ordem), reconectar o Facebook e E2E do módulo.
+**11 · Base do módulo** — issues no milestone `11 · Base do módulo` (ver o GitHub; a quebra está em `.central/DECISOES.md`).
 
 **12 · Contrato com a Meta**
 - `_shared/traffic-spec.ts` (puro) + `e2e/unit-traffic-spec.spec.ts`.
 - `_shared/meta-marketing.ts`: criar campanha, conjunto, criativo (post do Instagram e criativo novo de imagem/carrossel) e anúncio; mudar status; buscas (só `fetch`). Formatos de criativo conferidos no Context7 antes.
 - `exec:claude` Migration `ads_spend_guard` + rollback.
-- `traffic-meta/index.ts`: ações `assets`, `search_locations`, `search_interests`, `estimate`.
+- `traffic-meta/index.ts`: ações `assets` (inclui achar a Página do Instagram configurado e gravar `page_id`), `search_locations`, `search_interests`, `estimate`.
 - `traffic-meta/index.ts`: ações `create` (com desfazer em falha) e `set_status`, guarda e conferência de elegibilidade.
 - `src/lib/edge.ts` + `src/lib/traffic.ts`.
 - `exec:claude` Deploy (com ordem), prova real `PAUSED`, E2E da recusa por teto e da peça não aprovada, auditoria de segurança.
@@ -264,8 +257,8 @@ Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `
 - **D8 · Passo de conteúdo antes da campanha** (desvio do Gerenciador) para a IA recomendar sabendo o que vai ser anunciado. Aprovado pelo Raul.
 - Do plano antigo **caem**: proposta automática, pausa automática, botão Impulsionar na peça e etapa de vendas (adiada). **Fica**: teto mensal no servidor, métricas só do espelho, Graph v26 e `ads_management`.
 
-**Perguntas em aberto:**
-- **P1** Qual conta de anúncio o Marcos vai usar?
-- **P2** O Facebook do Marcos tem papel no app da Meta da Hive? (R3)
-- **P3** Qual o teto mensal inicial? (sem ele, o módulo não cria nem ativa)
-- **P4** Limite de 5 peças por campanha serve?
+**Respostas (2026-11-15):**
+- **P1** Conta de anúncio: a última com anúncios, `act_611235354835759` ("LS6D", ativa, BRL, último dia com gasto 13/03/2026). É o valor inicial da Configuração; o Marcos pode trocar na aba.
+- **P2** O Facebook do Marcos já tem papel no app da Meta (R3 resolvido).
+- **P3** Teto mensal inicial: **R$ 1.000**.
+- **P4** Limite de 5 peças por campanha: mantido.
