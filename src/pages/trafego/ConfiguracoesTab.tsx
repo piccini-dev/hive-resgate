@@ -73,8 +73,8 @@ export function ConfiguracoesTab({ onSaved }: { onSaved?: () => void }) {
     }
   };
 
-  if (loading) return <Loading what="a configuração do tráfego" />;
-  if (error) return <LoadError what="a configuração do tráfego" onRetry={recarregar} />;
+  if (loading) return <div className="mx-auto max-w-6xl p-6 lg:p-8"><Loading what="a configuração do tráfego" /></div>;
+  if (error) return <div className="mx-auto max-w-6xl p-6 lg:p-8"><LoadError what="a configuração do tráfego" onRetry={recarregar} /></div>;
 
   if (settings === null) {
     return (
