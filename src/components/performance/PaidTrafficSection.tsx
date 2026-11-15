@@ -1,4 +1,4 @@
-// TRÁFEGO PAGO no comparativo de contas: análise profunda dos anúncios (Meta Ads)
+// TRÁFEGO PAGO (Tráfego › Resultados): análise profunda dos anúncios (Meta Ads)
 // por conta do Instagram que os veiculou — indicadores lado a lado, funil, evolução
 // mensal, objetivos, campanhas, melhores/piores anúncios, dias da semana e as
 // conclusões tiradas dos números. Cálculo em src/lib/campaign/paidTraffic.ts.
