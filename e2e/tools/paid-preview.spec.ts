@@ -29,7 +29,7 @@ test('@tool prévia do tráfego pago com dados reais (cópia temporária)', asyn
     insert into post_metrics (user_id, post_id, source, reach, impressions, likes, comments, saves, shares, engagement_rate)
     select '${u}', ins.id, m.source, m.reach, m.impressions, m.likes, m.comments, m.saves, m.shares, m.engagement_rate from ins join post_metrics m on m.post_id::text = ins.copy_of`);
   await page.setViewportSize({ width: 1440, height: 9000 });
-  await page.goto('/desempenho/contas');
+  await page.goto('/trafego?aba=resultados');
   const sec = page.getByTestId('paid-section');
   await expect(sec).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId('paid-kpis')).toBeVisible();
