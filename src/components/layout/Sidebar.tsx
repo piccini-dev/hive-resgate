@@ -27,6 +27,7 @@ import {
   Fingerprint,
   Wrench,
   Eye,
+  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BeeLogo } from '@/components/shared/BeeLogo';
@@ -54,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'Pipeline', to: '/pipeline', icon: Workflow },
   { label: 'Agenda', to: '/agenda', icon: CalendarDays },
   { label: 'Resultados', to: '/desempenho', icon: BarChart3 },
+  { label: 'Tráfego', to: '/trafego', icon: Megaphone },
   {
     label: 'Voz da Hive',
     icon: Fingerprint,
