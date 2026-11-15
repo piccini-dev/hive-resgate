@@ -134,6 +134,33 @@ const handlers: Record<string, Handler> = {
       return jsonResponse({ success: false, code: 'META', error: msg }, 502);
     }
   },
+  // ACTIVE liga anúncios → conjunto → campanha (a campanha por último); PAUSED e ARCHIVED mexem só na campanha.
+  async set_status(userId, conn, body) {
+    const target = body.status ?? '';
+    if (!['ACTIVE', 'PAUSED', 'ARCHIVED'].includes(target)) return errorResponse('Status inválido.', 400);
+    const c = await loadCampaign(userId, body.campaign_id ?? '');
+    if (!c) return errorResponse('Campanha não encontrada.', 404);
+    if (!c.fb_campaign_id || !['paused', 'active'].includes(c.status)) return errorResponse('Esta campanha não está na Meta.', 409);
+    const token = conn.access_token;
+    if (target === 'ACTIVE') {
+      const g = await guard(userId, c.id);
+      if (!g.ok) return jsonResponse({ success: false, code: 'PT402', error: `Passa do teto mensal. Ainda cabem ${brl(Math.max(0, Number(g.available)))} este mês.` }, 402);
+      const ads = await rest<Array<{ fb_ad_id: string | null }>>(`/traffic_ads?campaign_id=eq.${c.id}&user_id=eq.${userId}&select=fb_ad_id`);
+      for (const a of ads) if (a.fb_ad_id) await graphPost(a.fb_ad_id, { status: 'ACTIVE' }, token);
+      if (c.fb_adset_id) await graphPost(c.fb_adset_id, { status: 'ACTIVE' }, token);
+      await graphPost(c.fb_campaign_id, { status: 'ACTIVE' }, token);
+      await patchCampaign(c.id, { status: 'active', activated_at: nowIso(), error: null });
+      return jsonResponse({ success: true, status: 'active' });
+    }
+    if (target === 'PAUSED') {
+      await graphPost(c.fb_campaign_id, { status: 'PAUSED' }, token);
+      await patchCampaign(c.id, { status: 'paused' });
+      return jsonResponse({ success: true, status: 'paused' });
+    }
+    await graphPost(c.fb_campaign_id, { status: 'ARCHIVED' }, token);
+    await patchCampaign(c.id, { status: 'ended', ended_at: nowIso() });
+    return jsonResponse({ success: true, status: 'ended' });
+  },
 };
 
 Deno.serve(async (req: Request) => {
