@@ -21,8 +21,8 @@ import type { SocialAccount } from '@/types';
 
 // Insights entra no escopo pra coletar alcance/salvamentos (D3). Contas já
 // conectadas antes disso seguem publicando; só as métricas ficam limitadas.
-// ads_read: tráfego pago (BMs, contas de anúncio, campanhas e desempenho) — guardado pra uso futuro.
-const IG_SCOPE = 'instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,business_management,ads_read';
+// ads_read: ler o tráfego pago (BMs, contas, campanhas e desempenho). ads_management: o módulo de Tráfego cria e controla campanhas.
+const IG_SCOPE = 'instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,business_management,ads_read,ads_management';
 const FB_APP_ID = (import.meta.env.VITE_FACEBOOK_APP_ID as string | undefined) || '2082883022288225';
 export const IG_ACCOUNT_STATE_KEY = 'ig_account_oauth_state';
 const IG_ACCOUNT_LABEL_KEY = 'ig_account_label';
@@ -179,7 +179,7 @@ export function AccountsPanel() {
     sessionStorage.setItem(IG_ACCOUNT_STATE_KEY, state);
     sessionStorage.setItem(IG_ACCOUNT_LABEL_KEY, igLabel.trim());
     window.location.href =
-      `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}` +
+      `https://www.facebook.com/v26.0/dialog/oauth?client_id=${FB_APP_ID}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&response_type=code&scope=${encodeURIComponent(IG_SCOPE)}` +
       // O Facebook lembra quais contas foram liberadas e pula a tela; isto força
       // a tela de novo, pra poder marcar outras contas do Instagram.

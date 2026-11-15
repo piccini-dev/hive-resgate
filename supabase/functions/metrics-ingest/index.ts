@@ -15,7 +15,7 @@ import { importAccount } from '../_shared/instagram-import.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v26.0';
 const INSIGHTS = 'reach,saved,shares,likes,comments,views';
 
 interface Post { id: string; user_id: string; account_id: string | null; published_url: string | null; published_at: string; format: string; metadata: Record<string, unknown> | null }

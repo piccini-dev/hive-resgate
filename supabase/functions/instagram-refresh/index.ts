@@ -10,7 +10,7 @@
 
 import { corsHeaders, jsonResponse } from '../_shared/security.ts';
 
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v26.0';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 
 function svcHeaders(): HeadersInit {

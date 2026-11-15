@@ -153,7 +153,7 @@ async function publishLinkedInImage(token: string, authorUrn: string, imageUrl: 
   return { url: `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}/`, id: postId, platform: 'linkedin' };
 }
 
-const IG_API_VERSION = 'v21.0';
+const IG_API_VERSION = 'v26.0';
 async function igPublishContainer(igBusinessId: string, creationId: string, token: string, label: string): Promise<string> {
   const pRes = await decisive(label, `https://graph.facebook.com/${IG_API_VERSION}/${igBusinessId}/media_publish`, { method: 'POST', body: new URLSearchParams({ creation_id: creationId, access_token: token }) });
   const pData = await pRes.json().catch(() => ({}));

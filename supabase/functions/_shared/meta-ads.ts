@@ -11,7 +11,7 @@ import {
 } from './meta-ads-map.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v26.0';
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
 type GraphErr = { code?: number; message?: string };

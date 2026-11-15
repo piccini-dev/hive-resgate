@@ -3,9 +3,9 @@ import { cleanupE2EData, sql } from './helpers/admin';
 import { mockEdge } from './helpers/mocks';
 import { e2eUser } from './helpers/env';
 
-// Tráfego pago no comparativo de contas: anúncios atribuídos às contas do Instagram,
+// Tráfego pago em Tráfego › Resultados: anúncios atribuídos às contas do Instagram,
 // indicadores lado a lado, funil, mês a mês, campanhas, anúncios e conclusões.
-test.describe('F13 · tráfego pago no comparativo', () => {
+test.describe('F13 · tráfego pago em Tráfego › Resultados', () => {
   test.beforeEach(async () => { await cleanupE2EData(); });
   test.afterAll(async () => { await cleanupE2EData(); });
 
@@ -39,7 +39,7 @@ test.describe('F13 · tráfego pago no comparativo', () => {
     await seed();
     const attr: Array<Record<string, unknown>> = [];
     await mockEdge(page, 'meta-ads-attribution', () => ({ success: true, ads: 4, creative: 3, page: 0, unresolved: 1, errors: [] }), attr);
-    await page.goto('/desempenho/contas');
+    await page.goto('/trafego?aba=resultados');
     const sec = page.getByTestId('paid-section');
     await expect(sec).toBeVisible({ timeout: 30_000 });
     await expect(sec).toContainText('02/02/2026 a 04/03/2026');
@@ -85,7 +85,7 @@ test.describe('F13 · tráfego pago no comparativo', () => {
     await sql(`insert into social_accounts (user_id, platform, label, status, instagram_business_account_id, metadata) values
       ('${u}','instagram','@a','connected','ig-a','{"ig":{"imported_at":"2026-10-02","profile":{"username":"a","followers_count":1}}}'::jsonb),
       ('${u}','instagram','@b','connected','ig-b','{"ig":{"imported_at":"2026-10-02","profile":{"username":"b","followers_count":1}}}'::jsonb)`);
-    await page.goto('/desempenho/contas');
+    await page.goto('/trafego?aba=resultados');
     await expect(page.getByTestId('paid-section')).toContainText('Ainda não há dados de tráfego pago');
   });
 });

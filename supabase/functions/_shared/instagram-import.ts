@@ -12,7 +12,7 @@ import { igMetricRow, type IgInsight } from './metrics.ts';
 import { commentRows, igFormat, imageSources, importedCode, insightMetricsFor, mediaIdFromUrl, quoteFromCaption, type IgComment, type IgMedia } from './instagram-map.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v26.0';
 const PAGE = 10;
 const MEDIA_FIELDS = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,children{media_type,media_url,thumbnail_url}';
 

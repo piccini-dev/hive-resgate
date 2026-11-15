@@ -34,6 +34,7 @@ import { OlharCalibracao } from '@/pages/olhar/Calibracao';
 import { Pipeline } from '@/pages/pipeline/Pipeline';
 import { Resultados } from '@/pages/desempenho/Resultados';
 import { AccountsCompare } from '@/pages/desempenho/AccountsCompare';
+import { Trafego } from '@/pages/trafego/Trafego';
 import { OneContent } from '@/pages/criar/OneContent';
 import { CreateHub } from '@/pages/criar/CreateHub';
 import { Campaigns } from '@/pages/campanhas/Campaigns';
@@ -128,6 +129,7 @@ export default function App() {
           <Route path="pipeline" element={<Pipeline />} />
           <Route path="desempenho" element={<Resultados />} />
           <Route path="desempenho/contas" element={<AccountsCompare />} />
+          <Route path="trafego" element={<Trafego />} />
           <Route path="hive/preview" element={<HivePreview />} />
           <Route path="hive/assets" element={<HiveAssets />} />
           <Route path="hive/marcos" element={<Navigate to="/hive/fotografia?aba=reais" replace />} />
