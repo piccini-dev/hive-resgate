@@ -21,8 +21,8 @@ import type { SocialAccount } from '@/types';
 
 // Insights entra no escopo pra coletar alcance/salvamentos (D3). Contas já
 // conectadas antes disso seguem publicando; só as métricas ficam limitadas.
-// ads_read: ler o tráfego pago (BMs, contas, campanhas e desempenho). ads_management: o módulo de Tráfego cria e controla campanhas.
-const IG_SCOPE = 'instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,business_management,ads_read,ads_management';
+// ads_read: ler o tráfego pago (BMs, contas, campanhas e desempenho). ads_management + pages_manage_ads: o módulo de Tráfego cria e controla campanhas (criativo ligado à Página).
+const IG_SCOPE = 'instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,business_management,ads_read,ads_management,pages_manage_ads';
 const FB_APP_ID = (import.meta.env.VITE_FACEBOOK_APP_ID as string | undefined) || '2082883022288225';
 export const IG_ACCOUNT_STATE_KEY = 'ig_account_oauth_state';
 const IG_ACCOUNT_LABEL_KEY = 'ig_account_label';
