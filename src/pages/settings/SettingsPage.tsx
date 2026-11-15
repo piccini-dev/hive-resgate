@@ -50,7 +50,7 @@ export function SettingsPage() {
     // instagram_manage_comments: texto dos comentários (sinal da audiência para a ACJ).
     const scope = 'instagram_basic,instagram_content_publish,instagram_manage_insights,instagram_manage_comments,pages_show_list,pages_read_engagement,business_management';
     window.location.href =
-      `https://www.facebook.com/v21.0/dialog/oauth?client_id=${FB_APP_ID}` +
+      `https://www.facebook.com/v26.0/dialog/oauth?client_id=${FB_APP_ID}` +
       `&redirect_uri=${encodeURIComponent(igRedirectUri)}&state=${state}&response_type=code&scope=${encodeURIComponent(scope)}`;
   }
 
@@ -167,7 +167,7 @@ export function SettingsPage() {
     setTestingIg(true);
     try {
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${igBusinessId}?fields=username,name&access_token=${encodeURIComponent(igAccessToken)}`,
+        `https://graph.facebook.com/v26.0/${igBusinessId}?fields=username,name&access_token=${encodeURIComponent(igAccessToken)}`,
       );
       const data = await res.json();
       if (!res.ok || data.error) {
