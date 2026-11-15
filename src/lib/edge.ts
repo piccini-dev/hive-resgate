@@ -467,6 +467,22 @@ export const edge = {
   }> {
     return postEdge('meta-ads-sync', input);
   },
+  async trafficAssets(): Promise<{ success: boolean; page: { id: string; name: string | null } }> {
+    return postEdge('traffic-meta', { action: 'assets' });
+  },
+  async trafficSearchLocations(q: string): Promise<{ success: boolean; items: TrafficLocation[] }> {
+    return postEdge('traffic-meta', { action: 'search_locations', q });
+  },
+  async trafficSearchInterests(q: string): Promise<{ success: boolean; items: TrafficInterest[] }> {
+    return postEdge('traffic-meta', { action: 'search_interests', q });
+  },
+  // Cria campanha, conjunto e anúncios PAUSADOS. Recusas (teto, peça não aprovada, rascunho inválido) viram Error com a mensagem em português.
+  async trafficCreate(campaignId: string): Promise<{ success: boolean; status: 'paused'; fb_campaign_id: string; fb_adset_id: string }> {
+    return postEdge('traffic-meta', { action: 'create', campaign_id: campaignId });
+  },
+  async trafficSetStatus(campaignId: string, status: TrafficStatusTarget): Promise<{ success: boolean; status: 'active' | 'paused' | 'ended' }> {
+    return postEdge('traffic-meta', { action: 'set_status', campaign_id: campaignId, status });
+  },
   async metricsIngest(): Promise<{ success: boolean; results: Array<{ posts: number; saved: number; insights: boolean; errors: string[] }> }> {
     return postEdge('metrics-ingest', {});
   },
