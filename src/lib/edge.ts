@@ -162,6 +162,11 @@ export function olharBee<T>(body: Record<string, unknown>): Promise<T> {
   return postEdge<T>('olhar-bee', body);
 }
 
+// Módulo de Tráfego (docs/plano/PLANO.md §7): contrato único com a Meta (traffic-meta); o token fica no servidor.
+export interface TrafficLocation { key: string; name: string; type: string; country_code?: string; region?: string }
+export interface TrafficInterest { id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; path?: string[] }
+export type TrafficStatusTarget = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+
 export const edge = {
   // A IA propoe o publico-alvo de um editorial a partir da descricao (nao salva).
   async suggestAudience(editorial: { name?: string; description?: string; objetivo?: string; tom?: string }): Promise<SuggestAudienceOutput> {
