@@ -62,7 +62,7 @@ export function Trafego() {
         <p className="mt-1 text-sm text-muted-foreground">
           Anuncie no Facebook e no Instagram os conteúdos já aprovados da Hive.
         </p>
-        <TabsList className="mt-4 flex-wrap">
+        <TabsList className="mt-4 h-auto flex-wrap">
           <TabsTrigger value="campanhas">Campanhas</TabsTrigger>
           <TabsTrigger value="nova">Nova campanha</TabsTrigger>
           <TabsTrigger value="resultados">Resultados</TabsTrigger>
