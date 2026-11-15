@@ -1,7 +1,8 @@
 // Configurações do Tráfego: conta de anúncio, Instagram e teto mensal.
 // A Página do Facebook é encontrada pelo servidor no bloco 12.
-import { useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LoadError, Loading } from '@/components/shared/LoadState';
 import {
   getTrafficSettings,
+  saveTrafficSettings,
   listAdAccounts,
   listInstagramAccounts,
   NO_CONNECTION_MSG,
@@ -26,6 +28,7 @@ export function ConfiguracoesTab({ onSaved }: { onSaved?: () => void }) {
   const [adAccountId, setAdAccountId] = useState('');
   const [igUserId, setIgUserId] = useState('');
   const [cap, setCap] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const recarregar = useCallback(async () => {
     setLoading(true);
@@ -53,7 +56,22 @@ export function ConfiguracoesTab({ onSaved }: { onSaved?: () => void }) {
     void recarregar();
   }, [recarregar]);
 
-  void onSaved;
+  const salvar = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!settings || saving || !adAccountId || !igUserId || !cap || !Number.isFinite(Number(cap)) || Number(cap) <= 0) return;
+
+    setSaving(true);
+    try {
+      await saveTrafficSettings({ ad_account_id: adAccountId, ig_user_id: igUserId, monthly_cap: Number(cap) }, settings);
+      toast.success('Configuração do tráfego salva.');
+      await recarregar();
+      onSaved?.();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) return <Loading what="a configuração do tráfego" />;
   if (error) return <LoadError what="a configuração do tráfego" onRetry={recarregar} />;
@@ -76,7 +94,7 @@ export function ConfiguracoesTab({ onSaved }: { onSaved?: () => void }) {
       <form
         data-testid="traffic-settings"
         className="max-w-xl space-y-5"
-        onSubmit={(event) => event.preventDefault()}
+        onSubmit={salvar}
       >
         <div className="space-y-2">
           <Label htmlFor="traffic-ad-account">Conta de anúncio</Label>
@@ -147,7 +165,7 @@ export function ConfiguracoesTab({ onSaved }: { onSaved?: () => void }) {
           type="submit"
           variant="accent"
           data-testid="traffic-save"
-          disabled={!adAccountId || !igUserId || !cap || !Number.isFinite(Number(cap)) || Number(cap) <= 0}
+          disabled={saving || !adAccountId || !igUserId || !cap || !Number.isFinite(Number(cap)) || Number(cap) <= 0}
         >
           Salvar
         </Button>
