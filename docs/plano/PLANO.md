@@ -97,7 +97,7 @@ flowchart LR
 ```
 
 **Regras de arquitetura:**
-- **Um contrato com a Meta:** toda leitura e escrita do módulo na Marketing API passa por `traffic-meta` (o token nunca vai ao navegador). Ações: `assets` (contas de anúncio, Páginas e Instagram do usuário), `search_locations`, `search_interests`, `estimate`, `create`, `set_status`.
+- **Um contrato com a Meta:** toda leitura e escrita do módulo na Marketing API passa por `traffic-meta` (o token nunca vai ao navegador). Ações: `assets` (acha e grava a Página do Instagram configurado), `search_locations`, `search_interests`, `create`, `set_status`; `estimate` entra no bloco 14.
 - **Uma tradução:** `_shared/traffic-spec.ts` é puro (sem rede). Converte o rascunho do wizard nos payloads da Meta e valida combinações (objetivo × meta de otimização × destino × posicionamento). Testado por unitários.
 - **Uma fonte de números:** métricas só do espelho `meta_*`. `traffic_campaigns` e `traffic_ads` guardam a **intenção** (o que a Hive criou e os ids da Meta), nunca métricas.
 - **IA só propõe:** `traffic-assist` devolve recomendações em JSON; quem grava é o front, no rascunho, quando o Marcos aplica.
@@ -114,8 +114,11 @@ Mantida (`package.json`). **Nenhuma dependência nova:** a Marketing API é cham
 | Público | `targeting.geo_locations`, `age_min/max`, `genders`, `flexible_spec.interests`; **`targeting_automation.advantage_audience` obrigatório (0 ou 1) desde a v23** ao criar conjunto | idem |
 | Busca | `GET /search?type=adinterest&q=` e `type=adgeolocation` | idem |
 | Posicionamentos | `publisher_platforms` (se informado, precisa incluir `facebook`), `facebook_positions` (`feed`, `story`, `facebook_reels`), `instagram_positions` (`stream`, `story`, `reels`); Stories exige `device_platforms: mobile` | idem |
-| Permissões | `ads_read` + `ads_management`, acesso padrão (contas do próprio usuário) | Context7, 2026-11-09 |
-| A conferir no bloco 12 | criativo de post do Instagram existente (`source_instagram_media_id`) e anúncio fora do feed com `object_story_spec` (imagem e carrossel); endpoint de estimativa (`delivery_estimate`) | — |
+| Permissões | `ads_read` + `ads_management` + `pages_manage_ads` (criativo ligado à Página), acesso padrão (contas do próprio usuário) | Context7, 2026-11-09 e 2026-11-15 |
+| Orçamento no conjunto | desde a v24, a campanha precisa de `is_adset_budget_sharing_enabled` (`false` aqui) | Context7, 2026-11-15 |
+| Advantage+ ligado | `age_min` só de 18 a 25, `age_max` fixo em 65; a faixa escolhida vai em `age_range` | Context7, 2026-11-15 |
+| Anúncio fora do feed | `object_story_spec.link_data` com `link` obrigatório; imagem por `picture` (URL); carrossel por `child_attachments` (2 a 10, cada um com `link` e `picture`) | Context7, 2026-11-15 |
+| Post do Instagram | criativo com `object_id` (Página), `instagram_user_id` e `source_instagram_media_id` | Context7, 2026-11-15 |
 
 ## 6. Modelo de dados
 
@@ -171,7 +174,7 @@ Peça do usuário com `status in ('approved','scheduled','published')` **e** com
 | `assets` | — | `GET /me/adaccounts`, `GET /me/accounts` (Páginas) e o `instagram_business_account` de cada Página |
 | `search_locations` | `q` | `GET /search?type=adgeolocation` |
 | `search_interests` | `q` | `GET /search?type=adinterest` |
-| `estimate` | `campaign_id` | estimativa de alcance do conjunto (endpoint conferido no bloco 12) |
+| `estimate` | `campaign_id` | estimativa de alcance do conjunto (bloco 14, na tela de Revisão; campos conferidos no Context7 antes) |
 | `create` | `campaign_id` | valida o rascunho (`traffic-spec`), confere peças elegíveis e teto; cria campanha (`special_ad_categories=[]`, `PAUSED`) → conjunto → criativos → anúncios, todos `PAUSED`; grava os ids. Se falhar no meio, apaga o que criou e marca `failed` |
 | `set_status` | `campaign_id`, `ACTIVE`/`PAUSED`/`ARCHIVED` | `POST /{fb_campaign_id}` `status=…` (ACTIVE passa pela guarda) |
 
@@ -212,7 +215,7 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
 |---|---|---|---|---|---|
 | 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
-| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com as 6 ações; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; prova real (campanha `PAUSED` na conta do Raul, arquivada); auditoria de segurança | 11 | 7 |
+| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; prova real (campanha `PAUSED` na conta do Raul, arquivada); auditoria de segurança | 11 | 7 |
 | 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 7 |
 | 14 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 13 | 6 |
 | 15 | Campanhas e fechamento | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; regressão completa; `/impeccable critique` + `polish`; nota para o Marcos | 14 | 6 |
