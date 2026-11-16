@@ -19,6 +19,13 @@ export class MetaApiError extends Error {
   constructor(public err: MetaErr) { super(metaErrorPt(err)); }
 }
 
+// Erro de rede do fetch traz a URL, e o GET/DELETE leva o access_token nela: nunca deixar o token sair no erro.
+async function call(url: string, init?: RequestInit): Promise<Response> {
+  try { return await fetch(url, init); } catch (e) {
+    throw new Error(String((e as Error)?.message ?? e).replace(/access_token=[^&\s)"']+/g, 'access_token=***'));
+  }
+}
+
 async function parse<T>(res: Response): Promise<T> {
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) throw new MetaApiError(json.error ?? { message: `HTTP ${res.status}` });
@@ -27,7 +34,7 @@ async function parse<T>(res: Response): Promise<T> {
 
 export async function graphGet<T>(path: string, params: Record<string, string>, token: string): Promise<T> {
   const qs = new URLSearchParams({ ...params, access_token: token });
-  return parse<T>(await fetch(`${GRAPH}/${path}?${qs.toString()}`));
+  return parse<T>(await call(`${GRAPH}/${path}?${qs.toString()}`));
 }
 
 // Corpo form-urlencoded (como a Graph espera); objeto/array vira JSON; null/undefined não vai.
@@ -38,11 +45,11 @@ export async function graphPost<T>(path: string, params: Record<string, unknown>
     body.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
   }
   body.set('access_token', token);
-  return parse<T>(await fetch(`${GRAPH}/${path}`, { method: 'POST', body }));
+  return parse<T>(await call(`${GRAPH}/${path}`, { method: 'POST', body }));
 }
 
 export async function graphDelete(id: string, token: string): Promise<void> {
-  await parse(await fetch(`${GRAPH}/${id}?access_token=${encodeURIComponent(token)}`, { method: 'DELETE' }));
+  await parse(await call(`${GRAPH}/${id}?access_token=${encodeURIComponent(token)}`, { method: 'DELETE' }));
 }
 
 // A Página do Facebook ligada ao Instagram que anuncia (o banco não guarda o id da Página).

@@ -161,6 +161,14 @@ test.describe('unit · Meta Marketing', () => {
     expect(calls).toEqual([{ url: 'https://graph.facebook.com/v26.0/123?access_token=tok', init: { method: 'DELETE' } }]);
   });
 
+  test('erro de rede não carrega o token da URL', async () => {
+    globalThis.fetch = async (url) => { throw new TypeError(`error sending request for url (${String(url)}): connection reset`); };
+    const err = await graphGet('search', { q: 'x' }, 'segredo123').catch((e: Error) => e);
+    expect(String(err)).toContain('access_token=***');
+    expect(String(err)).not.toContain('segredo123');
+    expect(String(await graphDelete('1', 'segredo123').catch((e: Error) => e))).not.toContain('segredo123');
+  });
+
   test('searchInterests: consulta adinterest e retorna os campos de interesse', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     globalThis.fetch = async (url, init) => {
