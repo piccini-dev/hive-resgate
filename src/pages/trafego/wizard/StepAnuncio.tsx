@@ -1,8 +1,14 @@
 import { ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { thumbnailOf, type StepProps } from '@/lib/traffic-wizard';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { CTA_OPTIONS, thumbnailOf, type Cta, type StepProps, type WizardAd } from '@/lib/traffic-wizard';
 
-export function StepAnuncio({ state, posts, onGoTo }: StepProps) {
+export function StepAnuncio({ state, posts, onChange, onGoTo }: StepProps) {
+  const set = (i: number, patch: Partial<WizardAd>) => onChange({ ...state, ads: state.ads.map((a, j) => (j === i ? { ...a, ...patch } : a)) });
+
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">O anúncio sai pela Página do Facebook e pelo Instagram escolhidos em Configurações.</p>
@@ -33,10 +39,79 @@ export function StepAnuncio({ state, posts, onGoTo }: StepProps) {
                 </p>
               </div>
 
-              {!post && (
+              {!post ? (
                 <p data-testid={`traffic-ad-${n}-missing`} className="text-sm text-destructive">
                   Esta peça não está mais aprovada. Volte ao passo Conteúdo e troque.
                 </p>
+              ) : (
+                <>
+                  {a.mode === 'ig_post' && (
+                    <p className="text-sm text-muted-foreground">
+                      Usa o post publicado no Instagram como está, com o texto e a arte dele.
+                    </p>
+                  )}
+
+                  {a.mode === 'new_creative' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor={`traffic-ad-${n}-text`}>Texto principal</Label>
+                        <Textarea
+                          id={`traffic-ad-${n}-text`}
+                          data-testid={`traffic-ad-${n}-text`}
+                          rows={4}
+                          maxLength={2000}
+                          value={a.primary_text}
+                          onChange={(event) => set(i, { primary_text: event.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">Aparece acima da arte.</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`traffic-ad-${n}-headline`}>Título</Label>
+                        <Input
+                          id={`traffic-ad-${n}-headline`}
+                          data-testid={`traffic-ad-${n}-headline`}
+                          maxLength={255}
+                          value={a.headline}
+                          onChange={(event) => set(i, { headline: event.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">Opcional. Aparece abaixo da arte.</p>
+                      </div>
+                    </>
+                  )}
+
+                  {(a.mode === 'new_creative' || (a.mode === 'ig_post' && state.objective === 'OUTCOME_TRAFFIC')) && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor={`traffic-ad-${n}-cta`}>Botão</Label>
+                        <Select value={a.cta} onValueChange={(v) => set(i, { cta: v as Cta })}>
+                          <SelectTrigger id={`traffic-ad-${n}-cta`} data-testid={`traffic-ad-${n}-cta`}>
+                            <SelectValue placeholder="Escolha o botão" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CTA_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`traffic-ad-${n}-link`}>Link de destino</Label>
+                        <Input
+                          type="url"
+                          inputMode="url"
+                          id={`traffic-ad-${n}-link`}
+                          data-testid={`traffic-ad-${n}-link`}
+                          placeholder="https://"
+                          value={a.link_url}
+                          onChange={(event) => set(i, { link_url: event.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Para onde a pessoa vai ao clicar. A Hive acrescenta as UTMs sozinha.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </section>
           );
