@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadError, Loading } from '@/components/shared/LoadState';
 import {
-  createDraftCampaign, deleteDraftCampaign, listDraftCampaigns, type TrafficCampaignRow,
+  createDraftCampaign, deleteDraftCampaign, listDraftCampaigns, listEligiblePosts, loadWizardCampaign,
+  toWizardState, type TrafficCampaignRow,
 } from '@/lib/traffic';
+import { type EligiblePost, type WizardState } from '@/lib/traffic-wizard';
 
 function DraftList() {
   const [, setParams] = useSearchParams();
@@ -110,6 +112,69 @@ function DraftList() {
   );
 }
 
+function Wizard({ id }: { id: string }) {
+  const [, setParams] = useSearchParams();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [campaign, setCampaign] = useState<TrafficCampaignRow | null>(null);
+  const [posts, setPosts] = useState<EligiblePost[]>([]);
+  const [state, setState] = useState<WizardState | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const [loaded, eligible] = await Promise.all([loadWizardCampaign(id), listEligiblePosts()]);
+      setCampaign(loaded?.campaign ?? null);
+      setPosts(eligible);
+      setState(loaded ? toWizardState(loaded.campaign, loaded.ads) : null);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  if (loading) return <div className="mx-auto w-full max-w-3xl px-4 py-8 lg:py-12"><Loading what="o rascunho" /></div>;
+  if (error) return <div className="mx-auto w-full max-w-3xl px-4 py-8 lg:py-12"><LoadError what="o rascunho" onRetry={() => void reload()} /></div>;
+  if (!campaign) {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-8 lg:py-12">
+        <div data-testid="traffic-draft-missing" className="space-y-4 rounded-2xl border border-dashed p-8 text-center">
+          <p>Rascunho não encontrado.</p>
+          <Button variant="outline" onClick={() => setParams({ aba: 'nova' })}>Voltar aos rascunhos</Button>
+        </div>
+      </div>
+    );
+  }
+  if (campaign.status !== 'draft' && campaign.status !== 'failed') {
+    return (
+      <div className="mx-auto w-full max-w-3xl px-4 py-8 lg:py-12">
+        <div data-testid="traffic-draft-locked" className="space-y-4 rounded-2xl border border-dashed p-8 text-center">
+          <p>Esta campanha já foi enviada para a Meta.</p>
+          <Button variant="outline" onClick={() => setParams({})}>Ver campanhas</Button>
+        </div>
+      </div>
+    );
+  }
+  if (!state) return null;
+
+  return (
+    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 lg:py-12">
+      {campaign.status === 'failed' && (
+        <div data-testid="traffic-draft-failed" role="status" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
+          A Meta recusou da última vez: {campaign.error ?? 'erro desconhecido'}. Ajuste e crie de novo.
+        </div>
+      )}
+      <p>Passo {state.step} de 7</p>
+    </div>
+  );
+}
+
 export function NovaCampanha() {
-  return <DraftList />;
+  const [params] = useSearchParams();
+  const id = params.get('id');
+  return id ? <Wizard key={id} id={id} /> : <DraftList />;
 }
