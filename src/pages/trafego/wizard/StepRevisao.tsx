@@ -1,13 +1,34 @@
+import { useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { edge } from '@/lib/edge';
 import {
-  COUNTRY_NAMES, CTA_LABELS, OBJECTIVE_LABELS, budgetTotal, isoToDay,
+  COUNTRY_NAMES, CTA_LABELS, OBJECTIVE_LABELS, budgetTotal, draftErrors, isoToDay, stepOfError,
   type StepProps,
 } from '@/lib/traffic-wizard';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const ddmm = (day: string) => day ? day.split('-').reverse().slice(0, 2).join('/') : '';
 
-export function StepRevisao({ state, posts, onGoTo }: StepProps) {
+export function StepRevisao({ state, posts, onGoTo, onCreated }: StepProps) {
+  const errors = useMemo(() => draftErrors(state, posts), [state, posts]);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function criar() {
+    setCreating(true); setError(null);
+    try {
+      await edge.trafficCreate(state.id);
+      toast.success('Campanha criada na Meta, pausada. Ative quando quiser em Campanhas.');
+      onCreated();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao criar na Meta.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
   const d = state.draft;
   const t = d.targeting;
   const placements = d.placements;
@@ -116,6 +137,30 @@ export function StepRevisao({ state, posts, onGoTo }: StepProps) {
           ))}
         </div>
       </section>
+
+      {errors.length > 0 && (
+        <div role="alert" data-testid="traffic-review-errors" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium">Antes de criar, falta:</p>
+          <ul className="mt-2 list-disc space-y-2 pl-5">
+            {errors.map((e, index) => (
+              <li key={index} className="break-words">
+                {e}{' '}
+                <Button variant="link" size="sm" onClick={() => onGoTo(stepOfError(e))}>Resolver</Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="text-sm text-muted-foreground">
+        A campanha, o conjunto e os anúncios são criados na Meta <strong>pausados</strong>. Nada é gasto até você ativar em Campanhas.
+      </p>
+      <div className="space-y-2">
+        <Button variant="accent" size="lg" data-testid="traffic-create" disabled={errors.length > 0 || creating} onClick={criar}>
+          {creating ? <><Loader2 className="h-4 w-4 animate-spin" /> Criando na Meta…</> : 'Criar (pausada)'}
+        </Button>
+        {error && <p role="alert" data-testid="traffic-create-error" className="text-sm text-destructive">{error}</p>}
+      </div>
     </div>
   );
 }
