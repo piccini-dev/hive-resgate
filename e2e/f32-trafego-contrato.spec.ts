@@ -83,6 +83,14 @@ test.describe('F32 · Tráfego · contrato com a Meta', () => {
 
     const pausada = await seedCampaign({ status: 'paused', fbCampaign: 'fb-f32' });
     expect((await traffic(page, { action: 'create', campaign_id: pausada })).status).toBe(409);
+
+    // 'creating' recente = outro pedido em andamento; parado há 20 min = a função morreu e pode tentar de novo.
+    const criando = await seedCampaign({ status: 'creating' });
+    expect((await traffic(page, { action: 'create', campaign_id: criando })).status).toBe(409);
+    await sql(`update traffic_campaigns set updated_at = now() - interval '20 minutes' where id = '${criando}'`);
+    const r4 = await traffic(page, { action: 'create', campaign_id: criando });
+    expect([r4.status, r4.json.code]).toEqual([402, 'PT402']);
+    expect(await campaignStatus(criando)).toBe('failed');
   });
 
   test('set_status recusa status inválido, campanha fora da Meta e ACTIVE acima do teto', async ({ page }) => {

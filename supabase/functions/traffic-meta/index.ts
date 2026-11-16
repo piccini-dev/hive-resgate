@@ -38,19 +38,23 @@ async function ensurePage(userId: string, conn: Conn): Promise<{ id: string; nam
   return page;
 }
 
-type CampaignDb = CampaignRow & { status: string; fb_campaign_id: string | null; fb_adset_id: string | null };
+type CampaignDb = CampaignRow & { status: string; fb_campaign_id: string | null; fb_adset_id: string | null; updated_at: string };
+// 'creating' parado há mais que isso = a função morreu no meio; pode tentar de novo
+// (o que tiver ficado na Meta está pausado e não gasta).
+const STALE_CREATING_MS = 10 * 60_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const nowIso = () => new Date().toISOString();
 
 async function loadCampaign(userId: string, id: string): Promise<CampaignDb | null> {
   if (!UUID.test(id)) return null;
-  const rows = await rest<CampaignDb[]>(`/traffic_campaigns?id=eq.${id}&user_id=eq.${userId}&select=id,name,objective,status,draft,fb_campaign_id,fb_adset_id&limit=1`);
+  const rows = await rest<CampaignDb[]>(`/traffic_campaigns?id=eq.${id}&user_id=eq.${userId}&select=id,name,objective,status,draft,fb_campaign_id,fb_adset_id,updated_at&limit=1`);
   return rows[0] ?? null;
 }
 
-async function patchCampaign(id: string, patch: Record<string, unknown>, onlyIfStatus?: string[]): Promise<number> {
-  const cond = onlyIfStatus ? `&status=in.(${onlyIfStatus.join(',')})` : '';
+async function patchCampaign(id: string, patch: Record<string, unknown>, onlyIfStatus?: string[], onlyIfUpdatedAt?: string): Promise<number> {
+  const cond = (onlyIfStatus ? `&status=in.(${onlyIfStatus.join(',')})` : '')
+    + (onlyIfUpdatedAt ? `&updated_at=eq.${encodeURIComponent(onlyIfUpdatedAt)}` : '');
   const rows = await rest<unknown[]>(`/traffic_campaigns?id=eq.${id}${cond}`, {
     method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ ...patch, updated_at: nowIso() }),
   });
@@ -60,6 +64,9 @@ async function patchCampaign(id: string, patch: Record<string, unknown>, onlyIfS
 async function guard(userId: string, campaignId: string): Promise<{ ok: boolean; available: number }> {
   return rest(`/rpc/ads_spend_guard`, { method: 'POST', body: JSON.stringify({ p_user: userId, p_campaign: campaignId }) });
 }
+const overCap = (g: { available: number }) => jsonResponse({
+  success: false, code: 'PT402', error: `Passa do teto mensal. Ainda cabem ${brl(Math.max(0, Number(g.available)))} este mês.`,
+}, 402);
 
 const handlers: Record<string, Handler> = {
   async assets(userId, conn) {
@@ -78,11 +85,12 @@ const handlers: Record<string, Handler> = {
     if (q.length < 2) return jsonResponse({ success: true, items: [] });
     return jsonResponse({ success: true, items: await searchInterests(q, conn.access_token) });
   },
-  // Cria tudo PAUSADO. Ordem: conferências → trava (status creating) → Meta → grava ids.
+  // Cria tudo PAUSADO. Ordem: conferências → trava (status creating) → teto → Meta → grava ids.
   async create(userId, conn, body) {
     const c = await loadCampaign(userId, body.campaign_id ?? '');
     if (!c) return errorResponse('Campanha não encontrada.', 404);
-    if (!['draft', 'failed'].includes(c.status)) return errorResponse('Esta campanha já foi criada na Meta.', 409);
+    const stale = c.status === 'creating' && Date.now() - Date.parse(c.updated_at) > STALE_CREATING_MS;
+    if (!['draft', 'failed'].includes(c.status) && !stale) return errorResponse('Esta campanha já foi criada na Meta.', 409);
     if (!conn.ad_account_id || !conn.ig_user_id || !(Number(conn.monthly_cap) > 0)) {
       return errorResponse('Configure a conta de anúncio, o Instagram e o teto em Tráfego › Configurações.', 400);
     }
@@ -97,14 +105,17 @@ const handlers: Record<string, Handler> = {
     }
     const errors = validateDraft(c, ads, posts);
     if (errors.length) return jsonResponse({ success: false, code: 'INVALID', error: errors[0], errors }, 400);
-    const g = await guard(userId, c.id);
-    if (!g.ok) return jsonResponse({ success: false, code: 'PT402', error: `Passa do teto mensal. Ainda cabem ${brl(Math.max(0, Number(g.available)))} este mês.` }, 402);
     const page = await ensurePage(userId, conn);
     if (!page) return errorResponse('O Instagram escolhido não está ligado a uma Página do Facebook.', 400);
-    // Trava contra clique duplo: só um pedido consegue passar de draft/failed para creating.
-    if (await patchCampaign(c.id, { status: 'creating', error: null }, ['draft', 'failed']) === 0) {
-      return errorResponse('Esta campanha já está sendo criada.', 409);
-    }
+    // Trava contra clique duplo: só um pedido consegue passar para creating (a parada, só se ninguém mexeu nela).
+    const locked = stale
+      ? await patchCampaign(c.id, { status: 'creating', error: null }, ['creating'], c.updated_at)
+      : await patchCampaign(c.id, { status: 'creating', error: null }, ['draft', 'failed']);
+    if (locked === 0) return errorResponse('Esta campanha já está sendo criada.', 409);
+    // Teto depois da trava: a ads_spend_guard conta as 'creating', então dois pedidos simultâneos se enxergam.
+    const unlock = () => patchCampaign(c.id, { status: stale ? 'failed' : c.status });
+    const g = await guard(userId, c.id).catch(async (e) => { await unlock(); throw e; });
+    if (!g.ok) { await unlock(); return overCap(g); }
     const acc = { ad_account_id: conn.ad_account_id, page_id: page.id, ig_user_id: conn.ig_user_id };
     const token = conn.access_token;
     let fbCampaignId: string | null = null;
@@ -143,12 +154,23 @@ const handlers: Record<string, Handler> = {
     if (!c.fb_campaign_id || !['paused', 'active'].includes(c.status)) return errorResponse('Esta campanha não está na Meta.', 409);
     const token = conn.access_token;
     if (target === 'ACTIVE') {
-      const g = await guard(userId, c.id);
-      if (!g.ok) return jsonResponse({ success: false, code: 'PT402', error: `Passa do teto mensal. Ainda cabem ${brl(Math.max(0, Number(g.available)))} este mês.` }, 402);
-      const ads = await rest<Array<{ fb_ad_id: string | null }>>(`/traffic_ads?campaign_id=eq.${c.id}&user_id=eq.${userId}&select=fb_ad_id`);
-      for (const a of ads) if (a.fb_ad_id) await graphPost(a.fb_ad_id, { status: 'ACTIVE' }, token);
-      if (c.fb_adset_id) await graphPost(c.fb_adset_id, { status: 'ACTIVE' }, token);
-      await graphPost(c.fb_campaign_id, { status: 'ACTIVE' }, token);
+      // Marca 'active' antes do teto (a ads_spend_guard conta as ativas): duas ativações simultâneas se enxergam.
+      const wasPaused = c.status === 'paused';
+      if (wasPaused && await patchCampaign(c.id, { status: 'active', error: null }, ['paused']) === 0) {
+        return errorResponse('O status desta campanha acabou de mudar. Atualize a página.', 409);
+      }
+      const revert = () => (wasPaused ? patchCampaign(c.id, { status: 'paused' }) : Promise.resolve(0));
+      const g = await guard(userId, c.id).catch(async (e) => { await revert(); throw e; });
+      if (!g.ok) { await revert(); return overCap(g); }
+      try {
+        const ads = await rest<Array<{ fb_ad_id: string | null }>>(`/traffic_ads?campaign_id=eq.${c.id}&user_id=eq.${userId}&select=fb_ad_id`);
+        for (const a of ads) if (a.fb_ad_id) await graphPost(a.fb_ad_id, { status: 'ACTIVE' }, token);
+        if (c.fb_adset_id) await graphPost(c.fb_adset_id, { status: 'ACTIVE' }, token);
+        await graphPost(c.fb_campaign_id, { status: 'ACTIVE' }, token);
+      } catch (e) {
+        await revert();   // a campanha (pai) não ligou na Meta: nada gasta
+        throw e;
+      }
       await patchCampaign(c.id, { status: 'active', activated_at: nowIso(), error: null });
       return jsonResponse({ success: true, status: 'active' });
     }

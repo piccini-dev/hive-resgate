@@ -65,6 +65,8 @@ function isHttps(u: string | null | undefined): boolean {
 export function validateDraft(c: CampaignRow, ads: AdRow[], posts: PostRow[], now: Date = new Date()): string[] {
   const e: string[] = [];
   const d = c.draft;
+  // O rascunho nasce '{}' e o wizard salva por passo: sem público ou posicionamentos não há o que validar.
+  if (!d?.targeting || !d?.placements) return ['Complete o público e os posicionamentos.'];
   if (!c.name.trim()) e.push('Dê um nome à campanha.');
   if (!c.objective || !OBJECTIVES.includes(c.objective)) e.push('Escolha o objetivo da campanha.');
   else if (d.optimization_goal && !GOALS[c.objective].includes(d.optimization_goal)) e.push('A meta de otimização não combina com o objetivo.');

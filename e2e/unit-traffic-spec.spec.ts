@@ -43,6 +43,11 @@ test.describe('unit · traffic-spec', () => {
     expect(validateDraft(base(), [ad()], [post()], NOW)).toEqual([]);
   });
 
+  test('rascunho sem público ou posicionamentos é recusado sem quebrar', () => {
+    const c = { ...base(), draft: {} } as unknown as CampaignRow;
+    expect(validateDraft(c, [ad()], [post()], NOW)).toEqual(['Complete o público e os posicionamentos.']);
+  });
+
   test('orçamento total sem término é recusado', () => {
     const c = base();
     c.draft.budget_type = 'lifetime';
