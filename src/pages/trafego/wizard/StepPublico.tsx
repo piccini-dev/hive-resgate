@@ -72,7 +72,7 @@ export function StepPublico({ state, onChange }: StepProps) {
                     aria-label={`Remover ${nome}`}
                     data-testid={`traffic-loc-remove-${c}`}
                     onClick={() => setT(removeLocation(t, 'country', c))}
-                    className="shrink-0"
+                    className="-my-1 -mr-1.5 shrink-0 rounded-full p-1.5 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -87,7 +87,7 @@ export function StepPublico({ state, onChange }: StepProps) {
                   aria-label={`Remover ${r.name}`}
                   data-testid={`traffic-loc-remove-${r.key}`}
                   onClick={() => setT(removeLocation(t, 'region', r.key))}
-                  className="shrink-0"
+                  className="-my-1 -mr-1.5 shrink-0 rounded-full p-1.5 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -103,7 +103,7 @@ export function StepPublico({ state, onChange }: StepProps) {
                     aria-label={`Remover ${nome}`}
                     data-testid={`traffic-loc-remove-${c.key}`}
                     onClick={() => setT(removeLocation(t, 'city', c.key))}
-                    className="shrink-0"
+                    className="-my-1 -mr-1.5 shrink-0 rounded-full p-1.5 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -154,6 +154,7 @@ export function StepPublico({ state, onChange }: StepProps) {
       </div>
 
       <div className="space-y-3">
+        <h2 className="font-display text-lg font-semibold">Quem</h2>
         <div className="grid grid-cols-2 gap-3">
           <div className="min-w-0 space-y-2">
             <Label htmlFor="traffic-age-min">Idade mínima</Label>
@@ -182,7 +183,7 @@ export function StepPublico({ state, onChange }: StepProps) {
         </div>
         {t.advantage_audience && (
           <p className="text-sm text-muted-foreground">
-            Com Advantage+, a idade vira sugestão e a mínima vai de 18 a 25.
+            Com o Advantage+, a faixa de idade é uma sugestão: a Meta pode mostrar o anúncio para quem está fora dela.
           </p>
         )}
       </div>
@@ -201,6 +202,7 @@ export function StepPublico({ state, onChange }: StepProps) {
         </Select>
       </div>
       <div className="space-y-3">
+        <h2 className="font-display text-lg font-semibold">Interesses <span className="text-sm font-normal text-muted-foreground">(opcional)</span></h2>
         {t.interests.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum interesse: a Meta usa só local, idade e gênero.</p>
         ) : (
@@ -213,7 +215,7 @@ export function StepPublico({ state, onChange }: StepProps) {
                   aria-label={`Remover ${i.name}`}
                   data-testid={`traffic-int-remove-${i.id}`}
                   onClick={() => setT(removeInterest(t, i.id))}
-                  className="shrink-0"
+                  className="-my-1 -mr-1.5 shrink-0 rounded-full p-1.5 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -222,7 +224,7 @@ export function StepPublico({ state, onChange }: StepProps) {
           </div>
         )}
         <div className="space-y-2">
-          <Label htmlFor="traffic-int-search">Interesses (opcional)</Label>
+          <Label htmlFor="traffic-int-search">Acrescentar interesse</Label>
           <Input
             id="traffic-int-search"
             data-testid="traffic-int-search"

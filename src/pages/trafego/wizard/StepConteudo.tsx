@@ -70,9 +70,9 @@ export function StepConteudo({ state, posts, onChange }: StepProps) {
                 aria-pressed={selecionada}
                 disabled={desabilitada}
                 onClick={() => onChange({ ...state, ads: toggleAd(state.ads, p) })}
-                className={`flex w-full min-w-0 gap-3 rounded-xl border p-3 text-left transition-colors ${
+                className={`flex w-full min-w-0 gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                   selecionada
-                    ? 'border-accent bg-accent/10 ring-1 ring-accent/40'
+                    ? 'border-accent bg-accent/15 ring-2 ring-accent'
                     : 'border-border bg-card hover:border-accent/50'
                 } ${desabilitada ? 'opacity-50' : ''}`}
               >

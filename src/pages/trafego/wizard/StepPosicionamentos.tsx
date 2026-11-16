@@ -72,10 +72,10 @@ export function StepPosicionamentos({ state, onChange }: StepProps) {
             {fbOptions.map(({ value, label }) => {
               const id = `traffic-fb-${value}`;
               return (
-                <div key={value} className="flex items-center gap-2">
+                <div key={value} className="flex items-center gap-2 py-1">
                   <input
                     type="checkbox"
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-[hsl(var(--accent))]"
                     id={id}
                     data-testid={id}
                     checked={p.facebook.includes(value)}
@@ -92,10 +92,10 @@ export function StepPosicionamentos({ state, onChange }: StepProps) {
             {igOptions.map(({ value, label }) => {
               const id = `traffic-ig-${value}`;
               return (
-                <div key={value} className="flex items-center gap-2">
+                <div key={value} className="flex items-center gap-2 py-1">
                   <input
                     type="checkbox"
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-[hsl(var(--accent))]"
                     id={id}
                     data-testid={id}
                     checked={p.instagram.includes(value)}

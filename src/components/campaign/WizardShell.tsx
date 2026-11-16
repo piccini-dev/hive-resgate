@@ -15,15 +15,15 @@ export function WizardShell({ step, total, eyebrow, title, subtitle, onBack, chi
           <Button variant="ghost" size="sm" onClick={onBack} className="-ml-2"><ArrowLeft className="h-4 w-4" /> Voltar</Button>
         ) : <span />}
         {step && total ? (
-          <div className="flex items-center gap-1.5" aria-label={`Passo ${step} de ${total}`} data-testid="wizard-progress">
+          <div className="flex items-center gap-1.5" role="img" aria-label={`Passo ${step} de ${total}`} data-testid="wizard-progress">
             {Array.from({ length: total }, (_, i) => (
-              <span key={i} className={`h-1.5 rounded-full transition-all ${i + 1 === step ? 'w-6 bg-accent' : i + 1 < step ? 'w-3 bg-accent/50' : 'w-3 bg-secondary'}`} />
+              <span key={i} className={`h-1.5 rounded-full transition-all ${i + 1 === step ? 'w-6 bg-accent' : i + 1 < step ? 'w-3 bg-accent/50' : 'w-3 bg-muted-foreground/50'}`} />
             ))}
           </div>
         ) : null}
       </div>
       {eyebrow && <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent">{eyebrow}</p>}
-      <h1 className="font-display text-2xl font-bold leading-tight sm:text-3xl">{title}</h1>
+      <h1 tabIndex={-1} className="font-display text-2xl font-bold leading-tight outline-none sm:text-3xl">{title}</h1>
       {subtitle && <div className="mt-2 text-base text-muted-foreground">{subtitle}</div>}
       <div className="mt-8 space-y-6">{children}</div>
       {footer && <div className="mt-10 flex flex-wrap items-center gap-3">{footer}</div>}
@@ -38,8 +38,8 @@ export function ChoiceCard({ selected, onClick, title, description, badge, icon,
   return (
     <button
       type="button" onClick={onClick} data-testid={testId} aria-pressed={selected}
-      className={`group flex w-full items-start gap-4 rounded-xl border p-5 text-left transition-all ${
-        selected ? 'border-accent bg-accent/10 ring-1 ring-accent/40' : 'border-border bg-card hover:border-accent/50 hover:bg-accent/5'
+      className={`group flex w-full items-start gap-4 rounded-xl border p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+        selected ? 'border-accent bg-accent/15 ring-2 ring-accent' : 'border-border bg-card hover:border-accent/50 hover:bg-accent/5'
       }`}
     >
       {icon && <span className={`mt-0.5 shrink-0 ${selected ? 'text-accent' : 'text-muted-foreground group-hover:text-accent'}`}>{icon}</span>}

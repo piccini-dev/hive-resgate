@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -117,6 +117,9 @@ function DraftList() {
                     >
                       {confirmId === c.id ? 'Confirmar exclusão' : 'Excluir'}
                     </Button>
+                    {confirmId === c.id && (
+                      <Button variant="ghost" size="sm" disabled={deletingId === c.id} onClick={() => setConfirmId(null)}>Cancelar</Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -136,6 +139,7 @@ function Wizard({ id }: { id: string }) {
   const [posts, setPosts] = useState<EligiblePost[]>([]);
   const [state, setState] = useState<WizardState | null>(null);
   const [saving, setSaving] = useState(false);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   const errors = useMemo(() => state ? draftErrors(state, posts) : [], [state, posts]);
 
@@ -147,6 +151,8 @@ function Wizard({ id }: { id: string }) {
       await saveWizard(next);
       setState(next);
       window.scrollTo({ top: 0 });
+      // Leitor de tela e teclado começam o passo novo pelo título.
+      requestAnimationFrame(() => shellRef.current?.querySelector<HTMLElement>('h1')?.focus());
       after?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Não deu para salvar o rascunho.');
@@ -155,18 +161,22 @@ function Wizard({ id }: { id: string }) {
     }
   }
 
+  const loadSeq = useRef(0);
   const reload = useCallback(async () => {
+    // Só a última carga vale: uma resposta atrasada não pode apagar o que já foi escolhido.
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(false);
     try {
       const [loaded, eligible] = await Promise.all([loadWizardCampaign(id), listEligiblePosts()]);
+      if (seq !== loadSeq.current) return;
       setCampaign(loaded?.campaign ?? null);
       setPosts(eligible);
       setState(loaded ? toWizardState(loaded.campaign, loaded.ads) : null);
     } catch {
-      setError(true);
+      if (seq === loadSeq.current) setError(true);
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [id]);
 
@@ -200,10 +210,10 @@ function Wizard({ id }: { id: string }) {
   const Step = STEPS[state.step as keyof typeof STEPS];
 
   return (
+    <div ref={shellRef}>
     <WizardShell
       step={state.step}
       total={TOTAL_STEPS}
-      eyebrow={`Passo ${state.step} de ${TOTAL_STEPS}`}
       title={WIZARD_STEPS[state.step - 1].title}
       subtitle={WIZARD_STEPS[state.step - 1].subtitle}
       onBack={state.step > 1 ? () => void go(state.step - 1) : () => setParams({ aba: 'nova' })}
@@ -233,6 +243,7 @@ function Wizard({ id }: { id: string }) {
         </div>
       )}
     </WizardShell>
+    </div>
   );
 }
 

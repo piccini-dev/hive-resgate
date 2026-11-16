@@ -106,7 +106,7 @@ export function StepAnuncio({ state, posts, onChange, onGoTo }: StepProps) {
                           onChange={(event) => set(i, { link_url: event.target.value })}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Para onde a pessoa vai ao clicar. A Hive acrescenta as UTMs sozinha.
+                          Para onde a pessoa vai ao clicar. A Hive acrescenta sozinha os códigos que medem de onde veio a visita.
                         </p>
                       </div>
                     </>
