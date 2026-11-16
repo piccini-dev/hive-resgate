@@ -4,11 +4,11 @@ Decisões consolidadas com Marcos Piccini em 16/11/2026.
 
 ## Estado real desta entrega
 
-- Escopo de produto consolidado e estrutura atual consultada no GitHub.
+- Escopo de produto consolidado; auditoria dos contratos principais realizada no código e, somente em leitura, no schema de produção.
 - Base consultada: main em 1cbd6370f5c3722581004441ea4a59176cc8a8a4.
 - Este documento é a especificação da primeira atualização, não uma declaração de implementação.
 - Nenhuma alteração de aplicação, banco, função, conteúdo real ou agendamento foi realizada para este pacote.
-- Ambiente de execução desta conversa indisponível: implementação e verificações ainda não iniciadas.
+- Ambiente de execução desta conversa continua indisponível. Auditoria de contratos avançou pelas integrações; implementação, build e testes ainda não iniciados.
 - Nenhuma regressão foi iniciada para este pacote. Não há teste deste pacote em execução para aguardar.
 - A retomada deve começar pela seção “Retomada exata”, atualizando a base antes de implementar.
 - Planos anteriores devem ser reconciliados com estas decisões, sem integrar automaticamente propostas antigas divergentes.
@@ -181,7 +181,7 @@ Preservar o aprendizado existente e seu acesso. A segunda atualização ampliar�
 | src/pages/settings/SettingsPage.tsx | Perfil, contas e integrações. | Entrada Inteligência sem interferir nas integrações/contas. |
 | src/lib/acj | Biblioteca de intenções, planejamento de ciclos e aprendizado. | Inspeção acessível e atribuição coerente ao recorte. |
 
-Não houve inventário dos registros reais nem inspeção de todos os consumidores de geração nesta etapa. Esta lista não substitui a leitura dos arquivos e contratos na retomada.
+Não houve inventário dos registros reais. A auditoria da seção 14 inspeciona os contratos principais e alguns consumidores de geração; não é cobertura exaustiva nem teste de execução. Esta lista não substitui a leitura dos demais consumidores na retomada.
 
 ## 11. Critérios de conclusão do pacote
 
@@ -235,3 +235,115 @@ Seguir AGENTS.md e docs/agentes/REGRESSAO-GITHUB.md e 09-VALIDACAO-POR-PACOTE.md
 5. Identificar quais contratos já suportam o desenho e quais dependem do responsável técnico, antes de iniciar apenas a troca de menus.
 6. Implementar o pacote e seus testes de comportamento, preservando os contratos e dados históricos.
 7. Registrar no PR os resultados reais e pendências; executar a sequência de validação do projeto.
+
+## 14. Auditoria dos contratos principais — 16/11/2026
+
+### Método e limites
+
+- Fonte de código: main em 1cbd6370f5c3722581004441ea4a59176cc8a8a4.
+- Banco: projeto conectado e saudável; consultas somente SELECT a information_schema.columns, pg_proc/pg_namespace e pg_policies.
+- Foram lidas colunas, políticas e definições de funções. Nenhum material de produtor, token ou dado de publicação foi necessário para esta auditoria.
+- Não houve INSERT, UPDATE, DELETE, DDL, migration ou deploy.
+- As conclusões sobre Edge Functions se referem ao código no repositório. A correspondência de cada função implantada com esse código ainda precisa ser conferida antes da implementação.
+- Ambiente de execução continua indisponível; nenhuma execução de build, testes puros ou E2E deste pacote.
+- O CI verde do primeiro commit deste PR verifica o estado anterior à implementação. Não significa aceite funcional desta atualização.
+
+### 14.1 O que pode ser aproveitado
+
+| Capacidade | Evidência | Consequência |
+| --- | --- | --- |
+| Marcas em workspace existente | brands tem workspace_id, status e política brands_member com is_workspace_member no USING e WITH CHECK. | Há persistência e autorização para administrar marcas via contrato REST; não é necessário presumir nova tabela. Conferir requisitos de papel, unicidade, arquivamento e perfis em uso. |
+| Onboarding de primeiro cliente | create_my_workspace existe no banco e recusa quem já participa de workspace, com PT409. | Reutilizar só para entrada do zero. Nova marca de produtor existente usa o workspace permitido; não chamar esse RPC para cada marca. |
+| Perfis e públicos | identityApi e tabelas de identidade já relacionam marca, emissor, frente e públicos; ativação versionada existe. | Aproveitar o percurso e separar acessos, sem novo cadastro concorrente de avatar. |
+| Base ampla independente de post | content-develop com purpose=knowledge_base chama developKnowledgeBase, cujo prompt exige pensamento amplo e proíbe escolher formato, conta, calendário ou acabamento de post. | Esta parte do conceito já está implementada no código; preservar e completar a organização. |
+| Versões e utilização | content_base_versions, content_base_uses, validate_content_base, save_base_draft e adopt_content_base existem. | Reutilizar versões validadas e referências históricas. |
+| Recorte de produção | content_piece_plans contém approach, purpose, editorial_slug, source_base_version_id, profile_id e context_snapshot_id. | Partir desse contrato existente para os recortes; evitar um segundo planejamento paralelo. |
+| Proposta baseada em bases | recommendCycleProduction lê bases validadas e versões adotadas, propondo abordagens/editoriais diferentes. | Não reconstruir essa capacidade como se estivesse ausente; alinhar escopo de marca e intenção relacional. |
+| Antirrepetição de recortes | production-repeat compara contribuições e exclui delivery_of; production-novelty pede novas contribuições substantivas. | Preservar a distinção entre reutilizar tese e repetir argumento, inclusive espelhamento por conta. |
+
+### 14.2 Ajustes necessários no escopo de marca
+
+**Cadastro/seleção no cliente**
+
+- src/lib/api.ts: brandFilter usa defaultBrandId, não uma seleção explícita da marca para a operação.
+- productApi.list e knowledgeApi.list não recebem marca; gravações de produtos não enviam explicitamente brand_id.
+- No banco, bee_products e knowledge_documents possuem brand_id, com default legado. Conteúdos pertencem ao usuário e carregam profile_id/context_snapshot_id, não uma coluna própria brand_id.
+- Decisão: adotar um único contrato de contexto explícito, capturado para cada operação; filtrar e validar referências da marca. Não trocar simplesmente o significado global de defaultBrandId, pois isso afetaria campanhas e tarefas já vinculadas a perfis específicos.
+- Criar/editar/listar devem usar o mesmo contexto; operações tardias não podem adotar a marca escolhida depois do início do pedido.
+- Catálogo de bases precisa resolver marca pelo contexto autorizado, incluindo o tratamento de legado sem perfil; não tratar profile_id nulo como material automaticamente compartilhado.
+
+**Importação de Biblioteca**
+
+- supabase/functions/ingest-document/index.ts recebe título/texto, mas o Input não oferece contexto de marca explícito.
+- insertDocument não informa brand_id. Portanto o novo seletor sozinho não garante destino correto na gravação.
+- Necessário estender o contrato de entrada e validação de marca, preservando compatibilidade e sem executar uma importação de teste com dados reais.
+
+**Consulta de conhecimento**
+
+- No banco ativo, match_knowledge recebe query_embedding, match_count, match_threshold e filter_user_id. Não recebe filtro de marca.
+- Sua condição aceita os trechos do usuário e materiais globais de marcas acessíveis. Isso é autorização por usuário/acesso, não separação de contexto entre as marcas do mesmo produtor.
+- Necessário planejar seleção por marca e compartilhamento explícito na consulta. Filtrar apenas a lista de documentos da interface não resolve a recuperação utilizada pela geração.
+- Compatibilidade: consumidores legados continuam funcionando; os novos fluxos usam contexto explícito. Não retirar o filtro de autorização nem confiar apenas no brand_id enviado pelo navegador.
+
+**Descoberta e produção**
+
+- mine-content resolve o contexto padrão e grava sugestões com userBrandId(userId), sem aceitar a marca selecionada da operação.
+- cycle-production resolve contexto do perfil, mas sua consulta de editoriais e receitas usa userBrandScope(userId), que se refere à marca padrão. Alinhar ao contexto efetivamente resolvido da campanha.
+- Revisar retrieveContext/loadBeeContext e todos os consumidores de match_knowledge, geração, curadoria e exemplos antes de fechar o pacote.
+
+### 14.3 Arsenal: impedimento concreto e destino
+
+- No banco ativo, bee_arsenal.editorial_slug é NOT NULL.
+- mine-content produz bee_suggestions pendentes, classifica pelo editorial e distingue arsenal/example_post/analogy. Não é hoje uma descoberta automática integral e contínua da Biblioteca.
+- No cliente, suggestionApi.approve promove candidatos a destinos usados na metodologia; não reutilizar essa aprovação silenciosamente como promoção automática a conteúdo mãe.
+- generate-content aceita arsenal_item_id e, na ausência de referência ou mother_idea, busca material rotativo pelo editorial. Há, portanto, consumidores diretos do repertório legado.
+- A nova descoberta precisa permitir oportunidades sem editorial obrigatório e relações com múltiplas fontes/bases. Manter a autorização e a distinção entre descoberta, base validada e orientação de voz.
+- Definir o contrato persistente de descoberta e seus vínculos antes de adaptar tabelas. Não apenas retirar NOT NULL nem armazenar uma segunda cópia sem rastreabilidade.
+- Inventário e classificação dos itens reais ainda pendentes; esta auditoria não promoveu, reescreveu ou descartou itens.
+- Teste necessário: descoberta aparece na Biblioteca com origem, permanece fora da geração como posição validada e pode dar origem a um rascunho de base sujeito à validação.
+
+### 14.4 ACJs: mudança funcional que exige servidor
+
+- No banco ativo, acj_contract_guard mantém contratos versionados por content_id e exige nova versão ao mudar movimento.
+- acj_piece_inherit busca o contrato atual por content_id e sobrescreve a atribuição da peça quando encontra esse contrato.
+- Assim, apenas permitir escolher outra ACJ na tela não garante que dois recortes da mesma base preservem movimentos distintos.
+- O mesmo trigger preserva snapshots congelados. Essa proteção deve permanecer integralmente.
+- content_piece_plans tem espaço para abordagem e editorial; não há colunas de atribuição ACJ nesse contrato na inspeção realizada.
+- Decisão de produto: intenção relacional é da aplicação/recorte da campanha. A base ampla mantém liberdade para alimentar diferentes movimentos.
+- Decisão técnica a fechar: estender o contrato existente de recorte e sua herança/snapshot, conservando a leitura de contratos legados e sem reatribuir peças históricas.
+- Teste necessário: mesma versão de base origina dois recortes com ACJs distintas; persistência, geração e leitura recuperam a intenção correta de cada um; peça publicada continua congelada.
+- ACJ-00 permanece governança, não movimento selecionável de uma peça.
+
+### 14.5 Fronteira de Campanha
+
+- developIdeas adota a versão quando há source_base_version_id.
+- Se a ideia não possui essa referência, o mesmo método pode chamar contentDevelop com purpose=knowledge_base e criar nova base.
+- No novo fluxo de campanha, explicitar a seleção/adopção obrigatória de base validada e encaminhar lacunas para Conteúdos. Preservar a criação independente de bases em sua área própria.
+- adopt_content_base garante usuário e versão validada; o contrato existente limita a utilização a uma linha por ciclo/conteúdo, podendo atualizar a ideia relacionada.
+- Recortes múltiplos não devem disputar essa única referência de utilização como se fossem a própria base; precisam de identidade persistente no planejamento e ligação à versão de origem.
+- Geração legada continua acessível em outros caminhos: inventariar NewPost, avulso, reaproveitamento e rotas antigas para evitar uma migração parcial disfarçada de fluxo novo.
+
+### 14.6 Matriz mínima de verificação
+
+| Comportamento | Cobertura a preservar/estender |
+| --- | --- |
+| Seleção de marca, perfil e contexto; troca durante carregamento | e2e/f15-identidade-contexto.spec.ts e e2e/f19-isolamento.spec.ts |
+| Configuração guiada e ativação, edição parcial e alcance | e2e/f17-minha-identidade.spec.ts |
+| Base ampla, validação, adoção de versão e produção de recortes | e2e/f29-bases-producao.spec.ts e e2e/unit-base-state.spec.ts |
+| Movimentos distintos por recorte e congelamento histórico | e2e/f13-acj-banco.spec.ts, e2e/f13-acj-fluxo.spec.ts e e2e/unit-acj.spec.ts |
+| Persistência do planejamento, duplicação por destino e antirrepetição | e2e/unit-production-plan.spec.ts e specs de aprovação/agenda pertinentes |
+| Nova navegação, rotas antigas e apresentação no celular | Identificar os cenários de navegação existentes e estender apenas o comportamento afetado. |
+
+São referências de cobertura, não resultados de testes. Specs novos e cenários exatos devem ser definidos no diff de implementação; não introduzir retries, skips ou expectativas enfraquecidas.
+
+### 14.7 Dependências e ordem interna
+
+O pacote continua sendo uma entrega única. A ordem interna evita entregar menus com contratos incompatíveis:
+
+1. Fechar contratos de contexto explícito e compatibilidade de recuperação de conhecimento.
+2. Fechar persistência de descobertas e vínculo de intenção relacional ao recorte.
+3. Resolver as extensões de banco/funções com o responsável técnico, conforme AGENTS.md; não publicar modificações no backend compartilhado nesta operação.
+4. Implementar navegação e processos sobre esses contratos; preservar os fluxos existentes enquanto a transição não está completa.
+5. Executar verificação curta, estabilidade e regressão integrada no commit final.
+
+O bloqueio deixou de ser apenas a falta de execução: também há dependências demonstradas nos contratos de banco/funções. Não liberar o pacote apenas com alterações em src/. O próximo trabalho implementável é revisar essas extensões em ambiente de desenvolvimento disponível, mantendo este documento como referência única.
