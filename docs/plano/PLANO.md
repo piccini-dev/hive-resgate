@@ -221,7 +221,7 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 | 15 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 14 | 6 |
 | 16 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 15 | 3 |
 
-Ordem: 11 → 12 → 13 → 14 → 15 → 16, em sequência (13 e 14 mexem nos mesmos arquivos do wizard). Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão do CI do PR e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
+Ordem: 11 → 12 → 13 → 14 → 15 → 16, em sequência (13 e 14 mexem nos mesmos arquivos do wizard). Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão completa no GitHub (`regressao.yml`, disparada pelo orquestrador antes do merge) e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
 
 ### Issues planejadas por bloco
 
