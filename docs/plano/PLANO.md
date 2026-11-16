@@ -215,12 +215,13 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
 |---|---|---|---|---|---|
 | 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
-| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; prova real (campanha `PAUSED` na conta do Raul, arquivada); auditoria de segurança | 11 | 7 |
+| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; E2E `f32` das recusas; auditoria de segurança (a prova real foi para o 16) | 11 | 8 |
 | 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 7 |
 | 14 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 13 | 6 |
-| 15 | Campanhas e fechamento | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; regressão completa; `/impeccable critique` + `polish`; nota para o Marcos | 14 | 6 |
+| 15 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 14 | 6 |
+| 16 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 15 | 3 |
 
-Ordem: 11 → 12 → 13 → 14 → 15, em sequência (13 e 14 mexem nos mesmos arquivos do wizard).
+Ordem: 11 → 12 → 13 → 14 → 15 → 16, em sequência (13 e 14 mexem nos mesmos arquivos do wizard). Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão do CI do PR e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
 
 ### Issues planejadas por bloco
 
@@ -239,12 +240,17 @@ Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `
 
 **13–15** — detalhados no `/integrar` do bloco anterior.
 
+**16 · Conexão real e testes finais** (todas `exec:claude`)
+- Reconexão do Facebook pelo Marcos e conferência de `meta_connections.scopes`; primeira chamada real de `assets` (grava `page_id`) e das buscas.
+- Prova real pela `traffic-meta` (o P3 que saiu da #73): Engajamento, 1 post publicado (`ig_post`), R$ 6/dia, 1 dia → conferir pausada no Gerenciador → `set_status ARCHIVED`. Nunca `ACTIVE`.
+- Regressão completa na máquina + nota para o Marcos.
+
 ## 11. Riscos e perguntas em aberto
 
 | # | Risco | Mitigação |
 |---|---|---|
 | R1 | O OAuth da Meta recusa `hive-resgate.netlify.app` | Cadastrar o domínio no app da Meta no bloco 11 (`exec:claude`, o Raul faz no painel) |
-| R2 | Token da Meta vence em **01/12/2026**; sem reconexão, sync e módulo param | Reconectar com `ads_management` no bloco 11, antes dessa data |
+| R2 | Token da Meta vence em **01/12/2026**; sem reconexão, sync e módulo param | Reconectar com `ads_management` e `pages_manage_ads` antes dessa data (a reunião de 16/11 serve); o bloco 16 só confere e testa |
 | R3 | Acesso padrão só vale se o Facebook do Marcos tiver papel no app ou a conta de anúncio for do mesmo Business | Conferir no bloco 11; se não, papel de testador ou acesso avançado (revisão da Meta, semanas) |
 | R4 | Campanha ativada no site de teste gasta de verdade (mesmo banco) | Tudo nasce pausado, confirmação de ativar avisa, teto mensal no servidor |
 | R5 | A Meta rejeita criativo ou combinação de opções | `traffic-spec` barra as combinações conhecidas antes; `failed` + mensagem em português; desfaz o que criou |
