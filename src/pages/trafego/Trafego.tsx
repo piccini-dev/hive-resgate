@@ -9,6 +9,7 @@ import { LoadError, Loading } from '@/components/shared/LoadState';
 import { getTrafficSettings, isTrafficConfigured, type TrafficSettings } from '@/lib/traffic';
 import { ConfiguracoesTab } from './ConfiguracoesTab';
 import { ResultadosTab } from './ResultadosTab';
+import { NovaCampanha } from './wizard/NovaCampanha';
 
 type Aba = 'campanhas' | 'nova' | 'resultados' | 'configuracoes';
 const ABAS: readonly Aba[] = ['campanhas', 'nova', 'resultados', 'configuracoes'];
@@ -70,7 +71,7 @@ export function Trafego() {
         </TabsList>
       </div>
       <TabsContent value="campanhas" className="mt-0">{gated(soon('As campanhas criadas pela Hive vão aparecer aqui.', 'traffic-campaigns-soon'))}</TabsContent>
-      <TabsContent value="nova" className="mt-0">{gated(soon('O assistente de nova campanha chega na próxima etapa.', 'traffic-new-soon'))}</TabsContent>
+      <TabsContent value="nova" className="mt-0">{gated(<NovaCampanha />)}</TabsContent>
       <TabsContent value="resultados" className="mt-0"><ResultadosTab /></TabsContent>
       <TabsContent value="configuracoes" className="mt-0"><ConfiguracoesTab onSaved={() => void load()} /></TabsContent>
     </Tabs>
