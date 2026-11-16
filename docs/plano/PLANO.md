@@ -97,7 +97,7 @@ flowchart LR
 ```
 
 **Regras de arquitetura:**
-- **Um contrato com a Meta:** toda leitura e escrita do módulo na Marketing API passa por `traffic-meta` (o token nunca vai ao navegador). Ações: `assets` (contas de anúncio, Páginas e Instagram do usuário), `search_locations`, `search_interests`, `estimate`, `create`, `set_status`.
+- **Um contrato com a Meta:** toda leitura e escrita do módulo na Marketing API passa por `traffic-meta` (o token nunca vai ao navegador). Ações: `assets` (acha e grava a Página do Instagram configurado), `search_locations`, `search_interests`, `create`, `set_status`; `estimate` entra no bloco 14.
 - **Uma tradução:** `_shared/traffic-spec.ts` é puro (sem rede). Converte o rascunho do wizard nos payloads da Meta e valida combinações (objetivo × meta de otimização × destino × posicionamento). Testado por unitários.
 - **Uma fonte de números:** métricas só do espelho `meta_*`. `traffic_campaigns` e `traffic_ads` guardam a **intenção** (o que a Hive criou e os ids da Meta), nunca métricas.
 - **IA só propõe:** `traffic-assist` devolve recomendações em JSON; quem grava é o front, no rascunho, quando o Marcos aplica.
@@ -114,8 +114,11 @@ Mantida (`package.json`). **Nenhuma dependência nova:** a Marketing API é cham
 | Público | `targeting.geo_locations`, `age_min/max`, `genders`, `flexible_spec.interests`; **`targeting_automation.advantage_audience` obrigatório (0 ou 1) desde a v23** ao criar conjunto | idem |
 | Busca | `GET /search?type=adinterest&q=` e `type=adgeolocation` | idem |
 | Posicionamentos | `publisher_platforms` (se informado, precisa incluir `facebook`), `facebook_positions` (`feed`, `story`, `facebook_reels`), `instagram_positions` (`stream`, `story`, `reels`); Stories exige `device_platforms: mobile` | idem |
-| Permissões | `ads_read` + `ads_management`, acesso padrão (contas do próprio usuário) | Context7, 2026-11-09 |
-| A conferir no bloco 12 | criativo de post do Instagram existente (`source_instagram_media_id`) e anúncio fora do feed com `object_story_spec` (imagem e carrossel); endpoint de estimativa (`delivery_estimate`) | — |
+| Permissões | `ads_read` + `ads_management` + `pages_manage_ads` (criativo ligado à Página), acesso padrão (contas do próprio usuário) | Context7, 2026-11-09 e 2026-11-15 |
+| Orçamento no conjunto | desde a v24, a campanha precisa de `is_adset_budget_sharing_enabled` (`false` aqui) | Context7, 2026-11-15 |
+| Advantage+ ligado | `age_min` só de 18 a 25, `age_max` fixo em 65; a faixa escolhida vai em `age_range` | Context7, 2026-11-15 |
+| Anúncio fora do feed | `object_story_spec.link_data` com `link` obrigatório; imagem por `picture` (URL); carrossel por `child_attachments` (2 a 10, cada um com `link` e `picture`) | Context7, 2026-11-15 |
+| Post do Instagram | criativo com `object_id` (Página), `instagram_user_id` e `source_instagram_media_id` | Context7, 2026-11-15 |
 
 ## 6. Modelo de dados
 
@@ -171,7 +174,7 @@ Peça do usuário com `status in ('approved','scheduled','published')` **e** com
 | `assets` | — | `GET /me/adaccounts`, `GET /me/accounts` (Páginas) e o `instagram_business_account` de cada Página |
 | `search_locations` | `q` | `GET /search?type=adgeolocation` |
 | `search_interests` | `q` | `GET /search?type=adinterest` |
-| `estimate` | `campaign_id` | estimativa de alcance do conjunto (endpoint conferido no bloco 12) |
+| `estimate` | `campaign_id` | estimativa de alcance do conjunto (bloco 14, na tela de Revisão; campos conferidos no Context7 antes) |
 | `create` | `campaign_id` | valida o rascunho (`traffic-spec`), confere peças elegíveis e teto; cria campanha (`special_ad_categories=[]`, `PAUSED`) → conjunto → criativos → anúncios, todos `PAUSED`; grava os ids. Se falhar no meio, apaga o que criou e marca `failed` |
 | `set_status` | `campaign_id`, `ACTIVE`/`PAUSED`/`ARCHIVED` | `POST /{fb_campaign_id}` `status=…` (ACTIVE passa pela guarda) |
 
@@ -212,12 +215,13 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
 |---|---|---|---|---|---|
 | 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
-| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com as 6 ações; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; prova real (campanha `PAUSED` na conta do Raul, arquivada); auditoria de segurança | 11 | 7 |
+| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; E2E `f32` das recusas; auditoria de segurança (a prova real foi para o 16) | 11 | 8 |
 | 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 7 |
 | 14 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 13 | 6 |
-| 15 | Campanhas e fechamento | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; regressão completa; `/impeccable critique` + `polish`; nota para o Marcos | 14 | 6 |
+| 15 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 14 | 6 |
+| 16 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 15 | 3 |
 
-Ordem: 11 → 12 → 13 → 14 → 15, em sequência (13 e 14 mexem nos mesmos arquivos do wizard).
+Ordem: 11 → 12 → 13 → 14 → 15 → 16, em sequência (13 e 14 mexem nos mesmos arquivos do wizard). Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão completa no GitHub (`regressao.yml`, disparada pelo orquestrador antes do merge) e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
 
 ### Issues planejadas por bloco
 
@@ -236,12 +240,17 @@ Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `
 
 **13–15** — detalhados no `/integrar` do bloco anterior.
 
+**16 · Conexão real e testes finais** (todas `exec:claude`)
+- Reconexão do Facebook pelo Marcos e conferência de `meta_connections.scopes`; primeira chamada real de `assets` (grava `page_id`) e das buscas.
+- Prova real pela `traffic-meta` (o P3 que saiu da #73): Engajamento, 1 post publicado (`ig_post`), R$ 6/dia, 1 dia → conferir pausada no Gerenciador → `set_status ARCHIVED`. Nunca `ACTIVE`.
+- Regressão completa na máquina + nota para o Marcos.
+
 ## 11. Riscos e perguntas em aberto
 
 | # | Risco | Mitigação |
 |---|---|---|
 | R1 | O OAuth da Meta recusa `hive-resgate.netlify.app` | Cadastrar o domínio no app da Meta no bloco 11 (`exec:claude`, o Raul faz no painel) |
-| R2 | Token da Meta vence em **01/12/2026**; sem reconexão, sync e módulo param | Reconectar com `ads_management` no bloco 11, antes dessa data |
+| R2 | Token da Meta vence em **01/12/2026**; sem reconexão, sync e módulo param | Reconectar com `ads_management` e `pages_manage_ads` antes dessa data (a reunião de 16/11 serve); o bloco 16 só confere e testa |
 | R3 | Acesso padrão só vale se o Facebook do Marcos tiver papel no app ou a conta de anúncio for do mesmo Business | Conferir no bloco 11; se não, papel de testador ou acesso avançado (revisão da Meta, semanas) |
 | R4 | Campanha ativada no site de teste gasta de verdade (mesmo banco) | Tudo nasce pausado, confirmação de ativar avisa, teto mensal no servidor |
 | R5 | A Meta rejeita criativo ou combinação de opções | `traffic-spec` barra as combinações conhecidas antes; `failed` + mensagem em português; desfaz o que criou |

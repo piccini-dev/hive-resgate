@@ -162,6 +162,11 @@ export function olharBee<T>(body: Record<string, unknown>): Promise<T> {
   return postEdge<T>('olhar-bee', body);
 }
 
+// Módulo de Tráfego (docs/plano/PLANO.md §7): contrato único com a Meta (traffic-meta); o token fica no servidor.
+export interface TrafficLocation { key: string; name: string; type: string; country_code?: string; region?: string }
+export interface TrafficInterest { id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; path?: string[] }
+export type TrafficStatusTarget = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+
 export const edge = {
   // A IA propoe o publico-alvo de um editorial a partir da descricao (nao salva).
   async suggestAudience(editorial: { name?: string; description?: string; objetivo?: string; tom?: string }): Promise<SuggestAudienceOutput> {
@@ -461,6 +466,22 @@ export const edge = {
     success: boolean; status: string; done: boolean; queue_left: number; chunks: number; rows: number; summary?: Record<string, unknown>; error?: string;
   }> {
     return postEdge('meta-ads-sync', input);
+  },
+  async trafficAssets(): Promise<{ success: boolean; page: { id: string; name: string | null } }> {
+    return postEdge('traffic-meta', { action: 'assets' });
+  },
+  async trafficSearchLocations(q: string): Promise<{ success: boolean; items: TrafficLocation[] }> {
+    return postEdge('traffic-meta', { action: 'search_locations', q });
+  },
+  async trafficSearchInterests(q: string): Promise<{ success: boolean; items: TrafficInterest[] }> {
+    return postEdge('traffic-meta', { action: 'search_interests', q });
+  },
+  // Cria campanha, conjunto e anúncios PAUSADOS. Recusas (teto, peça não aprovada, rascunho inválido) viram Error com a mensagem em português.
+  async trafficCreate(campaignId: string): Promise<{ success: boolean; status: 'paused'; fb_campaign_id: string; fb_adset_id: string }> {
+    return postEdge('traffic-meta', { action: 'create', campaign_id: campaignId });
+  },
+  async trafficSetStatus(campaignId: string, status: TrafficStatusTarget): Promise<{ success: boolean; status: 'active' | 'paused' | 'ended' }> {
+    return postEdge('traffic-meta', { action: 'set_status', campaign_id: campaignId, status });
   },
   async metricsIngest(): Promise<{ success: boolean; results: Array<{ posts: number; saved: number; insights: boolean; errors: string[] }> }> {
     return postEdge('metrics-ingest', {});
