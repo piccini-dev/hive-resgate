@@ -216,7 +216,7 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 |---|---|---|---|---|---|
 | 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
 | 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; E2E `f32` das recusas; auditoria de segurança (a prova real foi para o 16) | 11 | 8 |
-| 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 7 |
+| 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 9 |
 | 14 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 13 | 6 |
 | 15 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 14 | 6 |
 | 16 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 15 | 3 |
@@ -238,7 +238,14 @@ Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `
 - `src/lib/edge.ts` + `src/lib/traffic.ts`.
 - `exec:claude` Deploy (com ordem), prova real `PAUSED`, E2E da recusa por teto e da peça não aprovada, auditoria de segurança.
 
-**13–15** — detalhados no `/integrar` do bloco anterior.
+**13 · Wizard** (#75–#83, branch `bloco/13-wizard`)
+- #75 `src/lib/traffic-wizard.ts` (puro: estado, padrões, datas em SP, validação do servidor por passo) + `e2e/unit-traffic-wizard.spec.ts`.
+- #76 `src/lib/traffic.ts`: rascunho em `traffic_campaigns`/`traffic_ads` (listar, criar, carregar, salvar só em draft/failed, apagar) e peças elegíveis.
+- #77–#81 Passos em `src/pages/trafego/wizard/`: Conteúdo; Campanha + Orçamento + Posicionamentos; Público; Anúncio; Revisão com Criar (pausada).
+- #82 `NovaCampanha.tsx`: lista de rascunhos e o wizard (salva a cada passo, retoma pelo `?aba=nova&id=`).
+- #83 `exec:claude` E2E `f33-trafego-wizard` com `mockEdge`, Impeccable critique e polish, 375 px.
+
+**14–15** — detalhados no `/integrar` do bloco anterior.
 
 **16 · Conexão real e testes finais** (todas `exec:claude`)
 - Reconexão do Facebook pelo Marcos e conferência de `meta_connections.scopes`; primeira chamada real de `assets` (grava `page_id`) e das buscas.
