@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { edge } from '@/lib/edge';
-import { COUNTRY_NAMES, addLocation, removeLocation, type CampaignDraft, type StepProps } from '@/lib/traffic-wizard';
+import { COUNTRY_NAMES, addInterest, addLocation, removeInterest, removeLocation, type CampaignDraft, type StepProps } from '@/lib/traffic-wizard';
 
 type TargetingDraft = CampaignDraft['targeting'];
 
@@ -31,6 +31,8 @@ function useMetaSearch<T>(q: string, search: (q: string) => Promise<{ items: T[]
 export function StepPublico({ state, onChange }: StepProps) {
   const [locQ, setLocQ] = useState('');
   const { items: locations, loading: locLoading, error: locError } = useMetaSearch(locQ, edge.trafficSearchLocations);
+  const [intQ, setIntQ] = useState('');
+  const { items: interests, loading: intLoading, error: intError } = useMetaSearch(intQ, edge.trafficSearchInterests);
   const t = state.draft.targeting;
   const setT = (targeting: TargetingDraft) => onChange({ ...state, draft: { ...state.draft, targeting } });
 
@@ -197,6 +199,63 @@ export function StepPublico({ state, onChange }: StepProps) {
             <SelectItem value="female">Mulheres</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-3">
+        {t.interests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum interesse: a Meta usa só local, idade e gênero.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {t.interests.map((i) => (
+              <span key={i.id} className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border px-3 py-1 text-sm">
+                <span className="min-w-0 break-words">{i.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Remover ${i.name}`}
+                  data-testid={`traffic-int-remove-${i.id}`}
+                  onClick={() => setT(removeInterest(t, i.id))}
+                  className="shrink-0"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor="traffic-int-search">Interesses (opcional)</Label>
+          <Input
+            id="traffic-int-search"
+            data-testid="traffic-int-search"
+            placeholder="Buscar interesse (ex.: liderança)"
+            value={intQ}
+            onChange={(event) => setIntQ(event.target.value)}
+          />
+        </div>
+        {intQ.trim().length >= 2 && (
+          <>
+            {intLoading && <p className="text-sm text-muted-foreground">Buscando…</p>}
+            {intError && <p className="text-sm text-destructive">Não deu para buscar agora: {intError}</p>}
+            {!intLoading && !intError && interests.length === 0 && (
+              <p className="text-sm text-muted-foreground">Nada encontrado.</p>
+            )}
+            {!intLoading && !intError && interests.length > 0 && (
+              <ul className="space-y-1">
+                {interests.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      data-testid={`traffic-int-${item.id}`}
+                      onClick={() => { setT(addInterest(t, item)); setIntQ(''); }}
+                      className="w-full min-w-0 rounded-md px-3 py-2 text-left hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <span className="block break-words text-sm">{item.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
