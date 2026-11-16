@@ -1,14 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadError, Loading } from '@/components/shared/LoadState';
+import { WizardShell } from '@/components/campaign/WizardShell';
 import {
   createDraftCampaign, deleteDraftCampaign, listDraftCampaigns, listEligiblePosts, loadWizardCampaign,
-  toWizardState, type TrafficCampaignRow,
+  saveWizard, toWizardState, type TrafficCampaignRow,
 } from '@/lib/traffic';
-import { type EligiblePost, type WizardState } from '@/lib/traffic-wizard';
+import {
+  TOTAL_STEPS, WIZARD_STEPS, canAdvance, draftErrors, problemsByStep,
+  type EligiblePost, type WizardState,
+} from '@/lib/traffic-wizard';
+import { StepConteudo } from './StepConteudo';
+import { StepCampanha } from './StepCampanha';
+import { StepOrcamento } from './StepOrcamento';
+import { StepPublico } from './StepPublico';
+import { StepPosicionamentos } from './StepPosicionamentos';
+import { StepAnuncio } from './StepAnuncio';
+import { StepRevisao } from './StepRevisao';
+
+const STEPS = {
+  1: StepConteudo, 2: StepCampanha, 3: StepOrcamento, 4: StepPublico,
+  5: StepPosicionamentos, 6: StepAnuncio, 7: StepRevisao,
+} as const;
 
 function DraftList() {
   const [, setParams] = useSearchParams();
@@ -119,6 +135,25 @@ function Wizard({ id }: { id: string }) {
   const [campaign, setCampaign] = useState<TrafficCampaignRow | null>(null);
   const [posts, setPosts] = useState<EligiblePost[]>([]);
   const [state, setState] = useState<WizardState | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const errors = useMemo(() => state ? draftErrors(state, posts) : [], [state, posts]);
+
+  async function go(step: number, after?: () => void) {
+    if (!state || saving) return;
+    setSaving(true);
+    try {
+      const next = { ...state, step };
+      await saveWizard(next);
+      setState(next);
+      window.scrollTo({ top: 0 });
+      after?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Não deu para salvar o rascunho.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -161,15 +196,43 @@ function Wizard({ id }: { id: string }) {
   }
   if (!state) return null;
 
+  const problems = problemsByStep(errors)[state.step];
+  const Step = STEPS[state.step as keyof typeof STEPS];
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 lg:py-12">
+    <WizardShell
+      step={state.step}
+      total={TOTAL_STEPS}
+      eyebrow={`Passo ${state.step} de ${TOTAL_STEPS}`}
+      title={WIZARD_STEPS[state.step - 1].title}
+      subtitle={WIZARD_STEPS[state.step - 1].subtitle}
+      onBack={state.step > 1 ? () => void go(state.step - 1) : () => setParams({ aba: 'nova' })}
+      footer={state.step < 7 ? (
+        <>
+          <Button variant="accent" data-testid="traffic-next" disabled={saving || !canAdvance(state.step, errors)} onClick={() => void go(state.step + 1)}>
+            Continuar
+          </Button>
+          <Button variant="ghost" data-testid="traffic-save-exit" disabled={saving} onClick={() => void go(state.step, () => setParams({ aba: 'nova' }))}>
+            Salvar e sair
+          </Button>
+        </>
+      ) : undefined}
+    >
       {campaign.status === 'failed' && (
         <div data-testid="traffic-draft-failed" role="status" className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm">
           A Meta recusou da última vez: {campaign.error ?? 'erro desconhecido'}. Ajuste e crie de novo.
         </div>
       )}
-      <p>Passo {state.step} de 7</p>
-    </div>
+      <Step state={state} posts={posts} problems={problems} onChange={setState} onGoTo={(n) => void go(n)} onCreated={() => setParams({})} />
+      {state.step < 7 && problems.length > 0 && (
+        <div data-testid="traffic-step-problems" className="text-sm text-muted-foreground">
+          <p className="font-medium">Para continuar:</p>
+          <ul className="list-disc pl-5">
+            {problems.map((problem, index) => <li key={index} className="break-words">{problem}</li>)}
+          </ul>
+        </div>
+      )}
+    </WizardShell>
   );
 }
 
