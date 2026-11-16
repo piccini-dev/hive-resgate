@@ -3,6 +3,7 @@
 // O token NUNCA é lido aqui: só as colunas do tráfego.
 import { db, getCurrentUserId } from '@/lib/db';
 import type { SocialAccount } from '@/types/campaign';
+import { TOTAL_STEPS, withDefaults, type CampaignDraft, type Cta, type EligiblePost, type Objective, type WizardAd, type WizardState } from '@/lib/traffic-wizard';
 
 export interface TrafficSettings {
   ad_account_id: string | null;
