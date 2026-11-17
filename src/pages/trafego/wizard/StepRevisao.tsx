@@ -2,9 +2,10 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { InstagramPreview } from '@/components/traffic/InstagramPreview';
 import { edge } from '@/lib/edge';
 import {
-  COUNTRY_NAMES, CTA_LABELS, OBJECTIVE_LABELS, budgetTotal, draftErrors, isoToDay, stepOfError, thumbnailOf,
+  COUNTRY_NAMES, OBJECTIVE_LABELS, adPreview, budgetTotal, draftErrors, feedUsername, isoToDay, stepOfError, thumbnailOf,
   type StepProps,
 } from '@/lib/traffic-wizard';
 
@@ -36,7 +37,7 @@ function Section({ title, step, disabled, onGoTo, children }: {
   );
 }
 
-export function StepRevisao({ state, posts, onGoTo, onCreated }: StepProps) {
+export function StepRevisao({ state, posts, account, onGoTo, onCreated }: StepProps) {
   const errors = useMemo(() => draftErrors(state, posts), [state, posts]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,25 +129,30 @@ export function StepRevisao({ state, posts, onGoTo, onCreated }: StepProps) {
       </Section>
 
       <Section title="Anúncios" step={6} {...edit}>
-        <div className="space-y-4">
-          {state.ads.map((ad, index) => (
-            <div key={ad.post_id} className="min-w-0 space-y-2">
-              <p className="break-words font-medium">Peça {index + 1} · {titleOf(ad.post_id)}</p>
-              <dl className="space-y-2">
-                <Row label="Texto">
-                  {ad.mode === 'ig_post'
-                    ? 'O do post publicado'
-                    : (ad.primary_text.slice(0, 80) + (ad.primary_text.length > 80 ? '…' : '')) || 'Sem texto'}
-                </Row>
-                {(ad.mode === 'new_creative' || state.objective === 'OUTCOME_TRAFFIC') && (
-                  <>
-                    <Row label="Botão">{CTA_LABELS[ad.cta]}</Row>
-                    <Row label="Link">{ad.link_url || 'Sem link'}</Row>
-                  </>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {state.ads.map((ad, index) => {
+            const n = index + 1;
+            const post = posts.find((p) => p.id === ad.post_id);
+            return (
+              <div key={ad.post_id} className="min-w-0 space-y-2">
+                <p className="break-words font-medium">Peça {n} · {titleOf(ad.post_id)}</p>
+                {post && (
+                  <InstagramPreview
+                    username={feedUsername(account)}
+                    {...adPreview(ad, post, state.objective)}
+                    sponsored
+                    alt={post.title ?? 'Peça sem título'}
+                    testId={`traffic-review-preview-${n}`}
+                  />
                 )}
-              </dl>
-            </div>
-          ))}
+                {(ad.mode === 'new_creative' || state.objective === 'OUTCOME_TRAFFIC') && (
+                  <dl className="space-y-2">
+                    <Row label="Link">{ad.link_url || 'Sem link'}</Row>
+                  </dl>
+                )}
+              </div>
+            );
+          })}
         </div>
       </Section>
 
