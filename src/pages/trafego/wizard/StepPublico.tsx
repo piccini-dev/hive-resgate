@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { edge } from '@/lib/edge';
-import { formatAudience, type AudienceEstimate } from '../../../../supabase/functions/_shared/traffic-spec';
+import { formatAudience, audienceGauge, type AudienceEstimate } from '../../../../supabase/functions/_shared/traffic-spec';
 import { COUNTRY_NAMES, addInterest, addLocation, removeInterest, removeLocation, type CampaignDraft, type StepProps } from '@/lib/traffic-wizard';
 
 type TargetingDraft = CampaignDraft['targeting'];
+const LEVEL = { especifico: 'específico', definido: 'bem definido', amplo: 'amplo' };
 
 function useMetaSearch<T>(q: string, search: (q: string) => Promise<{ items: T[] }>) {
   const [items, setItems] = useState<T[]>([]);
@@ -36,6 +37,7 @@ function AudienceEstimateCard({ state }: { state: StepProps['state'] }) {
   const key = JSON.stringify({ o: state.objective, t: state.draft.targeting, p: state.draft.placements, g: state.draft.optimization_goal });
   const t = state.draft.targeting;
   const hasLocation = t.countries.length + t.regions.length + t.cities.length > 0;
+  const gauge = estimate ? audienceGauge(estimate.upper) : null;
 
   useEffect(() => {
     if (!hasLocation) {
@@ -61,11 +63,52 @@ function AudienceEstimateCard({ state }: { state: StepProps['state'] }) {
   }, [key]);
 
   return (
-    <div>
-      {estimate && <p>{formatAudience(estimate)}</p>}
-      {loading && <span>Calculando…</span>}
-      {error && <p>{error}</p>}
-    </div>
+    <section data-testid="traffic-estimate" aria-live="polite" className="rounded-xl border bg-card p-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h2 className="min-w-0 break-words font-display font-semibold">Tamanho estimado do público</h2>
+        {loading && <span className="text-sm text-muted-foreground">Calculando…</span>}
+      </div>
+      {!hasLocation ? (
+        <p data-testid="traffic-estimate-empty" className="mt-2 text-sm text-muted-foreground">
+          Escolha ao menos um local para ver quantas pessoas podem ser alcançadas.
+        </p>
+      ) : error ? (
+        <p data-testid="traffic-estimate-error" className="mt-2 text-sm text-muted-foreground">
+          Não deu para estimar agora.
+        </p>
+      ) : estimate && gauge ? (
+        <>
+          <div
+            role="img"
+            aria-label={`Público ${LEVEL[gauge.level]}`}
+            className="relative mt-3 h-2 rounded-full bg-gradient-to-r from-muted-foreground/30 via-accent/60 to-accent"
+          >
+            <div
+              aria-hidden="true"
+              className="absolute -top-1 h-4 w-1 rounded-full bg-foreground"
+              style={{ left: `calc(${gauge.position * 100}% - 2px)` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Específico</span>
+            <span>Amplo</span>
+          </div>
+          <p data-testid="traffic-estimate-level" className="mt-3 text-sm">
+            Seu público está <strong>{LEVEL[gauge.level]}</strong>.
+          </p>
+          <p data-testid="traffic-estimate-size" className="mt-1 break-words font-display text-lg font-semibold">
+            {formatAudience(estimate)}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Estimativa da Meta de pessoas alcançáveis por mês. Varia com o tempo e não é garantia de resultado.
+          </p>
+        </>
+      ) : !loading ? (
+        <p data-testid="traffic-estimate-unavailable" className="mt-2 text-sm text-muted-foreground">
+          A Meta ainda não tem estimativa para este público.
+        </p>
+      ) : null}
+    </section>
   );
 }
 
