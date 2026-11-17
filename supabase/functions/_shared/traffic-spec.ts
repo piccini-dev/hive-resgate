@@ -225,3 +225,15 @@ export function parseEstimate(json: unknown): AudienceEstimate | null {
   if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower < 0 || upper < 0) return null;
   return lower > upper ? { lower: upper, upper: lower } : { lower, upper };
 }
+
+export function formatAudience(e: AudienceEstimate): string {
+  if (e.upper < 1000) return 'Menos de 1.000 pessoas';
+  if (e.lower === e.upper) return `Cerca de ${e.lower.toLocaleString('pt-BR')} pessoas`;
+  return `${e.lower.toLocaleString('pt-BR')} a ${e.upper.toLocaleString('pt-BR')} pessoas`;
+}
+
+export function audienceGauge(upper: number): { level: AudienceLevel; position: number } {
+  const level: AudienceLevel = upper < 100_000 ? 'especifico' : upper <= 5_000_000 ? 'definido' : 'amplo';
+  const position = Math.min(1, Math.max(0, (Math.log10(Math.max(upper, 1)) - 3) / 5));
+  return { level, position };
+}
