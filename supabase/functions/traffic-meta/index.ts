@@ -1,15 +1,15 @@
 // Edge function: traffic-meta — contrato único do módulo de Tráfego com a Meta
 // (docs/plano/PLANO.md §7). O token fica no servidor; o app só manda a ação.
-// Ações: assets, search_locations, search_interests (leitura) e create, set_status (escrita).
+// Ações: assets, search_locations, search_interests, estimate (leitura) e create, set_status (escrita).
 import { checkRateLimit, errorResponse, jsonResponse, preflight, userIdFromAuth } from '../_shared/security.ts';
 import { svcHeaders } from '../_shared/gemini.ts';
-import { MetaApiError, findPageForInstagram, graphDelete, graphPost, searchInterests, searchLocations } from '../_shared/meta-marketing.ts';
-import { adPayload, adsetPayload, campaignPayload, creativePayload, validateDraft, type AdRow, type CampaignRow, type PostRow } from '../_shared/traffic-spec.ts';
+import { MetaApiError, deliveryEstimate, findPageForInstagram, graphDelete, graphPost, searchInterests, searchLocations } from '../_shared/meta-marketing.ts';
+import { adPayload, adsetPayload, campaignPayload, creativePayload, estimateParams, parseEstimate, validateDraft, type AdRow, type CampaignRow, type PostRow } from '../_shared/traffic-spec.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 
 interface Conn { access_token: string; ad_account_id: string | null; page_id: string | null; ig_user_id: string | null; monthly_cap: number | string | null }
-type Body = { action?: string; q?: string; campaign_id?: string; status?: string };
+type Body = { action?: string; q?: string; campaign_id?: string; status?: string; objective?: unknown; draft?: unknown };
 type Handler = (userId: string, conn: Conn, body: Body) => Promise<Response>;
 
 async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -84,6 +84,12 @@ const handlers: Record<string, Handler> = {
     const q = (body.q ?? '').trim().slice(0, 80);
     if (q.length < 2) return jsonResponse({ success: true, items: [] });
     return jsonResponse({ success: true, items: await searchInterests(q, conn.access_token) });
+  },
+  async estimate(_userId, conn, body) {
+    if (!conn.ad_account_id) return errorResponse('Escolha a conta de anúncio em Tráfego › Configurações.', 400);
+    const params = estimateParams(body.objective, body.draft);
+    if (!params) return jsonResponse({ success: true, estimate: null });
+    return jsonResponse({ success: true, estimate: parseEstimate(await deliveryEstimate(conn.ad_account_id, params, conn.access_token)) });
   },
   // Cria tudo PAUSADO. Ordem: conferências → trava (status creating) → teto → Meta → grava ids.
   async create(userId, conn, body) {
