@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,13 +83,13 @@ export function StepConteudo({ state, posts, account, onChange }: StepProps) {
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant={selecionada ? 'accent' : 'outline'}
                     data-testid={`traffic-post-${p.id}`}
                     aria-pressed={selecionada}
                     disabled={desabilitada}
                     onClick={() => onChange({ ...state, ads: toggleAd(state.ads, p) })}
                   >
-                    {selecionada ? 'Selecionada' : 'Anunciar esta'}
+                    {selecionada ? <><Check className="h-4 w-4" aria-hidden="true" /> Peça {indice + 1}</> : 'Anunciar esta'}
                   </Button>
                 </div>
               </div>
