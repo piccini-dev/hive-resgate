@@ -66,6 +66,17 @@ export async function listInstagramAccounts(): Promise<InstagramOption[]> {
   return rows.filter((r) => !!r.instagram_business_account_id).map((r) => ({ id: r.instagram_business_account_id as string, label: r.label }));
 }
 
+// Usuário do Instagram que anuncia (sem @), para a prévia do feed. null se não configurado.
+export async function getAdvertiserUsername(): Promise<string | null> {
+  const settings = await getTrafficSettings();
+  if (!settings?.ig_user_id) return null;
+  const rows = await db.select<Pick<SocialAccount, 'handle' | 'label'>>('social_accounts', {
+    select: 'handle,label', platform: 'eq.instagram', instagram_business_account_id: `eq.${settings.ig_user_id}`, limit: '1',
+  });
+  const row = rows[0];
+  return row ? (row.handle || row.label || '').replace(/^@/, '').trim() || null : null;
+}
+
 // ── Wizard de Nova campanha (bloco 13): rascunho em traffic_campaigns/traffic_ads e peças elegíveis.
 // Só escreve enquanto a campanha é rascunho (draft/failed); depois disso quem mexe é a traffic-meta.
 const CAMPAIGN_COLS = 'id,name,objective,status,step,draft,error,updated_at';
@@ -88,7 +99,7 @@ type AdDbRow = { post_id: string; mode: WizardAd['mode']; primary_text: string |
 // A view já filtra aprovada/agendada/publicada com arte; a RLS de user_posts deixa só as do usuário.
 export async function listEligiblePosts(): Promise<EligiblePost[]> {
   return db.select<EligiblePost>('traffic_eligible_posts', {
-    select: 'id,title,platform,format,status,rendered_slides,published_url,published_at,ig_media_id',
+    select: 'id,title,platform,format,status,rendered_slides,published_url,published_at,ig_media_id,caption',
     order: 'published_at.desc.nullslast,title.asc',
   });
 }
