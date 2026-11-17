@@ -1,12 +1,12 @@
-import { ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { InstagramPreview } from '@/components/traffic/InstagramPreview';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { CTA_OPTIONS, thumbnailOf, type Cta, type StepProps, type WizardAd } from '@/lib/traffic-wizard';
+import { CTA_OPTIONS, adPreview, feedUsername, type Cta, type StepProps, type WizardAd } from '@/lib/traffic-wizard';
 
-export function StepAnuncio({ state, posts, onChange, onGoTo }: StepProps) {
+export function StepAnuncio({ state, posts, account, onChange, onGoTo }: StepProps) {
   const set = (i: number, patch: Partial<WizardAd>) => onChange({ ...state, ads: state.ads.map((a, j) => (j === i ? { ...a, ...patch } : a)) });
 
   return (
@@ -22,29 +22,20 @@ export function StepAnuncio({ state, posts, onChange, onGoTo }: StepProps) {
         state.ads.map((a, i) => {
           const n = i + 1;
           const post = posts.find((p) => p.id === a.post_id);
-          const thumbnail = post ? thumbnailOf(post) : null;
 
           return (
             <section key={a.post_id} data-testid={`traffic-ad-${n}`} className="space-y-4 rounded-xl border bg-card p-4">
-              <div className="flex min-w-0 items-center gap-3">
-                {thumbnail ? (
-                  <img src={thumbnail} alt={post?.title ?? 'Peça sem título'} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-muted">
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-                  </div>
-                )}
-                <p className="min-w-0 line-clamp-2 break-words font-medium">
-                  Peça {n} · {post?.title ?? 'Peça sem título'}
-                </p>
-              </div>
+              <p className="min-w-0 break-words font-medium">
+                Peça {n} · {post?.title ?? 'Peça sem título'}
+              </p>
 
               {!post ? (
                 <p data-testid={`traffic-ad-${n}-missing`} className="text-sm text-destructive">
                   Esta peça não está mais aprovada. Volte ao passo Conteúdo e troque.
                 </p>
               ) : (
-                <>
+                <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,380px)] lg:items-start">
+                  <div className="min-w-0 space-y-4">
                   {a.mode === 'ig_post' && (
                     <p className="text-sm text-muted-foreground">
                       Usa o post publicado no Instagram como está, com o texto e a arte dele.
@@ -63,7 +54,7 @@ export function StepAnuncio({ state, posts, onChange, onGoTo }: StepProps) {
                           value={a.primary_text}
                           onChange={(event) => set(i, { primary_text: event.target.value })}
                         />
-                        <p className="text-xs text-muted-foreground">Aparece acima da arte.</p>
+                        <p className="text-xs text-muted-foreground">Aparece como legenda, abaixo da arte.</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`traffic-ad-${n}-headline`}>Título</Label>
@@ -111,7 +102,17 @@ export function StepAnuncio({ state, posts, onChange, onGoTo }: StepProps) {
                       </div>
                     </>
                   )}
-                </>
+                  </div>
+                  <div className="min-w-0 lg:sticky lg:top-4">
+                    <InstagramPreview
+                      username={feedUsername(account)}
+                      {...adPreview(a, post, state.objective)}
+                      sponsored
+                      alt={post.title ?? 'Peça sem título'}
+                      testId={`traffic-ad-preview-${n}`}
+                    />
+                  </div>
+                </div>
               )}
             </section>
           );
