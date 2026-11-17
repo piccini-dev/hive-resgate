@@ -9,6 +9,10 @@ import {
   creativePayload,
   adPayload,
   withUtm,
+  estimateParams,
+  parseEstimate,
+  formatAudience,
+  audienceGauge,
   type CampaignRow,
   type AdRow,
   type PostRow,
@@ -333,5 +337,95 @@ test.describe('unit · traffic-spec', () => {
       creative: { creative_id: 'creative1' },
       status: 'PAUSED',
     });
+  });
+});
+
+test.describe('estimativa de público', () => {
+  test('estimateParams: objetivo válido usa a meta padrão dele e o targeting do buildTargeting', () => {
+    const d = base().draft;
+    expect(estimateParams('OUTCOME_TRAFFIC', d)).toEqual({
+      optimization_goal: 'LINK_CLICKS',
+      targeting_spec: JSON.stringify(buildTargeting(d)),
+    });
+  });
+
+  test('estimateParams: objetivo desconhecido cai em Engajamento', () => {
+    const d = base().draft;
+    d.targeting.countries = [];
+    d.targeting.cities = [{ key: '1', name: 'Campinas' }];
+    const result = estimateParams('xyz', d);
+    expect(result).toEqual({
+      optimization_goal: 'POST_ENGAGEMENT',
+      targeting_spec: JSON.stringify(buildTargeting(d)),
+    });
+  });
+
+  test('estimateParams: sem local devolve null', () => {
+    const d = base().draft;
+    d.targeting.countries = [];
+    d.targeting.regions = [];
+    d.targeting.cities = [];
+    expect(estimateParams('OUTCOME_ENGAGEMENT', d)).toBeNull();
+  });
+
+  test('estimateParams: rascunho malformado devolve null', () => {
+    expect(estimateParams('OUTCOME_ENGAGEMENT', null)).toBeNull();
+    expect(estimateParams('OUTCOME_ENGAGEMENT', {})).toBeNull();
+    expect(estimateParams('OUTCOME_ENGAGEMENT', { targeting: {}, placements: {} })).toBeNull();
+    expect(estimateParams('OUTCOME_TRAFFIC', { ...base().draft, placements: null })).toBeNull();
+    expect(estimateParams('OUTCOME_TRAFFIC', {
+      ...base().draft,
+      targeting: { ...base().draft.targeting, interests: null },
+    })).toBeNull();
+  });
+
+  test('parseEstimate: lê lower e upper', () => {
+    expect(parseEstimate({ data: [{
+      estimate_mau_lower_bound: 1_200_000,
+      estimate_mau_upper_bound: 1_400_000,
+      estimate_ready: true,
+    }] })).toEqual({ lower: 1_200_000, upper: 1_400_000 });
+  });
+
+  test('parseEstimate: só estimate_mau vira lower = upper', () => {
+    expect(parseEstimate({ data: [{ estimate_mau: 50_000, estimate_ready: true }] }))
+      .toEqual({ lower: 50_000, upper: 50_000 });
+  });
+
+  test('parseEstimate: -1, estimate_ready false ou sem data devolvem null', () => {
+    expect(parseEstimate({ data: [{ estimate_mau_lower_bound: -1, estimate_mau_upper_bound: -1 }] })).toBeNull();
+    expect(parseEstimate({ data: [{ estimate_ready: false, estimate_mau: 10 }] })).toBeNull();
+    expect(parseEstimate({})).toBeNull();
+    expect(parseEstimate(null)).toBeNull();
+    expect(parseEstimate({ data: [{ estimate_mau: 'invalido' }] })).toBeNull();
+  });
+
+  test('parseEstimate: lower maior que upper é trocado', () => {
+    expect(parseEstimate({ data: [{
+      estimate_mau_lower_bound: 1_400_000,
+      estimate_mau_upper_bound: 1_200_000,
+    }] })).toEqual({ lower: 1_200_000, upper: 1_400_000 });
+  });
+
+  test('formatAudience: faixa, número único e menos de mil', () => {
+    expect(formatAudience({ lower: 1_200_000, upper: 1_400_000 })).toBe('1.200.000 a 1.400.000 pessoas');
+    expect(formatAudience({ lower: 12_000, upper: 12_000 })).toBe('Cerca de 12.000 pessoas');
+    expect(formatAudience({ lower: 0, upper: 800 })).toBe('Menos de 1.000 pessoas');
+  });
+
+  test('audienceGauge: níveis nos limites e posição entre 0 e 1', () => {
+    expect(audienceGauge(99_999).level).toBe('especifico');
+    expect(audienceGauge(100_000).level).toBe('definido');
+    expect(audienceGauge(5_000_000).level).toBe('definido');
+    expect(audienceGauge(5_000_001).level).toBe('amplo');
+    expect(audienceGauge(50_000).position).toBeCloseTo(0.34, 2);
+    expect(audienceGauge(1_400_000).position).toBeCloseTo(0.63, 2);
+    expect(audienceGauge(80_000_000).position).toBeCloseTo(0.98, 2);
+    expect(audienceGauge(500).position).toBe(0);
+    expect(audienceGauge(10 ** 9).position).toBe(1);
+    for (const upper of [500, 50_000, 99_999, 100_000, 1_400_000, 5_000_000, 5_000_001, 80_000_000, 10 ** 9]) {
+      expect(audienceGauge(upper).position).toBeGreaterThanOrEqual(0);
+      expect(audienceGauge(upper).position).toBeLessThanOrEqual(1);
+    }
   });
 });
