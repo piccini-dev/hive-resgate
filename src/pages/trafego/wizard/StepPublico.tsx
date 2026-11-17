@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { edge } from '@/lib/edge';
+import { formatAudience, type AudienceEstimate } from '../../../../supabase/functions/_shared/traffic-spec';
 import { COUNTRY_NAMES, addInterest, addLocation, removeInterest, removeLocation, type CampaignDraft, type StepProps } from '@/lib/traffic-wizard';
 
 type TargetingDraft = CampaignDraft['targeting'];
@@ -28,6 +29,46 @@ function useMetaSearch<T>(q: string, search: (q: string) => Promise<{ items: T[]
   return { items, loading, error };
 }
 
+function AudienceEstimateCard({ state }: { state: StepProps['state'] }) {
+  const [estimate, setEstimate] = useState<AudienceEstimate | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const key = JSON.stringify({ o: state.objective, t: state.draft.targeting, p: state.draft.placements, g: state.draft.optimization_goal });
+  const t = state.draft.targeting;
+  const hasLocation = t.countries.length + t.regions.length + t.cities.length > 0;
+
+  useEffect(() => {
+    if (!hasLocation) {
+      setEstimate(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await edge.trafficEstimate(state.objective, state.draft);
+        if (alive) setEstimate(result.estimate);
+      } catch {
+        if (alive) setError('Não deu para estimar agora.');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }, 600);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [key]);
+
+  return (
+    <div>
+      {estimate && <p>{formatAudience(estimate)}</p>}
+      {loading && <span>Calculando…</span>}
+      {error && <p>{error}</p>}
+    </div>
+  );
+}
+
 export function StepPublico({ state, onChange }: StepProps) {
   const [locQ, setLocQ] = useState('');
   const { items: locations, loading: locLoading, error: locError } = useMetaSearch(locQ, edge.trafficSearchLocations);
@@ -38,6 +79,7 @@ export function StepPublico({ state, onChange }: StepProps) {
 
   return (
     <div className="space-y-6">
+      <AudienceEstimateCard state={state} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <ChoiceCard
           title="Público Advantage+"
