@@ -17,6 +17,7 @@ export interface EligiblePost {
   format: string;
   status: 'approved' | 'scheduled' | 'published';
   rendered_slides: Record<string, string> | null;
+  caption: string | null;
   published_url: string | null;
   published_at: string | null;
   ig_media_id: string | null;
@@ -48,6 +49,7 @@ export interface InterestOption { id: string; name: string }
 export interface StepProps {
   state: WizardState;
   posts: EligiblePost[];
+  account?: string; // usuário do Instagram que anuncia, sem @ (a NovaCampanha passa; #91)
   problems: string[];                   // o que falta neste passo (vazio = pode continuar)
   onChange: (next: WizardState) => void;
   onGoTo: (step: number) => void;       // usado pela Revisão ("Editar")
@@ -123,6 +125,27 @@ export function toggleAd(ads: WizardAd[], post: EligiblePost): WizardAd[] {
 
 export function thumbnailOf(post: Pick<EligiblePost, 'rendered_slides'>): string | null {
   return slideUrls(post.rendered_slides)[0] ?? null;
+}
+
+export interface FeedPreview { slides: string[]; caption: string; cta: string | null }
+
+// A peça como está no feed (passo Conteúdo): sem botão.
+export function postPreview(post: Pick<EligiblePost, 'rendered_slides' | 'caption'>): FeedPreview {
+  return { slides: slideUrls(post.rendered_slides), caption: post.caption ?? '', cta: null };
+}
+
+// O anúncio como vai ao ar (passos Anúncio e Revisão).
+export function adPreview(ad: Pick<WizardAd, 'mode' | 'primary_text' | 'cta'>, post: Pick<EligiblePost, 'rendered_slides' | 'caption'>, objective: Objective | null): FeedPreview {
+  return {
+    slides: slideUrls(post.rendered_slides),
+    caption: ad.mode === 'ig_post' ? post.caption ?? '' : ad.primary_text,
+    cta: ad.mode === 'new_creative' || objective === 'OUTCOME_TRAFFIC' ? CTA_LABELS[ad.cta] : null,
+  };
+}
+
+// Nome que aparece no topo da prévia.
+export function feedUsername(account: string | null | undefined): string {
+  return account?.trim().replace(/^@/, '').trim() || 'sua_conta';
 }
 
 // ── Público
