@@ -165,6 +165,7 @@ export function olharBee<T>(body: Record<string, unknown>): Promise<T> {
 // Módulo de Tráfego (docs/plano/PLANO.md §7): contrato único com a Meta (traffic-meta); o token fica no servidor.
 export interface TrafficLocation { key: string; name: string; type: string; country_code?: string; region?: string }
 export interface TrafficInterest { id: string; name: string; audience_size_lower_bound?: number; audience_size_upper_bound?: number; path?: string[] }
+export interface TrafficEstimate { lower: number; upper: number }
 export type TrafficStatusTarget = 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
 
 export const edge = {
@@ -475,6 +476,9 @@ export const edge = {
   },
   async trafficSearchInterests(q: string): Promise<{ success: boolean; items: TrafficInterest[] }> {
     return postEdge('traffic-meta', { action: 'search_interests', q });
+  },
+  async trafficEstimate(objective: string | null, draft: unknown): Promise<{ success: boolean; estimate: TrafficEstimate | null }> {
+    return postEdge('traffic-meta', { action: 'estimate', objective, draft });
   },
   // Cria campanha, conjunto e anúncios PAUSADOS. Recusas (teto, peça não aprovada, rascunho inválido) viram Error com a mensagem em português.
   async trafficCreate(campaignId: string): Promise<{ success: boolean; status: 'paused'; fb_campaign_id: string; fb_adset_id: string }> {

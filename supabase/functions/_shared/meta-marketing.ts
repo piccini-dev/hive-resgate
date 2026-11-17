@@ -74,3 +74,8 @@ export async function searchInterests(q: string, token: string): Promise<Interes
   const r = await graphGet<{ data?: InterestOption[] }>('search', { type: 'adinterest', q, limit: '10' }, token);
   return (r.data ?? []).map(({ id, name, audience_size_lower_bound, audience_size_upper_bound, path }) => ({ id, name, audience_size_lower_bound, audience_size_upper_bound, path }));
 }
+
+// Estimativa de público para um targeting (resposta crua; quem lê é parseEstimate, em traffic-spec).
+export async function deliveryEstimate(adAccountId: string, params: Record<string, string>, token: string): Promise<unknown> {
+  return graphGet<unknown>(`${adAccountId}/delivery_estimate`, params, token);
+}

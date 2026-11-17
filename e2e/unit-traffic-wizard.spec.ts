@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test';
 import {
-  addDays, addInterest, addLocation, adModeFor, budgetTotal, canAdvance, dayToEndIso, dayToStartIso, draftErrors,
-  isoToDay, problemsByStep, removeInterest, removeLocation, spDay, stepOfError, thumbnailOf, toggleAd, withDefaults,
+  addDays, addInterest, addLocation, adModeFor, adPreview, budgetTotal, canAdvance, dayToEndIso, dayToStartIso, draftErrors,
+  feedUsername, isoToDay, postPreview, problemsByStep, removeInterest, removeLocation, spDay, stepOfError, thumbnailOf, toggleAd, withDefaults,
   type EligiblePost, type WizardState,
 } from '../src/lib/traffic-wizard';
 
 const NOW = new Date('2026-11-16T15:00:00Z'); // 12h em São Paulo
 const post = (o: Partial<EligiblePost> = {}): EligiblePost => ({
   id: 'p1', title: 'Peça', platform: 'instagram', format: 'image', status: 'approved',
-  rendered_slides: { slide2: 'https://x/2.png', slide1: 'https://x/1.png' }, published_url: null, published_at: null, ig_media_id: null, ...o,
+  rendered_slides: { slide2: 'https://x/2.png', slide1: 'https://x/1.png' }, caption: null, published_url: null, published_at: null, ig_media_id: null, ...o,
 });
 const state = (o: Partial<WizardState> = {}): WizardState => ({
   id: '11111111-1111-1111-1111-111111111111', name: 'Lançamento', objective: 'OUTCOME_ENGAGEMENT', step: 1,
@@ -106,5 +106,44 @@ test.describe('unit · traffic-wizard', () => {
   test('post do Instagram em Engajamento não pede texto nem link', () => {
     const ig = post({ ig_media_id: '178', rendered_slides: null, status: 'published' });
     expect(draftErrors(state({ ads: toggleAd([], ig) }), [ig], NOW)).toEqual([]);
+  });
+
+
+  test('postPreview: slides em ordem, legenda do post e sem botão', () => {
+    expect(postPreview({ rendered_slides: { slide2: 'b', slide1: 'a' }, caption: 'Oi' })).toEqual({
+      slides: ['a', 'b'], caption: 'Oi', cta: null,
+    });
+  });
+
+  test('adPreview: impulsionar usa a legenda do post e só tem botão em Tráfego', () => {
+    const ad = { mode: 'ig_post' as const, primary_text: 'X', cta: 'LEARN_MORE' as const };
+    const piece = { rendered_slides: null, caption: 'Legenda' };
+    expect(adPreview(ad, piece, 'OUTCOME_ENGAGEMENT')).toEqual({ slides: [], caption: 'Legenda', cta: null });
+    expect(adPreview(ad, piece, 'OUTCOME_TRAFFIC')).toEqual({ slides: [], caption: 'Legenda', cta: 'Saiba mais' });
+  });
+
+  test('adPreview: criativo novo usa o texto principal e sempre tem botão', () => {
+    const ad = { mode: 'new_creative' as const, primary_text: 'Texto', cta: 'SIGN_UP' as const };
+    const piece = { rendered_slides: { slide1: 'a' }, caption: 'Legenda' };
+    expect(adPreview(ad, piece, 'OUTCOME_ENGAGEMENT')).toEqual({ slides: ['a'], caption: 'Texto', cta: 'Cadastre-se' });
+    expect(adPreview(ad, piece, null)).toEqual({ slides: ['a'], caption: 'Texto', cta: 'Cadastre-se' });
+  });
+
+  test('adPreview: legenda nula vira texto vazio', () => {
+    expect(adPreview(
+      { mode: 'ig_post', primary_text: 'Outro texto', cta: 'LEARN_MORE' },
+      { rendered_slides: null, caption: null },
+      'OUTCOME_ENGAGEMENT',
+    )).toEqual({ slides: [], caption: '', cta: null });
+    expect(postPreview({ rendered_slides: null, caption: null })).toEqual({ slides: [], caption: '', cta: null });
+  });
+
+  test('feedUsername: tira @ e espaços; vazio vira sua_conta', () => {
+    expect(feedUsername(' @marcos ')).toBe('marcos');
+    expect(feedUsername('@_marcospiccini1')).toBe('_marcospiccini1');
+    expect(feedUsername('')).toBe('sua_conta');
+    expect(feedUsername(' @ ')).toBe('sua_conta');
+    expect(feedUsername(null)).toBe('sua_conta');
+    expect(feedUsername(undefined)).toBe('sua_conta');
   });
 });

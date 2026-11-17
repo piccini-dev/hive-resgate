@@ -189,3 +189,51 @@ export function creativePayload(c: CampaignRow, a: AdRow, p: PostRow, ids: Accou
 export function adPayload(c: CampaignRow, n: number, fbAdsetId: string, fbCreativeId: string): Record<string, unknown> {
   return { name: `${c.name.trim()} · peça ${n}`, adset_id: fbAdsetId, creative: { creative_id: fbCreativeId }, status: 'PAUSED' };
 }
+
+// ── Estimativa de público (delivery_estimate da Meta).
+export interface AudienceEstimate { lower: number; upper: number }
+export type AudienceLevel = 'especifico' | 'definido' | 'amplo';
+
+export function estimateParams(objective: unknown, draft: unknown): Record<string, string> | null {
+  if (!draft || typeof draft !== 'object' || Array.isArray(draft)) return null;
+  const raw = draft as Record<string, unknown>;
+  if (!raw.targeting || typeof raw.targeting !== 'object' || Array.isArray(raw.targeting) ||
+      !raw.placements || typeof raw.placements !== 'object' || Array.isArray(raw.placements)) return null;
+  const t = raw.targeting as Record<string, unknown>;
+  if (!Array.isArray(t.countries) || !Array.isArray(t.regions) ||
+      !Array.isArray(t.cities) || !Array.isArray(t.interests)) return null;
+  if (t.countries.length === 0 && t.regions.length === 0 && t.cities.length === 0) return null;
+
+  const obj: Objective = typeof objective === 'string' && OBJECTIVES.includes(objective as Objective)
+    ? objective as Objective : 'OUTCOME_ENGAGEMENT';
+  const d = draft as CampaignDraft;
+  return {
+    optimization_goal: optimizationGoal(obj, d.optimization_goal),
+    targeting_spec: JSON.stringify(buildTargeting(d)),
+  };
+}
+
+export function parseEstimate(json: unknown): AudienceEstimate | null {
+  if (!json || typeof json !== 'object') return null;
+  const data = (json as { data?: unknown }).data;
+  if (!Array.isArray(data)) return null;
+  const e = data[0] as Record<string, unknown> | null | undefined;
+  if (!e || typeof e !== 'object' || e.estimate_ready === false) return null;
+
+  const lower = Number(e.estimate_mau_lower_bound ?? e.estimate_mau);
+  const upper = Number(e.estimate_mau_upper_bound ?? e.estimate_mau);
+  if (!Number.isFinite(lower) || !Number.isFinite(upper) || lower < 0 || upper < 0) return null;
+  return lower > upper ? { lower: upper, upper: lower } : { lower, upper };
+}
+
+export function formatAudience(e: AudienceEstimate): string {
+  if (e.upper < 1000) return 'Menos de 1.000 pessoas';
+  if (e.lower === e.upper) return `Cerca de ${e.lower.toLocaleString('pt-BR')} pessoas`;
+  return `${e.lower.toLocaleString('pt-BR')} a ${e.upper.toLocaleString('pt-BR')} pessoas`;
+}
+
+export function audienceGauge(upper: number): { level: AudienceLevel; position: number } {
+  const level: AudienceLevel = upper < 100_000 ? 'especifico' : upper <= 5_000_000 ? 'definido' : 'amplo';
+  const position = Math.min(1, Math.max(0, (Math.log10(Math.max(upper, 1)) - 3) / 5));
+  return { level, position };
+}

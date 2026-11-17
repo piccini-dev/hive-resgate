@@ -174,7 +174,7 @@ Peça do usuário com `status in ('approved','scheduled','published')` **e** com
 | `assets` | — | `GET /me/adaccounts`, `GET /me/accounts` (Páginas) e o `instagram_business_account` de cada Página |
 | `search_locations` | `q` | `GET /search?type=adgeolocation` |
 | `search_interests` | `q` | `GET /search?type=adinterest` |
-| `estimate` | `campaign_id` | estimativa de alcance do conjunto (bloco 14, na tela de Revisão; campos conferidos no Context7 antes) |
+| `estimate` | `objective`, `draft` (rascunho atual, sem salvar) | `GET /act_<id>/delivery_estimate` (`optimization_goal`, `targeting_spec`) → `{ lower, upper }` de pessoas por mês, ou `null` sem local ou sem número da Meta. Só leitura (`ads_read`). Bloco 14, no passo Público; conferido no Context7 em 17/11 |
 | `create` | `campaign_id` | valida o rascunho (`traffic-spec`), confere peças elegíveis e teto; cria campanha (`special_ad_categories=[]`, `PAUSED`) → conjunto → criativos → anúncios, todos `PAUSED`; grava os ids. Se falhar no meio, apaga o que criou e marca `failed` |
 | `set_status` | `campaign_id`, `ACTIVE`/`PAUSED`/`ARCHIVED` | `POST /{fb_campaign_id}` `status=…` (ACTIVE passa pela guarda) |
 
@@ -215,13 +215,14 @@ Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
 |---|---|---|---|---|---|
 | 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
-| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; E2E `f32` das recusas; auditoria de segurança (a prova real foi para o 16) | 11 | 8 |
+| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; E2E `f32` das recusas; auditoria de segurança (a prova real foi para o 17) | 11 | 8 |
 | 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 9 |
-| 14 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 13 | 6 |
-| 15 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 14 | 6 |
-| 16 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 15 | 3 |
+| 14 | Ajustes da call | Os pedidos do Marcos na call de 16/11 | Passo Público com o tamanho estimado do público (`estimate` na `traffic-meta`, `delivery_estimate` da Meta, só leitura); etapas do wizard abertas e clicáveis; prévia do feed do Instagram no passo Conteúdo e o anúncio completo nos passos Anúncio e Revisão (view `traffic_eligible_posts` com `caption`); E2E `f33` atualizado | 13 | 9 |
+| 15 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 14 | 6 |
+| 16 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 15 | 6 |
+| 17 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 16 | 3 |
 
-Ordem: 11 → 12 → 13 → 14 → 15 → 16, em sequência (13 e 14 mexem nos mesmos arquivos do wizard). Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão completa no GitHub (`regressao.yml`, disparada pelo orquestrador antes do merge) e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
+Ordem: 11 → 12 → 13 → 14 → 15 → 16 → 17, em sequência (13, 14 e 15 mexem nos mesmos arquivos do wizard). Mudança de 17/11: os pedidos da call com o Marcos viraram o bloco 14; a IA foi para o 15, Campanhas para o 16 e a conexão real para o 17. Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão completa no GitHub (`regressao.yml`, disparada pelo orquestrador antes do merge) e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
 
 ### Issues planejadas por bloco
 
@@ -245,9 +246,20 @@ Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `
 - #82 `NovaCampanha.tsx`: lista de rascunhos e o wizard (salva a cada passo, retoma pelo `?aba=nova&id=`).
 - #83 `exec:claude` E2E `f33-trafego-wizard` com `mockEdge`, Impeccable critique e polish, 375 px.
 
-**14–15** — detalhados no `/integrar` do bloco anterior.
+**14 · Ajustes da call** (#86–#94, branch `bloco/14-ajustes-call`; migration `20261117000001_traffic_eligible_caption` já aplicada)
+- #86 `traffic-spec`: `estimateParams`, `parseEstimate`, `formatAudience`, `audienceGauge` + unitários.
+- #87 `traffic-wizard`/`traffic`: legenda das peças, @ do Instagram, `postPreview`/`adPreview`/`feedUsername` + unitários.
+- #88 `src/components/traffic/InstagramPreview.tsx`.
+- #89 `traffic-meta` ação `estimate` + `edge.trafficEstimate`.
+- #90 Cartão "Tamanho estimado do público" no passo Público.
+- #91 `WizardSteps` (etapas clicáveis) + `progress` no `WizardShell` + `account` na `NovaCampanha`.
+- #92 Passo Conteúdo como feed de prévias.
+- #93 Prévia do anúncio nos passos Anúncio e Revisão.
+- #94 `exec:claude` deploy da `traffic-meta`, estimativa real (leitura), `f33`, Impeccable, 375 px.
 
-**16 · Conexão real e testes finais** (todas `exec:claude`)
+**15–16** — detalhados no `/integrar` do bloco anterior.
+
+**17 · Conexão real e testes finais** (todas `exec:claude`)
 - Reconexão do Facebook pelo Marcos e conferência de `meta_connections.scopes`; primeira chamada real de `assets` (grava `page_id`) e das buscas.
 - Prova real pela `traffic-meta` (o P3 que saiu da #73): Engajamento, 1 post publicado (`ig_post`), R$ 6/dia, 1 dia → conferir pausada no Gerenciador → `set_status ARCHIVED`. Nunca `ACTIVE`.
 - Regressão completa na máquina + nota para o Marcos.

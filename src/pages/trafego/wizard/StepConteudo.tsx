@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Check, ImageIcon } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InstagramPreview } from '@/components/traffic/InstagramPreview';
 import {
-  MAX_ADS, STATUS_LABELS, adModeFor, thumbnailOf, toggleAd,
+  MAX_ADS, STATUS_LABELS, adModeFor, feedUsername, postPreview, toggleAd,
   type StepProps, type EligiblePost,
 } from '@/lib/traffic-wizard';
 
-export function StepConteudo({ state, posts, onChange }: StepProps) {
+export function StepConteudo({ state, posts, account, onChange }: StepProps) {
   const [q, setQ] = useState('');
   const [rede, setRede] = useState<'todas' | 'instagram' | 'linkedin'>('todas');
   const filtrados: EligiblePost[] = posts.filter((p) =>
@@ -55,56 +55,45 @@ export function StepConteudo({ state, posts, onChange }: StepProps) {
           Nenhuma peça com esse filtro.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 justify-items-center gap-6 lg:grid-cols-2">
           {filtrados.map((p) => {
             const indice = state.ads.findIndex((ad) => ad.post_id === p.id);
             const selecionada = indice !== -1;
             const desabilitada = !selecionada && state.ads.length >= MAX_ADS;
-            const miniatura = thumbnailOf(p);
 
             return (
-              <button
+              <div
                 key={p.id}
-                type="button"
-                data-testid={`traffic-post-${p.id}`}
-                aria-pressed={selecionada}
-                disabled={desabilitada}
-                onClick={() => onChange({ ...state, ads: toggleAd(state.ads, p) })}
-                className={`flex w-full min-w-0 gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  selecionada
-                    ? 'border-accent bg-accent/15 ring-2 ring-accent'
-                    : 'border-border bg-card hover:border-accent/50'
-                } ${desabilitada ? 'opacity-50' : ''}`}
+                data-testid={`traffic-post-card-${p.id}`}
+                className={`w-full max-w-[420px] space-y-2 rounded-2xl p-1 ${selecionada ? 'ring-2 ring-accent' : ''} ${desabilitada ? 'opacity-50' : ''}`}
               >
-                {miniatura ? (
-                  <img
-                    src={miniatura}
-                    alt={p.title ?? 'Peça sem título'}
-                    className="h-20 w-20 shrink-0 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-secondary" aria-hidden="true">
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                <p className="px-1 text-sm font-medium line-clamp-2 break-words">
+                  {p.title ?? 'Peça sem título'}
+                </p>
+                <InstagramPreview username={feedUsername(account)} {...postPreview(p)} alt={p.title ?? 'Peça sem título'} href={p.published_url} />
+                <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                  <div className="min-w-0 text-xs text-muted-foreground">
+                    <p>
+                      {STATUS_LABELS[p.status]} · {p.platform === 'instagram' ? 'Instagram' : p.platform === 'linkedin' ? 'LinkedIn' : p.platform}
+                    </p>
+                    <p className="mt-1">
+                      {adModeFor(p) === 'ig_post' ? 'Impulsiona o post publicado' : 'Vira anúncio com a arte da peça'}
+                    </p>
                   </div>
-                )}
-                <span className="min-w-0 flex-1 break-words">
-                  <span className="block font-medium line-clamp-2">
-                    {p.title ?? 'Peça sem título'}
-                  </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {STATUS_LABELS[p.status]} · {p.platform === 'instagram' ? 'Instagram' : p.platform === 'linkedin' ? 'LinkedIn' : p.platform}
-                  </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {adModeFor(p) === 'ig_post' ? 'Impulsiona o post publicado' : 'Vira anúncio com a arte da peça'}
-                  </span>
-                </span>
-                {selecionada && (
-                  <Badge variant="accent" className="shrink-0 self-start gap-1">
-                    <Check className="h-3 w-3" aria-hidden="true" />
-                    {indice + 1}
-                  </Badge>
-                )}
-              </button>
+                  <Button
+                    type="button"
+                    variant={selecionada ? 'accent' : 'outline'}
+                    className="min-h-11 sm:min-h-0"
+                    data-testid={`traffic-post-${p.id}`}
+                    aria-pressed={selecionada}
+                    aria-label={`Anunciar “${p.title ?? 'Peça sem título'}”`}
+                    disabled={desabilitada}
+                    onClick={() => onChange({ ...state, ads: toggleAd(state.ads, p) })}
+                  >
+                    {selecionada ? <><Check className="h-4 w-4" aria-hidden="true" /> Peça {indice + 1} · Tirar</> : 'Anunciar esta'}
+                  </Button>
+                </div>
+              </div>
             );
           })}
         </div>

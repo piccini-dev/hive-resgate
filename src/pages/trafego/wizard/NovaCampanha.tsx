@@ -5,12 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LoadError, Loading } from '@/components/shared/LoadState';
 import { WizardShell } from '@/components/campaign/WizardShell';
+import { WizardSteps } from '@/components/traffic/WizardSteps';
 import {
-  createDraftCampaign, deleteDraftCampaign, listDraftCampaigns, listEligiblePosts, loadWizardCampaign,
+  createDraftCampaign, deleteDraftCampaign, getAdvertiserUsername, listDraftCampaigns, listEligiblePosts, loadWizardCampaign,
   saveWizard, toWizardState, type TrafficCampaignRow,
 } from '@/lib/traffic';
 import {
-  TOTAL_STEPS, WIZARD_STEPS, canAdvance, draftErrors, problemsByStep,
+  WIZARD_STEPS, canAdvance, draftErrors, problemsByStep,
   type EligiblePost, type WizardState,
 } from '@/lib/traffic-wizard';
 import { StepConteudo } from './StepConteudo';
@@ -137,6 +138,7 @@ function Wizard({ id }: { id: string }) {
   const [error, setError] = useState(false);
   const [campaign, setCampaign] = useState<TrafficCampaignRow | null>(null);
   const [posts, setPosts] = useState<EligiblePost[]>([]);
+  const [account, setAccount] = useState<string | undefined>(undefined);
   const [state, setState] = useState<WizardState | null>(null);
   const [saving, setSaving] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -168,10 +170,11 @@ function Wizard({ id }: { id: string }) {
     setLoading(true);
     setError(false);
     try {
-      const [loaded, eligible] = await Promise.all([loadWizardCampaign(id), listEligiblePosts()]);
+      const [loaded, eligible, username] = await Promise.all([loadWizardCampaign(id), listEligiblePosts(), getAdvertiserUsername().catch(() => null)]);
       if (seq !== loadSeq.current) return;
       setCampaign(loaded?.campaign ?? null);
       setPosts(eligible);
+      setAccount(username ?? undefined);
       setState(loaded ? toWizardState(loaded.campaign, loaded.ads) : null);
     } catch {
       if (seq === loadSeq.current) setError(true);
@@ -212,8 +215,7 @@ function Wizard({ id }: { id: string }) {
   return (
     <div ref={shellRef}>
     <WizardShell
-      step={state.step}
-      total={TOTAL_STEPS}
+      progress={<WizardSteps current={state.step} problems={problemsByStep(errors)} disabled={saving} onGoTo={(n) => void go(n)} />}
       title={WIZARD_STEPS[state.step - 1].title}
       subtitle={WIZARD_STEPS[state.step - 1].subtitle}
       onBack={state.step > 1 ? () => void go(state.step - 1) : () => setParams({ aba: 'nova' })}
@@ -233,7 +235,7 @@ function Wizard({ id }: { id: string }) {
           A Meta recusou da última vez: {campaign.error ?? 'erro desconhecido'}. Ajuste e crie de novo.
         </div>
       )}
-      <Step state={state} posts={posts} problems={problems} onChange={setState} onGoTo={(n) => void go(n)} onCreated={() => setParams({})} />
+      <Step state={state} posts={posts} account={account} problems={problems} onChange={setState} onGoTo={(n) => void go(n)} onCreated={() => setParams({})} />
       {state.step < 7 && problems.length > 0 && (
         <div data-testid="traffic-step-problems" className="text-sm text-muted-foreground">
           <p className="font-medium">Para continuar:</p>

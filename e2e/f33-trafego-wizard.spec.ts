@@ -3,7 +3,7 @@ import { cleanupE2EData, seed, sql } from './helpers/admin';
 import { e2eUser } from './helpers/env';
 import { mockEdge } from './helpers/mocks';
 
-// F33 — Wizard de Nova campanha do Tráfego (bloco 13). A traffic-meta é sempre
+// F33 — Wizard de Nova campanha do Tráfego (blocos 13 e 14). A traffic-meta é sempre
 // interceptada (mockEdge ou rota própria): a Meta nunca é chamada.
 const ART = { slide1: '/bee-spiral.png' };
 
@@ -14,9 +14,9 @@ async function seedConnection() {
 }
 
 const seedPost = (title: string, o: Record<string, unknown> = {}) =>
-  seed('user_posts', { platform: 'linkedin', format: 'image', status: 'approved', title, rendered_slides: ART, ...o });
+  seed('user_posts', { platform: 'linkedin', format: 'image', status: 'approved', title, rendered_slides: ART, caption: `Legenda de ${title}`, ...o });
 const seedIgPost = (title: string) =>
-  seed('user_posts', { platform: 'instagram', format: 'image', status: 'published', title, metadata: { ig_media_id: '178f33' } });
+  seed('user_posts', { platform: 'instagram', format: 'image', status: 'published', title, caption: `Legenda de ${title}`, metadata: { ig_media_id: '178f33' } });
 
 function spDay(offset = 0) {
   const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -30,12 +30,12 @@ function draft(targeting: Record<string, unknown> = {}) {
     placements: { mode: 'auto', facebook: [], instagram: [] },
   };
 }
-// Rascunho de Engajamento impulsionando um post do Instagram, parado no passo `step`.
-async function seedDraft(o: { name?: string; step?: number; targeting?: Record<string, unknown>; postId?: string } = {}) {
+// Rascunho de Engajamento com uma peça (post do Instagram por padrão), parado no passo `step`.
+async function seedDraft(o: { name?: string; step?: number; targeting?: Record<string, unknown>; postId?: string; mode?: string } = {}) {
   const id = await seed('traffic_campaigns', {
     name: o.name ?? 'Campanha F33', objective: 'OUTCOME_ENGAGEMENT', status: 'draft', step: o.step ?? 7, draft: draft(o.targeting),
   });
-  if (o.postId) await seed('traffic_ads', { campaign_id: id, post_id: o.postId, mode: 'ig_post' });
+  if (o.postId) await seed('traffic_ads', { campaign_id: id, post_id: o.postId, mode: o.mode ?? 'ig_post' });
   return id;
 }
 
@@ -43,6 +43,7 @@ async function mockTraffic(page: Page, calls: Array<Record<string, unknown>>) {
   await mockEdge(page, 'traffic-meta', (b) => {
     if (b.action === 'search_locations') return { success: true, items: [{ key: '2430536', name: 'Campinas', type: 'city', region: 'São Paulo', country_code: 'BR' }] };
     if (b.action === 'search_interests') return { success: true, items: [{ id: '6003', name: 'Liderança' }] };
+    if (b.action === 'estimate') return { success: true, estimate: { lower: 1200000, upper: 1400000 } };
     if (b.action === 'create') return { success: true, status: 'paused', fb_campaign_id: 'fb-f33', fb_adset_id: 'fb-f33-set' };
     return { success: false };
   }, calls);
@@ -75,7 +76,7 @@ test.describe('F33 · Tráfego · wizard de Nova campanha', () => {
     await expect(heading(page, 'Conteúdo')).toBeVisible();
     for (const p of [aprovada, agendada, publicada]) await expect(page.getByTestId(`traffic-post-${p}`)).toBeVisible();
     for (const p of [pendente, semArte]) await expect(page.getByTestId(`traffic-post-${p}`)).toHaveCount(0);
-    await expect(page.getByTestId(`traffic-post-${aprovada}`).getByRole('img')).toHaveAttribute('alt', 'F33 Aprovada');
+    await expect(page.getByTestId(`traffic-post-card-${aprovada}`).getByRole('img')).toHaveAttribute('alt', 'F33 Aprovada');
 
     await page.getByTestId('traffic-filter-instagram').click();
     await expect(page.getByTestId(`traffic-post-${publicada}`)).toBeVisible();
@@ -145,6 +146,7 @@ test.describe('F33 · Tráfego · wizard de Nova campanha', () => {
   });
 
   test('rascunho retomável: recarregar no passo 4 volta no passo 4 com o que foi preenchido', async ({ page }) => {
+    await mockTraffic(page, []); // o passo Público pede a estimativa
     const arte = await seedPost('F33 Arte');
     const ig = await seedIgPost('F33 Instagram');
     const id = await startWizard(page);
@@ -169,6 +171,61 @@ test.describe('F33 · Tráfego · wizard de Nova campanha', () => {
     expect(ads.map((a) => a.post_id)).toEqual([ig, arte]);
     const [c] = await sql<{ name: string; step: number }>(`select name, step from traffic_campaigns where id = '${id}'`);
     expect(c).toEqual({ name: 'Retomar F33', step: 3 });
+  });
+
+  test('etapas clicáveis: do passo 4 volta ao 2 pela barra e o rascunho fica salvo', async ({ page }) => {
+    await mockTraffic(page, []);
+    const ig = await seedIgPost('F33 Instagram');
+    const id = await seedDraft({ step: 4, postId: ig });
+
+    await page.goto(`/trafego?aba=nova&id=${id}`);
+    await expect(heading(page, 'Público')).toBeVisible();
+    await expect(page.getByTestId('traffic-step-4')).toHaveAttribute('aria-current', 'step');
+    await page.getByTestId('traffic-loc-search').fill('Camp');
+    await page.getByTestId('traffic-loc-2430536').click();
+    await page.getByTestId('traffic-step-2').click();
+
+    await expect(heading(page, 'Campanha')).toBeVisible();
+    await expect(page.getByTestId('traffic-step-2')).toHaveAttribute('aria-current', 'step');
+    const [c] = await sql<{ step: number; draft: { targeting: { cities: Array<{ key: string }> } } }>(
+      `select step, draft from traffic_campaigns where id = '${id}'`);
+    expect(c.step).toBe(2);
+    expect(c.draft.targeting.cities.map((x) => x.key)).toEqual(['2430536']);
+  });
+
+  test('tamanho do público: vazio sem local; com Campinas mostra a faixa da Meta', async ({ page }) => {
+    const calls: Array<Record<string, unknown>> = [];
+    await mockTraffic(page, calls);
+    const ig = await seedIgPost('F33 Instagram');
+    const id = await seedDraft({ step: 4, postId: ig, targeting: { countries: [] } });
+
+    await page.goto(`/trafego?aba=nova&id=${id}`);
+    await expect(heading(page, 'Público')).toBeVisible();
+    await expect(page.getByTestId('traffic-estimate-empty')).toBeVisible();
+
+    await page.getByTestId('traffic-loc-search').fill('Camp');
+    await page.getByTestId('traffic-loc-2430536').click();
+    await expect(page.getByTestId('traffic-estimate-size')).toHaveText('1.200.000 a 1.400.000 pessoas');
+    await expect(page.getByTestId('traffic-estimate-empty')).toHaveCount(0);
+    const est = calls.filter((c) => c.action === 'estimate');
+    expect(est.length).toBeGreaterThan(0);
+    expect(est.at(-1)).toMatchObject({ objective: 'OUTCOME_ENGAGEMENT', draft: { targeting: { cities: [{ key: '2430536' }] } } });
+  });
+
+  test('prévia do feed: legenda no Conteúdo e texto digitado no Anúncio', async ({ page }) => {
+    await mockTraffic(page, []);
+    const arte = await seedPost('F33 Arte');
+    const conteudo = await seedDraft({ step: 1 });
+
+    await page.goto(`/trafego?aba=nova&id=${conteudo}`);
+    await expect(heading(page, 'Conteúdo')).toBeVisible();
+    await expect(page.getByTestId(`traffic-post-card-${arte}`).getByTestId('ig-caption')).toContainText('Legenda de F33 Arte');
+
+    const anuncio = await seedDraft({ step: 6, postId: arte, mode: 'new_creative' });
+    await page.goto(`/trafego?aba=nova&id=${anuncio}`);
+    await expect(heading(page, 'Anúncio')).toBeVisible();
+    await page.getByTestId('traffic-ad-1-text').fill('Conheça a mentoria de liderança.');
+    await expect(page.getByTestId('traffic-ad-preview-1').getByTestId('ig-caption')).toContainText('Conheça a mentoria de liderança.');
   });
 
   test('Continuar trava no que falta e Resolver leva ao passo certo', async ({ page }) => {
