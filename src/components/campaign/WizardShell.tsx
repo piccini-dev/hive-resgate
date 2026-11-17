@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 
 // Moldura das telas de fluxo (criação de campanha, produção): passo discreto no
 // topo, título grande e calmo, conteúdo, ações. Uma decisão por tela.
-export function WizardShell({ step, total, eyebrow, title, subtitle, onBack, children, footer }: {
-  step?: number; total?: number; eyebrow?: string; title: ReactNode; subtitle?: ReactNode;
+export function WizardShell({ step, total, progress, eyebrow, title, subtitle, onBack, children, footer }: {
+  step?: number; total?: number; progress?: ReactNode; eyebrow?: string; title: ReactNode; subtitle?: ReactNode;
   onBack?: () => void; children?: ReactNode; footer?: ReactNode;
 }) {
   return (
@@ -22,6 +22,7 @@ export function WizardShell({ step, total, eyebrow, title, subtitle, onBack, chi
           </div>
         ) : null}
       </div>
+      {progress && <div className="mb-8">{progress}</div>}
       {eyebrow && <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-accent">{eyebrow}</p>}
       <h1 tabIndex={-1} className="font-display text-2xl font-bold leading-tight outline-none sm:text-3xl">{title}</h1>
       {subtitle && <div className="mt-2 text-base text-muted-foreground">{subtitle}</div>}
