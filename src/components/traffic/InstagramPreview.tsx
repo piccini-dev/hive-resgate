@@ -1,27 +1,38 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
   Heart,
+  ExternalLink,
   ImageIcon,
   MessageCircle,
   MoreHorizontal,
   Send,
 } from 'lucide-react';
 
-export function InstagramPreview({ username, slides, caption, cta, sponsored, alt, testId }: {
+export function InstagramPreview({ username, slides, caption, cta, sponsored, alt, href, testId }: {
   username: string;
   slides: string[];
   caption: string;
   cta?: string | null;
   sponsored?: boolean;
   alt: string;
+  href?: string | null; // link do post publicado, mostrado quando a arte só existe no Instagram
   testId?: string;
 }) {
   const [index, setIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const i = Math.min(index, slides.length - 1);
+  const prevRef = useRef<HTMLButtonElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const captionRef = useRef<HTMLParagraphElement>(null);
+  // A seta da ponta some ao chegar no fim: o foco passa para a outra, em vez de cair no body.
+  const goTo = (to: number) => {
+    setIndex(to);
+    if (to === 0) requestAnimationFrame(() => nextRef.current?.focus());
+    else if (to === slides.length - 1) requestAnimationFrame(() => prevRef.current?.focus());
+  };
   const hasLongCaption = caption.length > 125 || caption.includes('\n');
 
   return (
@@ -45,9 +56,21 @@ export function InstagramPreview({ username, slides, caption, cta, sponsored, al
             className="block h-auto w-full"
           />
         ) : (
-          <div className="flex aspect-square flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+          <div className="flex aspect-square flex-col items-center justify-center gap-2 px-6 text-center text-sm text-foreground">
             <ImageIcon aria-hidden="true" className="h-8 w-8" />
-            Arte no Instagram
+            <p>A arte deste post está no Instagram e vai como está.</p>
+            {href && (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}
+                className="inline-flex min-h-11 items-center gap-1 font-semibold underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Ver o post no Instagram
+                <ExternalLink aria-hidden="true" className="h-4 w-4" />
+              </a>
+            )}
           </div>
         )}
 
@@ -56,12 +79,13 @@ export function InstagramPreview({ username, slides, caption, cta, sponsored, al
             {i > 0 && (
               <button
                 type="button"
+                ref={prevRef}
                 data-testid="ig-prev"
                 aria-label="Imagem anterior"
                 className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setIndex(i - 1);
+                  goTo(i - 1);
                 }}
               >
                 <ChevronLeft aria-hidden="true" className="h-5 w-5" />
@@ -70,18 +94,19 @@ export function InstagramPreview({ username, slides, caption, cta, sponsored, al
             {i < slides.length - 1 && (
               <button
                 type="button"
+                ref={nextRef}
                 data-testid="ig-next"
                 aria-label="Próxima imagem"
                 className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-background/80 shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setIndex(i + 1);
+                  goTo(i + 1);
                 }}
               >
                 <ChevronRight aria-hidden="true" className="h-5 w-5" />
               </button>
             )}
-            <span className="absolute right-2 top-2 rounded-full bg-foreground/70 px-2 py-0.5 text-xs text-background">
+            <span className="absolute right-2 top-2 rounded-full bg-foreground/85 px-2 py-0.5 text-xs text-background">
               {i + 1}/{slides.length}
             </span>
           </>
@@ -114,7 +139,7 @@ export function InstagramPreview({ username, slides, caption, cta, sponsored, al
 
       {caption.trim() && (
         <div className="px-3 pb-3 pt-2 text-sm">
-          <p data-testid="ig-caption" className={`whitespace-pre-line break-words ${expanded ? '' : 'line-clamp-2'}`}>
+          <p ref={captionRef} tabIndex={-1} data-testid="ig-caption" className={`outline-none whitespace-pre-line break-words ${expanded ? '' : 'line-clamp-2'}`}>
             <span className="font-semibold">{username}</span>{' '}{caption}
           </p>
           {hasLongCaption && !expanded && (
@@ -126,6 +151,7 @@ export function InstagramPreview({ username, slides, caption, cta, sponsored, al
               onClick={(event) => {
                 event.stopPropagation();
                 setExpanded(true);
+                requestAnimationFrame(() => captionRef.current?.focus()); // o "mais" some; o foco fica no texto
               }}
             >
               mais

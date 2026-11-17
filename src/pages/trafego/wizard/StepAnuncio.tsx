@@ -65,7 +65,7 @@ export function StepAnuncio({ state, posts, account, onChange, onGoTo }: StepPro
                           value={a.headline}
                           onChange={(event) => set(i, { headline: event.target.value })}
                         />
-                        <p className="text-xs text-muted-foreground">Opcional. Aparece abaixo da arte.</p>
+                        <p className="text-xs text-muted-foreground">Opcional. Aparece no Facebook, abaixo da arte; no feed do Instagram geralmente não aparece.</p>
                       </div>
                     </>
                   )}
@@ -109,6 +109,7 @@ export function StepAnuncio({ state, posts, account, onChange, onGoTo }: StepPro
                       {...adPreview(a, post, state.objective)}
                       sponsored
                       alt={post.title ?? 'Peça sem título'}
+                      href={post.published_url}
                       testId={`traffic-ad-preview-${n}`}
                     />
                   </div>

@@ -70,7 +70,7 @@ export function StepConteudo({ state, posts, account, onChange }: StepProps) {
                 <p className="px-1 text-sm font-medium line-clamp-2 break-words">
                   {p.title ?? 'Peça sem título'}
                 </p>
-                <InstagramPreview username={feedUsername(account)} {...postPreview(p)} alt={p.title ?? 'Peça sem título'} />
+                <InstagramPreview username={feedUsername(account)} {...postPreview(p)} alt={p.title ?? 'Peça sem título'} href={p.published_url} />
                 <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                   <div className="min-w-0 text-xs text-muted-foreground">
                     <p>
@@ -82,14 +82,15 @@ export function StepConteudo({ state, posts, account, onChange }: StepProps) {
                   </div>
                   <Button
                     type="button"
-                    size="sm"
                     variant={selecionada ? 'accent' : 'outline'}
+                    className="min-h-11 sm:min-h-0"
                     data-testid={`traffic-post-${p.id}`}
                     aria-pressed={selecionada}
+                    aria-label={`Anunciar “${p.title ?? 'Peça sem título'}”`}
                     disabled={desabilitada}
                     onClick={() => onChange({ ...state, ads: toggleAd(state.ads, p) })}
                   >
-                    {selecionada ? <><Check className="h-4 w-4" aria-hidden="true" /> Peça {indice + 1}</> : 'Anunciar esta'}
+                    {selecionada ? <><Check className="h-4 w-4" aria-hidden="true" /> Peça {indice + 1} · Tirar</> : 'Anunciar esta'}
                   </Button>
                 </div>
               </div>

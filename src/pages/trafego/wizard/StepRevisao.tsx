@@ -142,12 +142,13 @@ export function StepRevisao({ state, posts, account, onGoTo, onCreated }: StepPr
                     {...adPreview(ad, post, state.objective)}
                     sponsored
                     alt={post.title ?? 'Peça sem título'}
+                    href={post.published_url}
                     testId={`traffic-review-preview-${n}`}
                   />
                 )}
                 {(ad.mode === 'new_creative' || state.objective === 'OUTCOME_TRAFFIC') && (
                   <dl className="space-y-2">
-                    <Row label="Link">{ad.link_url || 'Sem link'}</Row>
+                    <Row label="Link"><span className="break-all">{ad.link_url || 'Sem link'}</span></Row>
                   </dl>
                 )}
               </div>
