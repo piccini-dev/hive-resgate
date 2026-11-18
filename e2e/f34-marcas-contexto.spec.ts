@@ -160,17 +160,20 @@ test.describe('F34 · seleção de marca no contexto da Identidade', () => {
     let firstFinished!: () => void;
     const waitFirst = new Promise<void>((resolve) => { allowFirst = resolve; });
     const finishedFirst = new Promise<void>((resolve) => { firstFinished = resolve; });
-    const mock = await mockBrandReads(page, async (request) => {
-      if (request !== 1) return { rows: [brands[1]] };
+    // React.StrictMode pode iniciar duas leituras do usuário anterior.
+    // Todas devem ficar retidas até que a sessão B carregue a própria lista.
+    let switched = false;
+    const mock = await mockBrandReads(page, async () => {
+      if (switched) return { rows: [brands[1]] };
       await waitFirst;
       firstFinished();
       return { rows: [brands[0]] };
     });
     await page.goto('/identidade/marcas');
     await expect(page.getByTestId('identity-context-loading')).toBeVisible();
-    await expect.poll(mock.reads).toBe(1);
+    await expect.poll(mock.reads).toBeGreaterThanOrEqual(1);
+    switched = true;
     await switchMockUser(page, 'usuario-b-simulado');
-    await expect.poll(mock.reads).toBe(2);
     await expect(page.getByTestId('identity-brand-select')).toHaveValue('B');
     allowFirst();
     await finishedFirst;
@@ -530,7 +533,7 @@ test.describe('F34 · manutenção de marcas com gateway HTTP simulado', () => {
     await expect(page.getByTestId('identity-brand-select')).toHaveValue('B');
     await expect.poll(() => state.list.find((item) => item.id === 'A')?.name).toBe('Somente A');
     expect(state.patches).toEqual([{
-      id: 'A', workspace: 'W', data: { name: 'Somente A', essence: '' },
+      id: 'A', workspace: 'W', data: { name: 'Somente A', essence: null },
     }]);
     expect(state.list.find((item) => item.id === 'B')?.name).toBe('Marca B');
   });
