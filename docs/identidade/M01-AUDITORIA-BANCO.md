@@ -144,6 +144,29 @@ SELECT 'brand_intelligence_settings' AS tabela, to_regclass('public.brand_intell
 | M1/M4/M5/M8 | 4 tabelas novas presentes, RLS ativa e FKs/checks de catálogo presentes; detalhes descritos na seção 3 |
 | M2/M3/M6/M7 | 9 funções-alvo presentes; 6 colunas-alvo presentes; triggers de público, intenção e herança ACJ encontrados. A verificação foi de definição/presença, **não** de execução ou compatibilidade ponta-a-ponta |
 
-## 6. Validação, parecer e reversão operacional
+## 6. Testes obrigatórios (18/11/2026)
 
-_Preparação P2: o parecer final, as evidências AUD01–AUD05, os testes executados/não executados e a decisão de entrega serão registrados no P3. Não há autorização para executar RPC mutante sobre marcas, nem testes E2E nesta issue._
+| Caso / natureza | Consulta ou procedimento | Resultado / evidência | Situação |
+| --- | --- | --- | --- |
+| **AUD01 — versão recuperável, sem duplicação** | H1 e H2; comparação literal `statements[1]` versus arquivo GitHub após P1 | **1 linha, 1 statement, 26.784 caracteres**, MD5 remoto `ecc35cc0bf2a34e314e85a3fb92343e4`; comparação integral **igual** | **Executado e aprovado** — SELECT remoto + leitura GitHub; sem reaplicar |
+| **AUD02 — RPC, grants, vínculos** | F1 (`pg_proc`, `pg_get_functiondef`, `has_function_privilege`, `aclexplode`) | Assinatura `uuid,boolean → brands` exata; authenticated/service_role EXECUTE=true, anon/PUBLIC=false. Corpo recusa `PT404` por marca ausente/inacessível e `PT409` por campanhas `draft/active/paused` ou posts `approved/scheduled` ligados por perfil. | **Executado e aprovado para inspeção estática**; **não executado** RPC mutante nem cenários com marcas reais |
+| **AUD03 — RLS e workspace** | T1, T2, T3, T4; inspeção `CreateWorkspaceCard` | `brands.workspace_id NOT NULL` sem default, `slug NOT NULL` sem default e único por workspace; `brands_member` ALL por `is_workspace_member`; `workspace_members` SELECT por associação. Criação de workspace própria via RPC distinta de segunda marca REST. | **Executado e aprovado para metadados e contrato**; sem INSERT/PATCH real |
+| **AUD04 — nenhuma escrita, sem dados de produtor** | Revisão de escopo P1–P3 e das consultas H1/H2/F1/T1–T4/M1–M8; nenhuma query sobre linhas de tabelas de negócio | Apenas `SELECT` em histórico/catálogos; nenhum DDL, RPC de negócio, alteração de dado, segredo, deploy ou publicação. Relatório contém nomes de objetos/contratos, não identidades nem IDs de produtores. SQL histórico apenas copiado como documentação. | **Executado como revisão estática**; sem dados privados acessados |
+| **AUD05 — pacote anterior, FKs e compatibilidade** | M1–M8, definições `pg_get_functiondef` de `approve_cycle_production`, `acj_piece_inherit`, `guard_plan_intent` e `guard_product_audiences` | 4 tabelas novas com RLS, FKs/checks, triggers ACJ e colunas novas observados; riscos de payload antigo, famílias visuais, imutabilidade de ACJ e cleanup documentados na seção 3. | **Executado como auditoria de metadados**; **não verificado** comportamento integrado, cascatas em dados reais ou rollback integral |
+
+**Build:** `npm run build` **não executado**: este executor dispõe do conteúdo por integração GitHub, mas não de checkout local do repositório; tentativa de acesso público por `git ls-remote` falhou por resolução DNS de `github.com`. Não foi instalado pacote nem usado outro token/chave. Como apenas arquivos `docs/` foram alterados, a verificação do build fica para a validação integrada **#108**.  
+**Testes unitários puros:** nenhum novo arquivo de teste requerido/permitido fora deste Markdown; os cinco casos acima foram registrados e as verificações SQL de metadados executadas. **E2E e regressão não executados**, por proibição expressa; **CI não consultado**.
+
+## 7. Parecer do banco para M01
+
+### **APTO_PARA_M01** — exclusivamente para as operações delimitadas, com ressalvas
+
+Há evidência direta no catálogo de que o front pode **listar marcas por workspace**, **cadastrar outra marca via REST com `workspace_id`, `name` e `slug` explícitos**, **editar somente `name`/`essence` por PATCH restrito no cliente**, e **arquivar/restaurar pelo RPC `set_brand_archived`**. Assinatura, permissões, recusa PT404 e guarda PT409 nos **vínculos específicos por perfil** atendem ao contrato descrito na issue #102. O RPC `create_my_workspace` segue exclusivo à criação de workspace inicial, não sendo reaproveitado para segunda marca.
+
+**Ressalvas a encaminhar às próximas issues:** o banco não impõe autorização separada a `viewer` nem restrição de colunas em `brands`; os filtros atuais de `identityApi.brands()` ocultam arquivadas; a proteção de `PT409` é por `profile_id`, não um inventário de qualquer vínculo; `slug` exige geração/colisão gerenciada; helper functions `is_workspace_member/is_brand_member` têm EXECUTE nominal para PUBLIC/anon (ambas usam `auth.uid()`). O parecer **não certifica segurança por papel, restrição de API contra cliente malicioso nem compatibilidade completa do pacote anterior**. Se o orquestrador definir exigência de owner/editor ou proibição de PATCH direto de status no servidor, criar **nova issue de correção backend** delimitando políticas/GRANTs e autorização; esta #102 não concede execução dessas alterações.
+
+## 8. Reversão operacional e limites
+
+Se o front novo do M01 falhar, **não integrá-lo; manter o front anterior operando**. Não reverter nem reexecutar o SQL histórico desta issue. **Nenhum rollback, DELETE, DROP, DDL, Edge Function, mudança em dados reais ou merge autorizado** aqui. Para rollback integral da migration `20261117143519`, é necessário revisar separadamente dependências/FKs/triggers, impacto de funções substituídas e dados possivelmente criados desde a aplicação; tal reconstrução está **fora desta microtarefa e não foi validada**.
+
+**Entregue à próxima issue:** a cópia documental literal e o parecer de metadados acima; a validação integrada cabe à **#108**. Nenhuma mudança de esquema/código executada nesta issue.
