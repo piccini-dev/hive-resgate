@@ -257,7 +257,16 @@ Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `
 - #93 Prévia do anúncio nos passos Anúncio e Revisão.
 - #94 `exec:claude` deploy da `traffic-meta`, estimativa real (leitura), `f33`, Impeccable, 375 px.
 
-**15–16** — detalhados no `/integrar` do bloco anterior.
+**15 · A Hive recomenda** (#96–#101, branch `bloco/15-hive-recomenda`; recomendação só quando o Marcos pede, porque cada uma custa)
+- #96 `traffic-spec`: `AssistStep`, `AssistRecommendation`, `ASSIST_SHAPES`, `sanitizeRecommendation` (limpa a resposta da IA: ids só de peças elegíveis, idade 18–65, orçamento dentro do teto), `interestTerms`, `pickInterest` + unitários. No `traffic-spec` e não num arquivo novo, porque o front o importa sem extensão.
+- #97 `src/components/traffic/HiveRecommends.tsx` (painel: pedir, Aplicar, Ignorar, Pedir de novo; recolhível abaixo de `lg`).
+- #98 `traffic-assist/index.ts`: fatos do passo (peças, orgânico, 90 dias de anúncios, o que cabe no teto pela `ads_spend_guard` com id zerado), `contextBlock`, `callGeminiJson`, interesses pela `searchInterests`, `logUsage`. Não grava.
+- #99 `traffic-wizard`: `assistStepOf`, `applyRecommendation` (nunca mexe em local nem link), `describeRecommendation` + `edge.trafficAssist` + unitários.
+- #100 `aside` no `WizardShell` (sem `aside`, igual a hoje) e o painel na `NovaCampanha` (salva o rascunho antes de pedir; resultado guardado por passo).
+- #101 `exec:claude` deploy da `traffic-assist`, recomendação real, `f33` do painel, Impeccable, auditoria de segurança.
+- Ficou fora: recomendar localização (escolha do Marcos) e estimativa de alcance diário na Revisão (o tamanho do público já aparece no passo Público).
+
+**16** — detalhado no `/integrar` do bloco 15.
 
 **17 · Conexão real e testes finais** (todas `exec:claude`)
 - Reconexão do Facebook pelo Marcos e conferência de `meta_connections.scopes`; primeira chamada real de `assets` (grava `page_id`) e das buscas.
