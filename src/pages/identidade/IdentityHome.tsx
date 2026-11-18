@@ -1,7 +1,7 @@
 // MINHA IDENTIDADE — tela 1 (Visão atual) + entradas do percurso (Guia de implementação §3–§4):
 // Configurar · Revisar identidade e frentes · Adicionar frente · Recalibrar perfil · Continuar configuração.
 // Mostra o que já existe (herdado) e o que falta revisar, sem perguntar o que a Hive já sabe.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AlertTriangle, ArrowRight, BookOpen, BrainCircuit, Loader2, Plus, RefreshCw, ScrollText, Sparkles, UserRound, Building2 } from 'lucide-react';
@@ -227,16 +227,29 @@ export function IdentityConfigure() {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
   const [params] = useSearchParams();
+  const started = useRef<string | null>(null);
   useEffect(() => {
     if (!currentUser) return;
+    // StrictMode reexecuta efeitos ao montar. A chave é fixada antes do primeiro await
+    // para não criar duas sessões para a mesma entrada de usuário e parâmetros.
+    const requestKey = JSON.stringify([currentUser.id, params.toString()]);
+    if (started.current === requestKey) return;
+    started.current = requestKey;
     (async () => {
       const mode = (params.get('modo') ?? 'review') as SetupMode;
       const profile = params.get('perfil');
       const brandId = params.get('marca') ?? (await identityApi.defaultBrandId());
+      if (started.current !== requestKey) return; // outra entrada substituiu esta
       if (!brandId) { navigate('/identidade', { replace: true }); return; }
       const s = await identityApi.createSession(currentUser.id, { brandId, mode, targetProfileIds: profile ? [profile] : [], title: MODE_LABELS[mode] });
-      navigate(`/identidade/sessoes/${s.id}`, { replace: true });
-    })().catch((e) => { toast.error((e as Error).message); navigate('/identidade', { replace: true }); });
+      if (started.current === requestKey) {
+        navigate(`/identidade/sessoes/${s.id}`, { replace: true });
+      }
+    })().catch((e) => {
+      if (started.current !== requestKey) return;
+      toast.error((e as Error).message);
+      navigate('/identidade', { replace: true });
+    });
   }, [currentUser, navigate, params]);
   return <div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-accent" /></div>;
 }
