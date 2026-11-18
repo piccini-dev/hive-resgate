@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { Brand } from '@/types/identity';
 import { brandApi } from '@/lib/brandApi';
-import { brandContextUrl, resolveBrandSelection } from '@/lib/identity/brand-context';
+import { brandContextUrl, brandStorageKey, resolveBrandSelection } from '@/lib/identity/brand-context';
 import { useAuthStore } from '@/store/authStore';
 
 export interface IdentityContextValue {
@@ -81,15 +81,36 @@ export function IdentityProvider({ children }: { children: React.ReactNode }): J
   }, [uid]);
 
   const requestedId = new URLSearchParams(location.search).get('marca');
+  let rememberedId: string | null = null;
+  if (uid) {
+    try { rememberedId = sessionStorage.getItem(brandStorageKey(uid)); } catch { /* storage indisponível */ }
+  }
   const selection = !loading && !error && uid
-    ? resolveBrandSelection(brands, requestedId, null)
+    ? resolveBrandSelection(brands, requestedId, rememberedId)
     : { brand: null, invalidRequested: false };
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const selectBrand = (id: string): boolean => {
     if (!uid || loading || error || !brands.some((item) => item.id === id && item.status !== 'archived')) {
       return false;
     }
-    navigate(brandContextUrl(location.pathname, new URLSearchParams(location.search), id));
+    if (dirty && id !== selection.brand?.id
+      && !window.confirm('Você tem alterações não salvas. Trocar de marca?')) {
+      return false;
+    }
+    const target = brandContextUrl(location.pathname, new URLSearchParams(location.search), id);
+    try { sessionStorage.setItem(brandStorageKey(uid), id); } catch { /* storage indisponível */ }
+    setEditing({ userId: uid, value: false });
+    navigate(target);
     return true;
   };
 
