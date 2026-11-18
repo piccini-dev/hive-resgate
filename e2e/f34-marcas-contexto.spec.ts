@@ -219,3 +219,319 @@ test.describe('F34 · seleção de marca no contexto da Identidade', () => {
     await expect(picker).toHaveValue('A');
   });
 });
+
+
+// Administração: rede REST simulada em memória, nenhuma mutação em produção.
+type FakeBrand = (typeof brands)[number];
+interface MaintenanceOptions {
+  initial?: FakeBrand[];
+  workspaceIds?: string[];
+}
+async function mockMaintenance(page: Page, options: MaintenanceOptions = {}) {
+  const state = {
+    list: (options.initial ?? brands).map((item) => ({ ...item })),
+    workspaceIds: options.workspaceIds ?? ['W'],
+    inserts: [] as Array<Record<string, unknown>>,
+    patches: [] as Array<{ id: string; workspace: string; data: Record<string, unknown> }>,
+    archiveCalls: [] as Array<{ p_brand: string; p_archived: boolean }>,
+    workspaceCreates: [] as Array<Record<string, unknown>>,
+    setupPosts: [] as Array<Record<string, unknown>>,
+    configuredLookups: [] as string[],
+    failNextInsert: false,
+    archiveConflict: false,
+    holdInsert: null as Promise<void> | null,
+    holdUpdate: null as Promise<void> | null,
+  };
+  const json = (value: unknown) => ({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify(value) });
+  const fail = (status: number, message: string) => ({
+    status, headers: cors, contentType: 'application/json',
+    body: JSON.stringify({ code: status === 409 ? 'PT409' : 'SIMULADO', message }),
+  });
+
+  await page.route('**/rest/v1/brands**', async (route) => {
+    const request = route.request();
+    const method = request.method();
+    const params = new URL(request.url()).searchParams;
+    if (method === 'OPTIONS') { await route.fulfill({ status: 204, headers: cors }); return; }
+    if (method === 'GET') {
+      const byId = params.get('id');
+      let result = [...state.list];
+      if (byId?.startsWith('eq.')) {
+        state.configuredLookups.push(byId.slice(3));
+        result = result.filter((item) => item.id === byId.slice(3));
+      }
+      if (params.get('status') === 'neq.archived') result = result.filter((item) => item.status !== 'archived');
+      await route.fulfill(json(result));
+      return;
+    }
+    if (method === 'POST') {
+      const data = request.postDataJSON() as Record<string, unknown>;
+      state.inserts.push(data);
+      if (state.holdInsert) await state.holdInsert;
+      if (state.failNextInsert) {
+        state.failNextInsert = false;
+        await route.fulfill(fail(503, 'Falha simulada ao salvar'));
+        return;
+      }
+      const created = {
+        id: 'N' + state.inserts.length,
+        workspace_id: String(data.workspace_id),
+        name: String(data.name),
+        slug: String(data.slug),
+        essence: data.essence === null ? null : String(data.essence ?? ''),
+        status: 'active', is_default: false,
+      };
+      state.list.push(created);
+      await route.fulfill(json([created]));
+      return;
+    }
+    if (method === 'PATCH') {
+      const data = request.postDataJSON() as Record<string, unknown>;
+      const id = (params.get('id') ?? '').replace(/^eq\./, '');
+      const workspace = (params.get('workspace_id') ?? '').replace(/^eq\./, '');
+      state.patches.push({ id, workspace, data });
+      if (state.holdUpdate) await state.holdUpdate;
+      const item = state.list.find((brand) => brand.id === id && brand.workspace_id === workspace);
+      if (item) Object.assign(item, data);
+      await route.fulfill(json(item ? [item] : []));
+      return;
+    }
+    await route.fulfill(fail(403, 'Operação não permitida pelo mock'));
+  });
+
+  await page.route('**/rest/v1/workspace_members**', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fulfill(fail(403, 'Alteração de membros proibida'));
+      return;
+    }
+    const uid = new URL(route.request().url()).searchParams.get('user_id');
+    const userId = e2eUser().id;
+    await route.fulfill(json(uid === `eq.${userId}`
+      ? state.workspaceIds.map((id) => ({
+        workspace_id: id, role: 'owner',
+        workspaces: { id, name: `Workspace ${id}` },
+      }))
+      : []));
+  });
+
+  await page.route('**/rest/v1/rpc/set_brand_archived**', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fulfill(fail(403, 'RPC apenas para POST'));
+      return;
+    }
+    const args = route.request().postDataJSON() as { p_brand: string; p_archived: boolean };
+    state.archiveCalls.push(args);
+    if (state.archiveConflict) {
+      await route.fulfill(fail(409, 'PT409: marca possui campanhas vinculadas'));
+      return;
+    }
+    const item = state.list.find((brand) => brand.id === args.p_brand);
+    if (!item) { await route.fulfill(fail(404, 'PT404: Marca não disponível.')); return; }
+    item.status = args.p_archived ? 'archived' : 'active';
+    await route.fulfill(json(item)); // RPC RETURNS brands é objeto, não array.
+  });
+
+  await page.route('**/rest/v1/rpc/create_my_workspace**', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fulfill(fail(403, 'RPC apenas para POST'));
+      return;
+    }
+    const data = route.request().postDataJSON() as Record<string, unknown>;
+    state.workspaceCreates.push(data);
+    state.workspaceIds.push('W0');
+    state.list.push({
+      id: 'C', workspace_id: 'W0', name: String(data.p_brand),
+      slug: 'brand-created', essence: null, status: 'active', is_default: true,
+    });
+    await route.fulfill(json('C')); // RPC de cadastro inicial é mock, não há escrita real.
+  });
+
+  // Configurar identidade consulta o estado completo. Devolver estado vazio de teste.
+  for (const table of [
+    'genesis_core', 'emitters', 'business_fronts', 'audiences',
+    'communication_profiles', 'bee_editorials', 'bee_directives',
+    'knowledge_documents', 'bee_products', 'setup_sessions',
+  ]) {
+    await page.route(`**/rest/v1/${table}**`, async (route) => {
+      if (table === 'setup_sessions' && route.request().method() === 'POST') {
+        state.setupPosts.push(route.request().postDataJSON() as Record<string, unknown>);
+        await route.fulfill(fail(403, 'Cadastro de sessão bloqueado no teste'));
+        return;
+      }
+      if (route.request().method() !== 'GET') {
+        await route.fulfill(fail(403, 'Mutação bloqueada no teste'));
+        return;
+      }
+      await route.fulfill(json([]));
+    });
+  }
+  return state;
+}
+
+test.describe('F34 · manutenção de marcas com gateway HTTP simulado', () => {
+  test('primeiro cliente usa entrada inicial neutra, sem herdar dados', async ({ page }) => {
+    const state = await mockMaintenance(page, { initial: [], workspaceIds: [] });
+    await page.goto('/identidade/marcas');
+    await expect(page.getByTestId('identity-no-brand')).toBeVisible();
+    await expect(page.getByTestId('brand-card')).toHaveCount(0);
+    await page.getByTestId('identity-no-brand').getByLabel('Nome da marca').fill('Empresa Nova');
+    await page.getByTestId('workspace-create').click();
+    await expect.poll(() => state.workspaceCreates.length).toBe(1);
+    expect(state.workspaceCreates).toEqual([{ p_workspace: 'Empresa Nova', p_brand: 'Empresa Nova' }]);
+    await expect.poll(() => state.setupPosts.length).toBe(1);
+    expect(state.setupPosts[0].brand_id).toBe('C');
+  });
+
+  test('nova marca no workspace existente usa INSERT de brands, nunca cria workspace/perfil', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    await page.goto('/identidade/marcas');
+    await page.getByTestId('brand-new').click();
+    const form = page.getByTestId('brand-form');
+    await form.getByLabel('Nome da marca').fill('  Bee Academy  ');
+    await form.getByLabel('Essência (opcional)').fill('  Educação  ');
+    await form.getByTestId('brand-save').click();
+    await expect(page.getByTestId('brand-card').filter({ hasText: 'Bee Academy' })).toBeVisible();
+    expect(state.inserts).toHaveLength(1);
+    expect(state.inserts[0]).toMatchObject({
+      workspace_id: 'W', name: 'Bee Academy', essence: 'Educação', status: 'active', is_default: false,
+    });
+    expect(state.inserts[0].slug).toMatch(/^bee-academy-[0-9a-f]{8}$/);
+    expect(state.workspaceCreates).toHaveLength(0);
+    expect(state.setupPosts).toHaveLength(0);
+  });
+
+  test('múltiplos workspaces exigem escolha explícita antes de cadastrar', async ({ page }) => {
+    const state = await mockMaintenance(page, { workspaceIds: ['W', 'Q'] });
+    await page.goto('/identidade/marcas');
+    await page.getByTestId('brand-new').click();
+    const form = page.getByTestId('brand-form');
+    await form.getByLabel('Nome da marca').fill('Marca com escolha');
+    await expect(form.getByLabel('Espaço de trabalho')).toHaveValue('');
+    await expect(form.getByTestId('brand-save')).toBeDisabled();
+    await form.getByLabel('Espaço de trabalho').selectOption('Q');
+    await form.getByTestId('brand-save').click();
+    await expect.poll(() => state.inserts.length).toBe(1);
+    expect(state.inserts[0].workspace_id).toBe('Q');
+    expect(state.workspaceCreates).toHaveLength(0);
+  });
+
+  test('edição preserva ID e workspace e só envia nome/essência', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    await page.goto('/identidade/marcas?marca=A');
+    const card = page.getByTestId('brand-card').filter({ hasText: 'Marca A' });
+    await card.getByRole('button', { name: 'Editar' }).click();
+    const form = page.getByTestId('brand-form');
+    await expect(form).toContainText('Espaço de trabalho: Workspace W');
+    await expect(form.getByLabel('Espaço de trabalho')).toHaveCount(0);
+    await form.getByLabel('Nome da marca').fill('Marca A revisada');
+    await form.getByLabel('Essência (opcional)').fill('Texto novo');
+    await form.getByTestId('brand-save').click();
+    await expect(page.getByTestId('brand-card').filter({ hasText: 'Marca A revisada' })).toBeVisible();
+    expect(state.patches).toEqual([{
+      id: 'A', workspace: 'W', data: { name: 'Marca A revisada', essence: 'Texto novo' },
+    }]);
+    expect(state.list.find((entry) => entry.id === 'A')?.workspace_id).toBe('W');
+  });
+
+  test('erro de cadastro preserva rascunho e permite tentar novamente', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    state.failNextInsert = true;
+    await page.goto('/identidade/marcas');
+    await page.getByTestId('brand-new').click();
+    const form = page.getByTestId('brand-form');
+    await form.getByLabel('Nome da marca').fill('Rascunho intacto');
+    await form.getByTestId('brand-save').click();
+    await expect(page.getByTestId('brand-action-error')).toContainText('Falha simulada ao salvar');
+    await expect(form.getByLabel('Nome da marca')).toHaveValue('Rascunho intacto');
+    await expect(form.getByTestId('brand-save')).toBeEnabled();
+    await form.getByTestId('brand-save').click();
+    await expect(page.getByTestId('brand-card').filter({ hasText: 'Rascunho intacto' })).toBeVisible();
+    expect(state.inserts).toHaveLength(2);
+  });
+
+  test('dois envios antes da resposta geram um único INSERT', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    let release!: () => void;
+    state.holdInsert = new Promise<void>((resolve) => { release = resolve; });
+    await page.goto('/identidade/marcas');
+    await page.getByTestId('brand-new').click();
+    const form = page.getByTestId('brand-form');
+    await form.getByLabel('Nome da marca').fill('Sem duplicação');
+    await form.getByTestId('brand-save').click();
+    await expect.poll(() => state.inserts.length).toBe(1);
+    await page.evaluate(() => {
+      const target = document.querySelector('[data-testid="brand-form"]');
+      target?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      target?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(state.inserts).toHaveLength(1);
+    release();
+    await expect(page.getByTestId('brand-card').filter({ hasText: 'Sem duplicação' })).toBeVisible();
+    expect(state.inserts).toHaveLength(1);
+  });
+
+  test('PT409 ao arquivar mantém marca ativa, sem fallback ou falso sucesso', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    state.archiveConflict = true;
+    await page.goto('/identidade/marcas');
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByTestId('brand-card').filter({ hasText: 'Marca A' })
+      .getByTestId('brand-archive').click();
+    await expect(page.getByTestId('brand-action-error')).toContainText('PT409');
+    const card = page.getByTestId('brand-card').filter({ hasText: 'Marca A' });
+    await expect(card).toContainText('Ativa');
+    await expect(card.getByTestId('brand-archive')).toBeVisible();
+    expect(state.archiveCalls).toEqual([{ p_brand: 'A', p_archived: true }]);
+    expect(state.patches).toHaveLength(0);
+  });
+
+  test('restauração reativa a marca com o mesmo ID', async ({ page }) => {
+    const state = await mockMaintenance(page, {
+      initial: [...brands, { ...brands[1], id: 'C', name: 'Arquivada C', status: 'archived' }],
+    });
+    await page.goto('/identidade/marcas');
+    await page.getByLabel('Mostrar arquivadas').check();
+    const archived = page.getByTestId('brand-card').filter({ hasText: 'Arquivada C' });
+    await expect(archived).toHaveAttribute('data-brand-id', 'C');
+    await archived.getByTestId('brand-restore').click();
+    await expect(archived).toContainText('Ativa');
+    expect(state.archiveCalls).toEqual([{ p_brand: 'C', p_archived: false }]);
+    expect(state.list.find((item) => item.id === 'C')?.status).toBe('active');
+  });
+
+  test('Configurar identidade usa a marca do cartão e o percurso já existente', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    await page.goto('/identidade/marcas?marca=A');
+    const card = page.getByTestId('brand-card').filter({ hasText: 'Marca B' });
+    await card.getByTestId('brand-configure').click();
+    await expect.poll(() => state.configuredLookups.filter((id) => id === 'B').length).toBeGreaterThan(0);
+    await expect.poll(() => state.setupPosts.length).toBe(1);
+    expect(state.setupPosts[0].brand_id).toBe('B');
+    expect(state.workspaceCreates).toHaveLength(0);
+  });
+
+  test('resposta atrasada não muda o destino da edição após troca externa de contexto', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    let release!: () => void;
+    state.holdUpdate = new Promise<void>((resolve) => { release = resolve; });
+    await page.goto('/identidade/marcas?marca=A');
+    const first = page.getByTestId('brand-card').filter({ hasText: 'Marca A' });
+    await first.getByRole('button', { name: 'Editar' }).click();
+    await page.getByTestId('brand-form').getByLabel('Nome da marca').fill('Somente A');
+    await page.getByTestId('brand-save').click();
+    await expect.poll(() => state.patches.length).toBe(1);
+    await expect(page.getByTestId('identity-brand-select')).toBeDisabled();
+    // Navegação externa simulada, sem usar o seletor protegido durante a mutação.
+    await page.evaluate(() => {
+      window.history.pushState(null, '', '/identidade/marcas?marca=B');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    release();
+    await expect(page.getByTestId('identity-brand-select')).toHaveValue('B');
+    await expect.poll(() => state.list.find((item) => item.id === 'A')?.name).toBe('Somente A');
+    expect(state.patches).toEqual([{
+      id: 'A', workspace: 'W', data: { name: 'Somente A', essence: '' },
+    }]);
+    expect(state.list.find((item) => item.id === 'B')?.name).toBe('Marca B');
+  });
+});

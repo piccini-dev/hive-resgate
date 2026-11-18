@@ -184,6 +184,13 @@ export function Brands(): JSX.Element {
       }
     } finally {
       if (mounted.current && operationGeneration.current === operation) {
+        // Navegação externa durante a escrita não pode deixar um formulário
+        // de uma marca anterior associado à nova marca.
+        if (currentUid.current === atUser && currentBrandId.current !== atBrand) {
+          formGeneration.current++;
+          setForm(null);
+          setDirty(false);
+        }
         mutationLock.current = false;
         setBusy(false);
       }
