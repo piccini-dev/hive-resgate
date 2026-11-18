@@ -630,3 +630,151 @@ test.describe('F34 · navegação de marcas (desktop, celular e deep link)', () 
     }
   });
 });
+
+ 
+// Integração real: somente workspaces e2e-* criados por seedIdentityBrand e pelo usuário E2E.
+import { seedIdentityBrand } from './helpers/fixtures';
+import { sql, seed } from './helpers/admin';
+
+test.describe('F34 · persistência real somente em workspaces E2E', () => {
+  const createdWorkspaces: string[] = [];
+  const own = async (empty = false) => {
+    const fixture = await seedIdentityBrand({ empty });
+    createdWorkspaces.push(fixture.workspaceId);
+    return fixture;
+  };
+
+  test.afterEach(async () => {
+    // Cleanup restrito aos IDs capturados; nunca remover workspaces Bee/outras suítes.
+    const uid = e2eUser().id;
+    for (const workspace of createdWorkspaces.splice(0)) {
+      await sql(`
+        delete from public.user_posts where user_id='${uid}'
+          and profile_id in (select p.id from public.communication_profiles p
+            join public.brands b on b.id=p.brand_id where b.workspace_id='${workspace}');
+        delete from public.campaigns where user_id='${uid}'
+          and profile_id in (select p.id from public.communication_profiles p
+            join public.brands b on b.id=p.brand_id where b.workspace_id='${workspace}');
+        delete from public.context_snapshots where user_id='${uid}'
+          and brand_id in (select id from public.brands where workspace_id='${workspace}');
+        delete from public.bee_editorials where brand_id in
+          (select id from public.brands where workspace_id='${workspace}');
+        delete from public.workspaces where id='${workspace}' and slug like 'e2e-%'
+          and exists (select 1 from public.workspace_members
+            where workspace_id='${workspace}' and user_id='${uid}');`);
+    }
+  });
+
+  test('REST real: cadastro e edição persistem no workspace escolhido, sem criar outro espaço', async ({ page }) => {
+    const b = await own(true);
+    const countBefore = await sql<{ n: number }>(`
+      select count(*)::int n from workspace_members where user_id='${e2eUser().id}'`);
+    await page.goto(`/identidade/marcas?marca=${b.brandId}`);
+    const original = page.locator(`[data-testid="brand-card"][data-brand-id="${b.brandId}"]`);
+    await expect(original).toBeVisible();
+    await page.getByTestId('brand-new').click();
+    const form = page.getByTestId('brand-form');
+    const name = `Academia E2E ${b.tag}`;
+    await form.getByLabel('Nome da marca').fill(name);
+    await form.getByLabel('Essência (opcional)').fill('Formação E2E');
+    const wsPicker = form.getByLabel('Espaço de trabalho', { exact: true });
+    if (await wsPicker.count()) {
+      await expect(wsPicker).toHaveValue('');
+      await wsPicker.selectOption(b.workspaceId);
+    } else {
+      await expect(form).toContainText(`E2E ${b.tag}`);
+    }
+    await form.getByTestId('brand-save').click();
+
+    const createdQuery = `select id,workspace_id,name,essence,slug,status from public.brands
+       where workspace_id='${b.workspaceId}' and name='${name}'`;
+    await expect.poll(async () => (await sql<{ id: string }>(createdQuery)).length).toBe(1);
+    const [created] = await sql<{
+      id: string; workspace_id: string; name: string; essence: string; slug: string; status: string;
+    }>(createdQuery);
+    expect(created).toMatchObject({
+      workspace_id: b.workspaceId, name, essence: 'Formação E2E', status: 'active',
+    });
+    expect(created.slug).toMatch(/^academia-e2e-[a-z0-9]+-[0-9a-f]{8}$/);
+    await expect(page.locator(`[data-testid="brand-card"][data-brand-id="${created.id}"]`)).toBeVisible();
+    const card = page.locator(`[data-testid="brand-card"][data-brand-id="${created.id}"]`);
+    await card.getByRole('button', { name: 'Editar' }).click();
+    const edit = page.getByTestId('brand-form');
+    await expect(edit.getByLabel('Espaço de trabalho', { exact: true })).toHaveCount(0);
+    await edit.getByLabel('Nome da marca').fill(`Academia revisada ${b.tag}`);
+    await edit.getByLabel('Essência (opcional)').fill('Nova essência E2E');
+    await edit.getByTestId('brand-save').click();
+    await expect.poll(async () => sql<{ id: string; workspace_id: string; essence: string; name: string }>(`
+      select id,workspace_id,essence,name from public.brands where id='${created.id}'`))
+      .toEqual([{
+        id: created.id, workspace_id: b.workspaceId,
+        essence: 'Nova essência E2E', name: `Academia revisada ${b.tag}`,
+      }]);
+    const countAfter = await sql<{ n: number }>(`
+      select count(*)::int n from workspace_members where user_id='${e2eUser().id}'`);
+    expect(countAfter).toEqual(countBefore);
+  });
+
+  test('RPC real: PT409 com campanha ativa preserva perfis, snapshot e peça E2E', async ({ page }) => {
+    const b = await own() as Awaited<ReturnType<typeof seedIdentityBrand>> & { profileA: string; profileB: string };
+    const uid = e2eUser().id;
+    const [campaign] = await sql<{ id: string }>(`
+      insert into public.campaigns(user_id,name,type,status,profile_id,cadence,metadata)
+      values ('${uid}','Campanha E2E ${b.tag}','organica','active','${b.profileA}','{}','{}') returning id`);
+    const [snapshot] = await sql<{ id: string }>(`
+      insert into public.context_snapshots(user_id,brand_id,profile_id,profile_version,summary)
+      values ('${uid}','${b.brandId}','${b.profileA}',1,'Snapshot E2E ${b.tag}') returning id`);
+    const postId = await seed('user_posts', {
+      platform: 'linkedin', format: 'image', status: 'draft',
+      caption: `Peça E2E ${b.tag}`, profile_id: b.profileA,
+      context_snapshot_id: snapshot.id,
+      rendered_slides: { slide1: 'https://example.com/e2e.jpg' },
+      metadata: { sandbox: b.tag },
+    });
+
+    const before = await sql<{ brand: unknown; profiles: unknown; snapshot: unknown; post: unknown; campaign: unknown }>(`
+      select (select to_jsonb(b) from brands b where b.id='${b.brandId}') brand,
+        (select jsonb_agg(to_jsonb(p) order by p.id) from communication_profiles p
+          where p.brand_id='${b.brandId}') profiles,
+        (select to_jsonb(s) from context_snapshots s where s.id='${snapshot.id}') snapshot,
+        (select to_jsonb(u) from user_posts u where u.id='${postId}') post,
+        (select to_jsonb(c) from campaigns c where c.id='${campaign.id}') campaign`);
+    await page.goto(`/identidade/marcas?marca=${b.brandId}`);
+    await expect(page.locator(`[data-testid="brand-card"][data-brand-id="${b.brandId}"]`)).toBeVisible();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator(`[data-testid="brand-card"][data-brand-id="${b.brandId}"]`)
+      .getByTestId('brand-archive').click();
+    await expect(page.getByTestId('brand-action-error')).toContainText('PT409');
+    const after = await sql<typeof before[number]>(`
+      select (select to_jsonb(b) from brands b where b.id='${b.brandId}') brand,
+        (select jsonb_agg(to_jsonb(p) order by p.id) from communication_profiles p
+          where p.brand_id='${b.brandId}') profiles,
+        (select to_jsonb(s) from context_snapshots s where s.id='${snapshot.id}') snapshot,
+        (select to_jsonb(u) from user_posts u where u.id='${postId}') post,
+        (select to_jsonb(c) from campaigns c where c.id='${campaign.id}') campaign`);
+    expect(after).toEqual(before);
+    await expect(page.locator(`[data-testid="brand-card"][data-brand-id="${b.brandId}"]`))
+      .toContainText('Ativa');
+  });
+
+  test('RPC real e tela em 375px: arquivar/restaurar mantém ID e não cria cópias', async ({ page }) => {
+    const b = await own(true);
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto(`/identidade/marcas?marca=${b.brandId}`);
+    const card = page.locator(`[data-testid="brand-card"][data-brand-id="${b.brandId}"]`);
+    await expect(card.getByTestId('brand-archive')).toBeVisible();
+    page.once('dialog', (dialog) => dialog.accept());
+    await card.getByTestId('brand-archive').click();
+    await expect.poll(async () => sql<{ id: string; status: string }>(`
+      select id,status from public.brands where id='${b.brandId}'`))
+      .toEqual([{ id: b.brandId, status: 'archived' }]);
+    await page.getByLabel('Mostrar arquivadas').check();
+    const archived = page.locator(`[data-testid="brand-card"][data-brand-id="${b.brandId}"]`);
+    await expect(archived.getByTestId('brand-restore')).toBeVisible();
+    await archived.getByTestId('brand-restore').click();
+    await expect.poll(async () => sql<{ id: string; status: string }>(`
+      select id,status from public.brands where workspace_id='${b.workspaceId}'`))
+      .toEqual([{ id: b.brandId, status: 'active' }]);
+    await expect(archived.getByTestId('brand-archive')).toBeVisible();
+  });
+});

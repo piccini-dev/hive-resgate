@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { cleanupE2EData, seed, sql } from './helpers/admin';
 import { createTenant, deleteTenant, type Tenant } from './helpers/tenant';
 import { e2eUser } from './helpers/env';
+import { seedIdentityBrand } from './helpers/fixtures';
 
 // F19 — Fase 6 · Isolamento multi-cliente (Hive_Identidade_Contextos §11, §13 itens 5–6; Guia §10 item 10):
 // um produtor de teste SEM referências Bee implícitas não lê nem grava dados da Bee — no banco (RLS),
@@ -65,6 +66,65 @@ test.describe('F19 · isolamento entre clientes', () => {
     // campanha apontando para um perfil da Bee: recusada
     const camp = await t!.rest(`/campaigns`, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ user_id: t!.id, name: 'X', type: 'organica', status: 'draft', profile_id: '0b000000-0000-4000-8000-00000000000a' }) });
     expect(camp.status).toBeGreaterThanOrEqual(400);
+  });
+
+
+ 
+  test('marcas: tenant não lê, edita ou arquiva marca de outro workspace E2E', async () => {
+    // Fixture A pertence ao usuário da suíte; B é outro usuário autenticado por JWT próprio.
+    const fixture = await seedIdentityBrand({ empty: true });
+    const tag = Math.random().toString(36).slice(2, 9);
+    let stranger: Tenant | null = null;
+    let otherWorkspaceId: string | null = null;
+    try {
+      stranger = await createTenant(`marca-${tag}`);
+      const ownBrand = await stranger.rpc<string>('create_my_workspace', {
+        p_workspace: `E2E Tenant ${tag}`, p_brand: `E2E Tenant ${tag}`,
+      });
+      expect(ownBrand.status).toBe(200);
+      const own = await stranger.rest<Array<{ id: string; workspace_id: string }>>(
+        `/brands?select=id,workspace_id&id=eq.${ownBrand.data}`);
+      expect(own.status).toBe(200);
+      expect(own.data).toHaveLength(1);
+      otherWorkspaceId = own.data[0].workspace_id;
+
+      const target = await sql<{ id: string; name: string; workspace_id: string; status: string }>(`
+        select id,name,workspace_id,status from public.brands where id='${fixture.brandId}'`);
+      expect(target).toHaveLength(1);
+
+      // Select, PATCH e RPC são feitos com o JWT do tenant B, nunca com service_role.
+      const invisible = await stranger.rest<unknown[]>(
+        `/brands?select=id,name,workspace_id&id=eq.${fixture.brandId}`);
+      expect(invisible.status).toBe(200);
+      expect(invisible.data).toEqual([]);
+      const forbiddenPatch = await stranger.rest<unknown[]>(
+        `/brands?id=eq.${fixture.brandId}`, {
+          method: 'PATCH', headers: { Prefer: 'return=representation' },
+          body: JSON.stringify({ name: 'Invasão E2E recusada' }),
+        });
+      // PostgREST pode responder 200+[] quando a política RLS oculta a linha.
+      if (forbiddenPatch.status < 400) expect(forbiddenPatch.data).toEqual([]);
+      else expect(forbiddenPatch.status).toBeGreaterThanOrEqual(400);
+      const forbiddenArchive = await stranger.rpc('set_brand_archived', {
+        p_brand: fixture.brandId, p_archived: true,
+      });
+      expect(forbiddenArchive.status).toBeGreaterThanOrEqual(400);
+
+      const after = await sql<typeof target[number]>(`
+        select id,name,workspace_id,status from public.brands where id='${fixture.brandId}'`);
+      expect(after).toEqual(target);
+    } finally {
+      // Exclusivamente workspaces criados neste teste, mesmo se uma expectativa falhar.
+      if (otherWorkspaceId) {
+        await sql(`delete from public.workspaces where id='${otherWorkspaceId}'
+          and name like 'E2E Tenant %'`);
+      }
+      if (stranger) await deleteTenant(stranger);
+      await sql(`delete from public.workspaces where id='${fixture.workspaceId}'
+        and slug like 'e2e-%' and exists (
+          select 1 from public.workspace_members
+          where workspace_id='${fixture.workspaceId}' and user_id='${e2eUser().id}')`);
+    }
   });
 
   test('publicação: o cliente não publica a peça de outro usuário nem usa a conta social de outro usuário', async () => {
