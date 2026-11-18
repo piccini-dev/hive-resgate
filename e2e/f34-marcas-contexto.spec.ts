@@ -535,3 +535,98 @@ test.describe('F34 · manutenção de marcas com gateway HTTP simulado', () => {
     expect(state.list.find((item) => item.id === 'B')?.name).toBe('Marca B');
   });
 });
+
+
+test.describe('F34 · navegação de marcas (desktop, celular e deep link)', () => {
+  test('barra lateral abre Marcas usando o menu já existente', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    await page.goto('/identidade?marca=A');
+    await expect(page.getByTestId('identity-home')).toBeVisible();
+    const nav = page.getByRole('navigation', { name: 'Menu principal' });
+    await nav.getByRole('link', { name: 'Marcas', exact: true }).click();
+    await expect(page).toHaveURL(/\/identidade\/marcas$/);
+    await expect(page.getByTestId('brands-page')).toBeVisible();
+    await expect(page.getByTestId('identity-brand-select')).toHaveValue('A');
+    expect(state.inserts).toHaveLength(0);
+    expect(state.workspaceCreates).toHaveLength(0);
+    expect(state.archiveCalls).toHaveLength(0);
+  });
+
+  test('gaveta em 375px usa o mesmo link Marcas e fecha após navegar', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await mockMaintenance(page);
+    await page.goto('/identidade?marca=A');
+    await page.getByTestId('mobile-menu').click();
+    const drawer = page.getByRole('dialog');
+    await expect(drawer).toBeVisible();
+    const link = drawer.getByRole('navigation', { name: 'Menu principal' })
+      .getByRole('link', { name: 'Marcas', exact: true });
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(/\/identidade\/marcas$/);
+    await expect(page.getByTestId('brands-page')).toBeVisible();
+    await expect(drawer).toHaveCount(0);
+  });
+
+  test('deep link mantém a marca explícita e os demais parâmetros após histórico', async ({ page }) => {
+    await mockMaintenance(page);
+    await page.goto('/identidade?marca=A');
+    const nav = page.getByRole('navigation', { name: 'Menu principal' });
+    await nav.getByRole('link', { name: 'Marcas', exact: true }).click();
+    await expect(page).toHaveURL(/\/identidade\/marcas$/);
+    await page.getByTestId('identity-brand-select').selectOption('B');
+    await expect(page).toHaveURL(/\/identidade\/marcas\?marca=B/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/identidade\/marcas$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/identidade\?marca=A$/);
+    await page.goto('/identidade/marcas?marca=B&aba=ativas');
+    await expect(page.getByTestId('identity-brand-select')).toHaveValue('B');
+    await expect(page).toHaveURL(/\/identidade\/marcas\?marca=B&aba=ativas$/);
+  });
+
+  test('Marcas é item ativo sem destacar indevidamente Minha identidade', async ({ page }) => {
+    await mockMaintenance(page);
+    await page.goto('/identidade/marcas?marca=A');
+    const nav = page.getByRole('navigation', { name: 'Menu principal' });
+    const marcas = nav.getByRole('link', { name: 'Marcas', exact: true });
+    const identidade = nav.getByRole('link', { name: 'Minha identidade', exact: true });
+    await expect(marcas).toBeVisible(); // Voz da Hive autoexpandido
+    await expect(marcas).toHaveAttribute('aria-current', 'page');
+    await expect(identidade).not.toHaveAttribute('aria-current', 'page');
+    await identidade.click();
+    await expect(page).toHaveURL(/\/identidade$/);
+    await expect(identidade).toHaveAttribute('aria-current', 'page');
+    await expect(marcas).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  test('Minha identidade e configuração guiada continuam com suas rotas anteriores', async ({ page }) => {
+    const state = await mockMaintenance(page);
+    await page.goto('/identidade?marca=B');
+    await expect(page.getByTestId('identity-home')).toBeVisible();
+    await page.goto('/identidade/configurar?modo=setup&marca=B');
+    await expect.poll(() => state.setupPosts.length).toBe(1);
+    expect(state.setupPosts[0]).toMatchObject({ brand_id: 'B', mode: 'setup' });
+    await expect(page).toHaveURL(/\/identidade$/); // mock recusa gravação; o fluxo existente retorna à origem
+    expect(state.workspaceCreates).toHaveLength(0);
+    expect(state.inserts).toHaveLength(0);
+  });
+
+  test('sem sessão, login recebe destino protegido com marca e filtros', async ({ browser }) => {
+    // Contexto sem cookies nem storage autenticado, sem afetar o usuário E2E da suíte.
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+      baseURL: test.info().project.use.baseURL,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto('/identidade/marcas?marca=B&aba=ativas');
+      await expect(page).toHaveURL(/\/login\?next=/);
+      const destination = new URL(page.url()).searchParams.get('next');
+      expect(destination).toBe('/identidade/marcas?marca=B&aba=ativas');
+      await expect(page.getByTestId('brands-page')).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+});
