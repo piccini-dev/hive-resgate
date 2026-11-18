@@ -32,3 +32,13 @@ export function resolveBrandSelection(
 export function brandStorageKey(userId: string): string {
   return `hive.identity.brand:${userId}`;
 }
+
+// Preserva os filtros da rota de origem e troca apenas a marca de contexto.
+export function brandContextUrl(path: string, params: URLSearchParams, brandId: string): string {
+  if (!path.startsWith('/') || path.includes('//') || /[?#\\]/.test(path) || /^\/[a-z][a-z0-9+.-]*:/i.test(path)) {
+    throw new Error('Caminho de contexto inválido.');
+  }
+  const nextParams = new URLSearchParams(params);
+  nextParams.set('marca', brandId);
+  return `${path}?${nextParams.toString()}`;
+}
