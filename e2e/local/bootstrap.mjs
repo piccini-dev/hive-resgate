@@ -151,7 +151,8 @@ async function main() {
     }
     if(!ready)throw Error('Funções locais não ficaram prontas.');
     const args=process.argv.slice(2);if(args.some(a=>a.includes('@live')||a.includes('--project')||a.includes('--config')))throw Error('Argumento de execução não permitido no runner local.');
-    const env={...process.env,HIVE_E2E_LOCAL:'1',HIVE_E2E_BACKEND_URL:backend,HIVE_E2E_MANAGEMENT_URL:'http://127.0.0.1:54330',VITE_SUPABASE_URL:backend,VITE_SUPABASE_PUBLISHABLE_KEY:anon,SUPABASE_ACCESS_TOKEN:adminKey,E2E_EMAIL:email,E2E_PASSWORD:password,E2E_USER_ID:userId};
+    const guard=pathToFileURL(path.join(ROOT,'e2e/local/deny-hosted.mjs')).href;
+    const env={...process.env,NODE_OPTIONS:`${process.env.NODE_OPTIONS??''} --import ${guard}`,HIVE_E2E_LOCAL:'1',HIVE_E2E_BACKEND_URL:backend,HIVE_E2E_MANAGEMENT_URL:'http://127.0.0.1:54330',VITE_SUPABASE_URL:backend,VITE_SUPABASE_PUBLISHABLE_KEY:anon,SUPABASE_ACCESS_TOKEN:adminKey,E2E_EMAIL:email,E2E_PASSWORD:password,E2E_USER_ID:userId};
     tests=spawn(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--project=e2e','--reporter=list',...args],{cwd:ROOT,env,stdio:'inherit'});
     const [exit]=await once(tests,'exit');if(exit!==0)process.exitCode=exit||1;
   } finally {
