@@ -129,8 +129,11 @@ test.describe('F18 · conteúdos sequenciais (carrossel)', () => {
     expect(beforeApply.title).toBe('O time para de arriscar');                // proposta não muda a peça ativa
     await page.getByTestId('candidate-apply').click();
     await expect(page.getByTestId('coherence-flag')).toBeVisible();
-    const st = await sql<{ visual_status: string }>(`select visual_status from post_units where post_id='${carousel.id}' order by position`);
-    expect(st.map((x) => x.visual_status)).toEqual(['ready', 'stale', 'ready', 'ready', 'ready']);
+    // A atualização da candidata é assíncrona; conferir o estado persistido, sem corrida entre UI e banco.
+    await expect.poll(async () => {
+      const st = await sql<{ visual_status: string }>(`select visual_status from post_units where post_id='${carousel.id}' order by position`);
+      return st.map((x) => x.visual_status);
+    }, { timeout: 20_000 }).toEqual(['ready', 'stale', 'ready', 'ready', 'ready']);
     await page.getByTestId('render-pending').click();
     await expect.poll(async () => (await sql<{ n: number }>(`select count(*)::int n from post_units where post_id='${carousel.id}' and visual_status<>'ready'`))[0].n, { timeout: 120_000 }).toBe(0);
     await expect(page.getByTestId('render-progress')).toHaveCount(0, { timeout: 30_000 });
