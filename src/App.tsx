@@ -21,6 +21,8 @@ import { Templates } from '@/pages/templates/Templates';
 import { TemplateEditor } from '@/pages/templates/TemplateEditor';
 import { ComoEscrevo } from '@/pages/genesis/ComoEscrevo';
 import { IdentityConfigure, IdentityHome } from '@/pages/identidade/IdentityHome';
+import { Brands } from '@/pages/identidade/Brands';
+import { IdentityProvider } from '@/components/identity/IdentityContext';
 import { ProfileDetail } from '@/pages/identidade/ProfileDetail';
 import { SetupSessionPage } from '@/pages/identidade/SetupSessionPage';
 import { Coach } from '@/pages/coach/Coach';
@@ -112,6 +114,7 @@ export default function App() {
           <Route path="genesis" element={<ComoEscrevo />} />
           <Route path="diretrizes" element={<Navigate to="/genesis?aba=oficio" replace />} />
           <Route path="identidade" element={<IdentityHome />} />
+          <Route path="identidade/marcas" element={<IdentityProvider><Brands /></IdentityProvider>} />
           <Route path="identidade/configurar" element={<IdentityConfigure />} />
           <Route path="identidade/sessoes/:id" element={<SetupSessionPage />} />
           <Route path="identidade/perfis/:id" element={<ProfileDetail />} />

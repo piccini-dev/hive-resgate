@@ -1,13 +1,16 @@
 import { defineConfig, devices } from '@playwright/test';
 import { loadEnv } from './e2e/helpers/env';
+import { testTargets } from './e2e/helpers/target';
 
 // E2E da Bee Platform. Roda o app local (vite) contra o Supabase de produção,
 // logado como o usuário de teste ISOLADO (e2e-hive@beeconsulting.test): o RLS
 // separa os dados dele dos do Marcos. Chamadas de IA são mockadas por padrão
 // (determinístico e sem custo); a suíte "live" (@live) usa IA de verdade.
 loadEnv();
+const TARGET = testTargets();
 // E2E_PORT permite rodar a suíte de outro checkout (worktree) sem reaproveitar o servidor de outra cópia.
 const PORT = Number(process.env.E2E_PORT ?? 5199);
+const HOST = 'localhost';
 
 export default defineConfig({
   testDir: './e2e',
@@ -21,8 +24,12 @@ export default defineConfig({
   retries: 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: `http://localhost:${PORT}`,
-    launchOptions: { executablePath: process.env.E2E_CHROMIUM_EXECUTABLE_PATH || undefined },
+    baseURL: `http://${HOST}:${PORT}`,
+    launchOptions: {
+      executablePath: process.env.E2E_CHROMIUM_EXECUTABLE_PATH || undefined,
+      // Defesa adicional: em modo local, o navegador não resolve destinos Supabase hospedados.
+      args: TARGET.local ? ['--host-resolver-rules=MAP *.supabase.co ~NOTFOUND, MAP api.supabase.com ~NOTFOUND'] : [],
+    },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -45,8 +52,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --port ${PORT} --strictPort`,
-    url: `http://localhost:${PORT}`,
+    command: `npm run dev -- --port ${PORT} --strictPort${TARGET.local ? ' --host 127.0.0.1' : ''}`,
+    url: `http://${HOST}:${PORT}`,
     reuseExistingServer: true,
     timeout: 120_000,
   },

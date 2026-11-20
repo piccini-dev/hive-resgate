@@ -1,0 +1,74 @@
+name: Regressão local isolada
+
+# O label permite testar o workflow no próprio PR, sem integrá-lo na main.
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: 'Specs separados por espaço; vazio executa a suíte completa'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hive-regressao-local-isolada
+  cancel-in-progress: false
+
+jobs:
+  local:
+    if: >-
+      github.event.repository.private == false &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(fromJSON('["validar:local:alvos","validar:local:estabilidade","validar:local:diagnostico","validar:local:final","validar:local:completa"]'), github.event.label.name)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TZ: America/Sao_Paulo
+      HIVE_E2E_LOCAL: '1'
+      SPECS: >-
+        ${{ (github.event_name == 'workflow_dispatch' && inputs.specs) ||
+            (github.event.label.name == 'validar:local:final' && '--final') ||
+            (github.event.label.name == 'validar:local:alvos' && 'e2e/f34-marcas-contexto.spec.ts e2e/f17-minha-identidade.spec.ts e2e/f19-isolamento.spec.ts') ||
+            (github.event.label.name == 'validar:local:estabilidade' && 'e2e/f34-marcas-contexto.spec.ts --grep=atrasada|erro.de.cadastro|dois.envios|falha.de.leitura|troca.cancelada --repeat-each=3') ||
+            (github.event.label.name == 'validar:local:diagnostico' && 'e2e/f1-contas.spec.ts e2e/f12-marcos-photo.spec.ts e2e/f23-fundacao-e2.spec.ts e2e/f29-bases-producao.spec.ts e2e/f4-desenvolvimento.spec.ts e2e/f26-navegacao-e5.spec.ts e2e/f27-olhar-bee.spec.ts --max-failures=5') || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Sem caches, artifacts, secrets hospedados ou runner maior/pago.
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npx playwright test -c playwright.unit.config.ts
+      - run: node e2e/local/bootstrap.mjs --self-test
+      - name: Ferramentas locais fora da aplicação
+        run: |
+          npm install --prefix "$RUNNER_TEMP/hive-local-tools" --no-save --no-audit --no-fund pg@8.23.1 embedded-postgres@17.11.0-beta.19
+          curl -fsSL https://github.com/PostgREST/postgrest/releases/download/v16.6/postgrest-v16.6-linux-static-x86-64.tar.xz -o "$RUNNER_TEMP/hive-local-tools/postgrest.tar.xz"
+          tar -xJf "$RUNNER_TEMP/hive-local-tools/postgrest.tar.xz" -C "$RUNNER_TEMP/hive-local-tools"
+      - name: Matriz de segurança local
+        env:
+          HIVE_SECURITY_RUNTIME: ${{ runner.temp }}/hive-local-tools
+        run: node e2e/security/m01-local.mjs
+      - name: Navegador do runner
+        run: npx playwright install --with-deps chromium
+      - name: Supabase descartável local, sem migrations históricas
+        run: |
+          npx --yes supabase@3.2.0 start --exclude studio,postgres-meta,logflare,vector,supavisor,realtime,mailpit,imgproxy,edge-runtime > "$RUNNER_TEMP/hive-local-start.log" 2>&1
+          npx --yes supabase@3.2.0 status --output json > "$RUNNER_TEMP/hive-local-status.json"
+      - name: Regressão contra os serviços locais
+        env:
+          HIVE_LOCAL_STATUS: ${{ runner.temp }}/hive-local-status.json
+          HIVE_LOCAL_PG_MODULE: ${{ runner.temp }}/hive-local-tools/node_modules/pg/lib/index.js
+        run: node e2e/local/bootstrap.mjs $SPECS
+      - name: Descartar somente a instância local
+        if: always()
+        run: npx --yes supabase@3.2.0 stop --project-id hive-local --no-backup

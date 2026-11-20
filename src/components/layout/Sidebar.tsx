@@ -25,6 +25,7 @@ import {
   BarChart3,
   Camera,
   Fingerprint,
+  Building2,
   Wrench,
   Eye,
   Megaphone,
@@ -61,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Fingerprint,
     items: [
       { to: '/identidade', label: 'Minha identidade', icon: Fingerprint },
+      { to: '/identidade/marcas', label: 'Marcas', icon: Building2 },
       { to: '/genesis', label: 'Como escrevo', icon: BrainCircuit },
       { to: '/editoriais', label: 'Editoriais', icon: BookOpen },
       { to: '/conhecimento', label: 'Conhecimento', icon: Database },
@@ -209,6 +211,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        end={item.to === '/identidade'}
                         className={({ isActive }) =>
                           cn(
                             'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',

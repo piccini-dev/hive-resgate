@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { assertManagementTarget, type TargetEnv } from './target';
 
 export function managementToken(env = process.env, platform = process.platform, keychain = () => execFileSync('security', ['find-generic-password', '-s', 'Supabase CLI', '-w'], { stdio: ['ignore', 'pipe', 'ignore'] }).toString()) {
   let raw = env.SUPABASE_ACCESS_TOKEN?.trim();
@@ -10,11 +11,11 @@ export function managementToken(env = process.env, platform = process.platform, 
 }
 
 /** 403 encerra o acesso desta instância; sem troca de chave ou rota alternativa. */
-export function createManagementFetch(token = managementToken, request: typeof fetch = fetch) {
+export function createManagementFetch(token = managementToken, request: typeof fetch = fetch, env: TargetEnv = process.env) {
   let blocked = false;
   return async (url: string, init: RequestInit = {}) => {
     if (blocked) throw new Error('Acesso administrativo bloqueado após 403. Aguarde o Raul.');
-    if (!url.startsWith('https://api.supabase.com/v1/projects/')) throw new Error('Destino administrativo inválido.');
+    assertManagementTarget(url, env);
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${token()}`);
     const response = await request(url, { ...init, headers });

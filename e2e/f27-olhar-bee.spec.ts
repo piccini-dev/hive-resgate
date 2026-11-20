@@ -1,3 +1,4 @@
+import { managementUrl, testTargets } from './helpers/target';
 import { test, expect } from '@playwright/test';
 import { cleanupE2EData, seed, sql } from './helpers/admin';
 import { managementFetch } from './helpers/management';
@@ -9,7 +10,6 @@ import { loadEnv } from './helpers/env';
 // os testes de serviço chamam a função real só nos caminhos que não usam IA.
 
 const BEE = '0b000000-0000-4000-8000-000000000002';
-const REF = 'djlorvdehedcupeykyes';
 let _svc: string | null = null;
 async function chamarComoServico(body: unknown, semLogin = false): Promise<{ status: number; json: Record<string, unknown> }> {
   loadEnv();
@@ -17,12 +17,12 @@ async function chamarComoServico(body: unknown, semLogin = false): Promise<{ sta
   if (semLogin) headers.apikey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
   else {
     if (!_svc) {
-      const keys = await managementFetch(`https://api.supabase.com/v1/projects/${REF}/api-keys?reveal=true`, {}).then((r) => r.json()) as Array<{ type: string; api_key: string }>;
+      const keys = await managementFetch(managementUrl('/api-keys?reveal=true'), {}).then((r) => r.json()) as Array<{ type: string; api_key: string }>;
       _svc = keys.find((k) => k.type === 'secret')?.api_key ?? null;
     }
     Object.assign(headers, { apikey: _svc!, Authorization: `Bearer ${_svc}`, 'x-bee-user-id': process.env.E2E_USER_ID! });
   }
-  const r = await fetch(`https://${REF}.supabase.co/functions/v1/olhar-bee`, { method: 'POST', headers, body: JSON.stringify(body) });
+  const r = await fetch(`${testTargets().backend}/functions/v1/olhar-bee`, { method: 'POST', headers, body: JSON.stringify(body) });
   return { status: r.status, json: await r.json().catch(() => ({})) };
 }
 

@@ -3,19 +3,19 @@
 // entra com senha e devolve um cliente REST/RPC/funções com o JWT dele.
 import { managementFetch } from './management';
 import { loadEnv } from './env';
+import { managementUrl, testTargets } from './target';
 
-const REF = 'djlorvdehedcupeykyes';
 let _svc: string | null = null;
 
 async function serviceKey(): Promise<string> {
   if (_svc) return _svc;
-  const r = await managementFetch(`https://api.supabase.com/v1/projects/${REF}/api-keys?reveal=true`, {});
+  const r = await managementFetch(managementUrl('/api-keys?reveal=true'), {});
   const keys = (await r.json()) as Array<{ type: string; api_key: string }>;
   _svc = keys.find((k) => k.type === 'secret')?.api_key ?? '';
   if (!_svc) throw new Error('chave secreta indisponível');
   return _svc;
 }
-const env = () => { loadEnv(); return { url: process.env.VITE_SUPABASE_URL!, anon: process.env.VITE_SUPABASE_PUBLISHABLE_KEY! }; };
+const env = () => { loadEnv(); return { url: testTargets().backend, anon: process.env.VITE_SUPABASE_PUBLISHABLE_KEY! }; };
 
 export interface Tenant {
   id: string; email: string; jwt: string;

@@ -46,6 +46,7 @@ test.describe('F4 · conteúdos-base e versões', () => {
     const { cycleId } = await setup(page);
     await openFirst(page);
     await page.getByRole('button', { name: 'Validar conteúdo-base', exact: true }).click();
+    await expect(page.getByTestId('content-approved')).toContainText('Nenhum post foi criado');
     const [before] = await sql<{ id: string; body: { texto: string } }>(`select id,body from content_base_versions where draft_cycle_id='${cycleId}' and status='validated'`);
     await page.getByRole('button', { name: 'Voltar à visão geral', exact: true }).click();
     await openFirst(page);
@@ -61,6 +62,7 @@ test.describe('F4 · conteúdos-base e versões', () => {
     await openFirst(page);
     await expect(page.getByTestId('content-texto')).toContainText('nova nuance');
     await page.getByRole('button', { name: 'Validar conteúdo-base', exact: true }).click();
+    await expect(page.getByTestId('content-approved')).toContainText('Nenhum post foi criado');
     const versions = await sql(`select id from content_base_versions where draft_cycle_id='${cycleId}' and status='validated'`);
     expect(versions).toHaveLength(2);
     expect(await sql(`select id from user_posts where cycle_id='${cycleId}'`)).toHaveLength(0);
