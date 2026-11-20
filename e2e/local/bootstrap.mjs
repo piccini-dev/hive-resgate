@@ -8,6 +8,8 @@ import { once } from 'node:events';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { localGateway, startHostRuntime, stopHostRuntime } from './functions.mjs';
+import { seedVisualFixtures } from './fixtures.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 async function stopChild(child) {
@@ -68,9 +70,11 @@ const allowedSeed = table => /^(genesis_|design_|bee_)/.test(table)
     'post_templates','photo_references','photo_styles','acj_definitions','format_capabilities'].includes(table);
 
 export async function seedCatalogs(db, userId, backend) {
-  const entries = new Map();
+  const entries = new Map(), updates=[];
   for (const name of (await readdir(path.join(ROOT, 'supabase/migrations'))).filter(n => n.endsWith('.sql')).sort()) {
     for (const sql of splitSql(await readFile(path.join(ROOT, 'supabase/migrations', name), 'utf8'))) {
+      const clean=sql.replace(/^(?:\s|--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/)+/,'');
+      if(/^UPDATE\s+(?:public\.)?design_[a-z_]+\s/i.test(clean))updates.push({name,sql:sql.replaceAll('https://djlorvdehedcupeykyes.supabase.co',backend)});
       const table = insertTable(sql); if (!table || !allowedSeed(table)) continue;
       // Não se reutiliza conteúdo de usuário. Apenas catálogos versionados, no dono sintético.
       if (!entries.has(table)) entries.set(table, []);
@@ -94,6 +98,7 @@ export async function seedCatalogs(db, userId, backend) {
     }
     pending.delete(table); done.add(table);
   }
+  for(const entry of updates){try{await db.query(entry.sql);}catch(e){throw Error(`Atualização de catálogo ${entry.name}: ${e.message}`);}}
   await db.query("SELECT set_config('request.jwt.claims','{}',false)");
   const workspace = '0b000000-0000-4000-8000-000000000001';
   if ((await db.query('SELECT 1 FROM workspaces WHERE id=$1',[workspace])).rowCount) {
@@ -112,14 +117,18 @@ async function main() {
   const pgModule=process.env.HIVE_LOCAL_PG_MODULE;
   if (!stateFile || !pgModule || !path.isAbsolute(stateFile) || !path.isAbsolute(pgModule)) throw new Error('Informe status local e módulo pg fora da aplicação.');
   const state=JSON.parse(await readFile(stateFile,'utf8'));
-  const backend=loopback(state.API_URL,['http:'],54321).origin;
+  loopback(state.API_URL,['http:'],54321);
+  const backend='http://127.0.0.1:54521';
   const database=loopback(state.DB_URL,['postgresql:','postgres:'],54322);
   if (database.pathname!=='/postgres') throw new Error('Banco local inesperado.');
   const anon=state.ANON_KEY, service=state.SERVICE_ROLE_KEY;
   if (!anon || !service) throw new Error('CLI local não forneceu chaves legadas compatíveis; não usar chaves hospedadas.');
   if (process.env.GITHUB_ACTIONS==='true') for (const value of [anon,service,database.password]) console.log('::add-mask::'+value);
   const {default:pg}=await import(pathToFileURL(pgModule));
+  // Management API preserva microssegundos; Date do pg perderia precisão e causaria PT409 falso.
+  pg.types.setTypeParser(1184,value=>value);pg.types.setTypeParser(1114,value=>value);
   const db=new pg.Client({connectionString:database.href});await db.connect();
+  const gateway=await localGateway();
   const adminKey='local-'+randomBytes(32).toString('hex');
   const management=http.createServer(async(req,res)=>{
     res.setHeader('Content-Type','application/json');
@@ -138,6 +147,7 @@ async function main() {
     if((await db.query("SELECT to_regclass('public.user_posts') present")).rows[0].present) throw new Error('Banco já contém a Hive; recusei sobrescrever dados existentes.');
     await db.query("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public; DO $$ BEGIN IF (SELECT extnamespace FROM pg_extension WHERE extname='vector')<>'public'::regnamespace THEN ALTER EXTENSION vector SET SCHEMA public; END IF; END $$;");
     await db.query(await readFile(path.join(ROOT,'e2e/local/schema.sql'),'utf8'));
+    await db.query('SET search_path=public,extensions');
     await db.query(await readFile(path.join(ROOT,'e2e/local/storage.sql'),'utf8'));
     await db.query(await readFile(path.join(ROOT,'supabase/migrations/20261119000001_marcas_permissoes.sql'),'utf8'));
     const password='LocalOnly!'+randomBytes(20).toString('hex'),email='e2e-local@example.test';
@@ -153,10 +163,19 @@ async function main() {
       const response=await fetch(backend+'/storage/v1/bucket',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json'},body:JSON.stringify(bucket)});
       if(!response.ok&&response.status!==409)throw Error('Bucket local '+id+': '+response.status+' '+await response.text());
     }
+    await seedVisualFixtures(db,backend,service);
     await new Promise(r=>management.listen(54330,'127.0.0.1',r));
     const cliLog=createWriteStream(path.join(process.env.RUNNER_TEMP??'/tmp','hive-local-functions.log'));
     functions=spawn('npx',['--yes','supabase@3.2.0','functions','serve'],{cwd:ROOT,env:{...process.env,SUPABASE_ACCESS_TOKEN:''},detached:true,stdio:['ignore','pipe','pipe']});
     functions.stdout.pipe(cliLog);functions.stderr.pipe(cliLog);
+    // A CLI monta e configura seu dispatcher antes de clonar apenas o runtime para loopback.
+    let prepared=false;
+    for(let i=0;i<60;i++){
+      try{const r=await fetch(state.API_URL+'/functions/v1/identity-setup',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'x-bee-user-id':userId,'Content-Type':'application/json'},body:JSON.stringify({action:'context_probe'})});if(r.ok){prepared=true;break;}}catch{}
+      await new Promise(r=>setTimeout(r,1000));
+    }
+    if(!prepared)throw Error('Dispatcher da CLI não ficou pronto.');
+    startHostRuntime(backend,database.href);
     let ready=false;
     for(let i=0;i<60;i++){
       if(functions.exitCode!==null)throw Error('Servidor local de funções encerrou; consultar log privado do runner.');
@@ -172,8 +191,10 @@ async function main() {
   } finally {
     console.log('Encerrando processos de teste e funções locais.');
     await stopChild(tests); await stopChild(functions);
+    stopHostRuntime();
     functions?.stdout?.destroy(); functions?.stderr?.destroy();
     if(management.listening){management.closeAllConnections();await new Promise(r=>management.close(r));}
+    gateway.closeAllConnections();await new Promise(r=>gateway.close(r));
     await db.end();
     console.log('Bootstrap local encerrado; o workflow descartará a instância local.');
   }
