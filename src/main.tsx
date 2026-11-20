@@ -21,7 +21,10 @@ if (typeof window !== 'undefined' && !localStorage.getItem(MIGRATION_FLAG)) {
 
 // Roteador de dados (antes BrowserRouter): necessário para avisar antes de sair de uma tela com edição
 // pendente (useBlocker — doc 04 §11.2). As rotas continuam declaradas em <App /> (rota curinga).
-const router = createBrowserRouter([{ path: '*', element: <><App /><Toaster richColors position="top-right" /></> }]);
+const router = createBrowserRouter(
+  [{ path: '*', element: <><App /><Toaster richColors position="top-right" /></> }],
+  { basename: import.meta.env.BASE_URL },
+);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
