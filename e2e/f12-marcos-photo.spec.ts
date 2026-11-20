@@ -6,6 +6,7 @@ import { callEdge } from './helpers/edge';
 import { mockEdge, mockProduction } from './helpers/mocks';
 import { seedAccounts, seedCampaign, seedValidatedContents } from './helpers/fixtures';
 import { e2eUser } from './helpers/env';
+import { testTargets } from './helpers/target';
 
 // Motor fotográfico do Marcos (docs/fotografia/01–06) contra os modelos REAIS.
 test.describe('F12 · motor fotográfico do Marcos', () => {
@@ -35,7 +36,7 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
     expect(e2eUser().id).toBeTruthy();
   });
 
-  const REF_URL = 'https://djlorvdehedcupeykyes.supabase.co/storage/v1/object/public/design/hive/marcos-1788357859-03.jpg';
+  const REF_URL = `${testTargets().backend}/storage/v1/object/public/design/hive/marcos-1788357859-03.jpg`;
   // Simula a edge e suas imagens sem gravar arquivos ou gerar fotos reais.
   async function mockPhotoEngine(page: import('@playwright/test').Page, calls: Array<Record<string, unknown>> = [], repeatImage = false) {
     const { id: userId } = e2eUser();
@@ -54,7 +55,7 @@ test.describe('F12 · motor fotográfico do Marcos', () => {
       }
       const variant = String(b.force_variant ?? 'F01-A');
       const imageUrl = repeatImage && previousImage ? previousImage
-        : `https://djlorvdehedcupeykyes.supabase.co/storage/v1/object/public/design/e2e-generated-photo/${crypto.randomUUID()}.svg`;
+        : `${testTargets().backend}/storage/v1/object/public/design/e2e-generated-photo/${crypto.randomUUID()}.svg`;
       if (!images.has(imageUrl)) {
         imageNumber++;
         images.set(imageUrl, `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="hsl(${imageNumber * 61 % 360},35%,45%)"/><circle cx="${400 + imageNumber * 20}" cy="500" r="180" fill="white"/></svg>`);
