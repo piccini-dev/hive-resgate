@@ -10,7 +10,7 @@ loadEnv();
 const TARGET = testTargets();
 // E2E_PORT permite rodar a suíte de outro checkout (worktree) sem reaproveitar o servidor de outra cópia.
 const PORT = Number(process.env.E2E_PORT ?? 5199);
-const HOST = TARGET.local ? '127.0.0.1' : 'localhost';
+const HOST = 'localhost';
 
 export default defineConfig({
   testDir: './e2e',

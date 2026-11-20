@@ -43,7 +43,8 @@ test.describe('F1 · contas e modelo de dados', () => {
     await addLinkedIn(page, 'Conta B');
     const rowB = page.getByTestId('account-row').filter({ hasText: 'Conta B' });
     await rowB.getByRole('button', { name: 'Tornar padrão' }).click();
-    await expect(rowB.getByText('Padrão')).toBeVisible();
+    // O botão "Tornar padrão" não comprova a conclusão do segundo PATCH.
+    await expect(rowB.getByText('Padrão', { exact: true })).toBeVisible();
 
     const { id } = e2eUser();
     const rows = await sql<{ label: string; is_default: boolean }>(
