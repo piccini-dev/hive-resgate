@@ -9,6 +9,7 @@ Na branch do PR, adicione **um label por vez**, aguardando o encerramento comple
 | Label | O que executa |
 | --- | --- |
 | `validar:local:alvos` | f34 (Marcas), f17 (Identidade) e f19 (isolamento) |
+| `validar:local:diagnostico` | Contas, fotos, pacote, produção, versões e navegação; interrompe após cinco falhas para diagnóstico, sem substituir a suíte completa |
 | `validar:local:estabilidade` | Cenários de atraso, recuperação e envio concorrente do f34, três repetições cada |
 | `validar:local:completa` | Todos os testes do projeto `e2e`, sem `@live`/`@tool` |
 
@@ -25,5 +26,9 @@ O bootstrap recusa banco Hive já preenchido e arquivos `.env.local`, `.env.e2e.
 Ao terminar, os processos filhos são encerrados com prazo limitado e o workflow descarta apenas `hive-local`, sem backup. Não usar `supabase db push`, vincular o diretório a projeto hospedado ou trocar o destino por produção para resolver falhas locais.
 
 ## Limites da prova
+
+No runner Linux, `functions.mjs` reutiliza a imagem oficial, as fontes, o dispatcher e a verificação JWT montados pela CLI. Uma segunda instância desse runtime usa a rede do próprio runner, com gateway em `127.0.0.1:54521`; Auth/REST/Storage continuam na instância CLI local. Assim as funções alcançam os mesmos URLs locais de imagem que o navegador, sem substituir contratos ou criar rotas para produção. Ambas as instâncias são descartadas.
+
+`fixtures.mjs` cria somente bitmaps sintéticos e metadados de referência do cenário F12. Não testa identidade fotográfica real. As atualizações estáticas versionadas de design são reproduzidas após os INSERTs; a ponte SQL preserva microssegundos e o search_path esperado na introspecção.
 
 Os serviços e contratos de banco são reais no ambiente descartável. Chamadas de IA simuladas continuam simuladas conforme os specs existentes. Esse resultado não testa disponibilidade ou credenciais de serviços pagos e não aplica a correção em produção. Merge/deploy exigem os portões do M01 e confirmação do destino correto.

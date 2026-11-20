@@ -4,7 +4,10 @@ import http from 'node:http';
 import { execFileSync } from 'node:child_process';
 
 const NAME='hive-local-edge-host';
-const docker=args=>execFileSync('docker',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+const docker=args=>{
+  try{return execFileSync('docker',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']});}
+  catch(e){throw Error('Docker local '+args[0]+': '+String(e.stderr??'falhou').replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g,'[JWT local omitido]').slice(0,1200));}
+};
 export async function localGateway() {
   const server=http.createServer((req,res)=>{
     const isFunction=req.url.startsWith('/functions/v1/');
