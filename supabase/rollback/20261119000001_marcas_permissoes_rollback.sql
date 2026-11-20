@@ -9,7 +9,9 @@ CREATE POLICY brands_member ON public.brands FOR ALL TO authenticated
   WITH CHECK (public.is_workspace_member(workspace_id));
 
 REVOKE UPDATE (name, essence) ON public.brands FROM authenticated;
-GRANT UPDATE, DELETE ON public.brands TO authenticated, anon;
+-- Snapshot anterior: ALL para anon/authenticated, sem grants por coluna.
+-- Restauração de compatibilidade, não uma configuração segura para manter.
+GRANT ALL ON public.brands TO authenticated, anon;
 
 CREATE OR REPLACE FUNCTION public.set_brand_archived(p_brand uuid, p_archived boolean)
 RETURNS public.brands LANGUAGE plpgsql SECURITY INVOKER

@@ -28,8 +28,11 @@ CREATE POLICY brands_update_manager ON public.brands FOR UPDATE TO authenticated
   USING (public.can_manage_workspace_brand(workspace_id))
   WITH CHECK (public.can_manage_workspace_brand(workspace_id));
 
--- REST não pode alterar status, slug, workspace_id, is_default nem excluir marcas.
-REVOKE UPDATE, DELETE ON public.brands FROM authenticated, anon;
+-- Partir de privilégio mínimo: TRUNCATE ignora RLS e não pode permanecer
+-- herdado do GRANT ALL anterior, nem TRIGGER/REFERENCES/MAINTAIN.
+-- O anônimo não precisa acessar a tabela; a leitura autorizada é de membros.
+REVOKE ALL ON public.brands FROM PUBLIC, authenticated, anon;
+GRANT SELECT, INSERT ON public.brands TO authenticated;
 GRANT UPDATE (name, essence) ON public.brands TO authenticated;
 
 -- A RPC é o único caminho de alteração de status, preservando PT404/PT409.
