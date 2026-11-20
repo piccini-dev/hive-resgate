@@ -8,11 +8,24 @@ import { once } from 'node:events';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { localGateway, startHostRuntime, stopHostRuntime, runtimePortArgs, runtimeDiagnostics } from './functions.mjs';
+import { localGateway, startHostRuntime, stopHostRuntime, runtimePortArgs, runtimeDiagnostics, functionsUpstream } from './functions.mjs';
 import { seedVisualFixtures } from './fixtures.mjs';
 import { visualReview } from './visual.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+export function validationBatches(args){
+  if(args.includes('--final')){
+    if(args.length!==1)throw Error('O modo final não aceita filtros adicionais.');
+    return [
+      ['e2e/f1-contas.spec.ts','e2e/f12-marcos-photo.spec.ts','e2e/f23-fundacao-e2.spec.ts','e2e/f26-navegacao-e5.spec.ts','e2e/f27-olhar-bee.spec.ts','e2e/f29-bases-producao.spec.ts','e2e/f4-desenvolvimento.spec.ts','--max-failures=5'],
+      ['e2e/f34-marcas-contexto.spec.ts','e2e/f17-minha-identidade.spec.ts','e2e/f19-isolamento.spec.ts'],
+      ['e2e/f34-marcas-contexto.spec.ts','--grep=atrasada|erro.de.cadastro|dois.envios|falha.de.leitura|troca.cancelada','--repeat-each=3'],
+      [], // A última etapa é integral: nenhum filtro, max-failures ou repetição.
+    ];
+  }
+  if(args.some(a=>a.includes('@live')||a.includes('--project')||a.includes('--config')))throw Error('Argumento de execução não permitido no runner local.');
+  return [args];
+}
 async function stopChild(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   const exited = once(child, 'exit');
@@ -184,12 +197,19 @@ async function main() {
       await new Promise(r=>setTimeout(r,1000));
     }
     if(!ready){runtimeDiagnostics();throw Error('Funções locais não ficaram prontas.');}
-    const args=process.argv.slice(2);if(args.some(a=>a.includes('@live')||a.includes('--project')||a.includes('--config')))throw Error('Argumento de execução não permitido no runner local.');
+    const batches=validationBatches(process.argv.slice(2));
     const guard=pathToFileURL(path.join(ROOT,'e2e/local/deny-hosted.mjs')).href;
     const env={...process.env,NODE_OPTIONS:`${process.env.NODE_OPTIONS??''} --import ${guard}`,HIVE_E2E_LOCAL:'1',HIVE_E2E_BACKEND_URL:backend,HIVE_E2E_MANAGEMENT_URL:'http://127.0.0.1:54330',VITE_SUPABASE_URL:backend,VITE_SUPABASE_PUBLISHABLE_KEY:anon,SUPABASE_ACCESS_TOKEN:adminKey,E2E_EMAIL:email,E2E_PASSWORD:password,E2E_USER_ID:userId};
-    tests=spawn(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--project=e2e','--reporter=list',...args],{cwd:ROOT,env,detached:true,stdio:'inherit'});
-    const [exit]=await once(tests,'exit');if(exit!==0)process.exitCode=exit||1;
-    if(exit===0&&args.length===0)await visualReview({db,userId,env,stopChild});
+    let complete=false;
+    for(const [i,args] of batches.entries()){
+      console.log(`HIVE_LOCAL_STAGE ${i+1}/${batches.length}: ${args.length?args.join(' '):'SUÍTE COMPLETA SEM FILTROS'}`);
+      tests=spawn(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--project=e2e','--reporter=list',...args],{cwd:ROOT,env,detached:true,stdio:'inherit'});
+      const [exit]=await once(tests,'exit');
+      if(exit!==0){process.exitCode=exit||1;break;}
+      console.log(`HIVE_LOCAL_STAGE ${i+1}/${batches.length}: PASS`);
+      if(args.length===0)complete=true;
+    }
+    if(complete)await visualReview({db,userId,env,stopChild});
   } finally {
     console.log('Encerrando processos de teste e funções locais.');
     await stopChild(tests); await stopChild(functions);
@@ -219,7 +239,14 @@ if(process.argv.includes('--self-test')){
   assert.deepEqual(runtimePortArgs(['start','--port','8081']),['start','--port','9998']);
   assert.deepEqual(runtimePortArgs(['start','--port=8081']),['start','--port=9998']);
   assert.deepEqual(runtimePortArgs(['edge-runtime start --port=8081 --policy=per_worker']),['edge-runtime start --port=9998 --policy=per_worker']);
-  console.log('13 verificações puras e 1 encerramento real de processo passaram.');
+  const kong="services:\n- name: rest-v1\n  url: http://rest:3000/\n- name: functions-v1\n  url: http://runtime:8081/\n  plugins:\n  - name: cors\n";
+  assert.equal(functionsUpstream(kong,'172.18.0.1'),kong.replace('http://runtime:8081/','http://172.18.0.1:9998/'));
+  assert.throws(()=>functionsUpstream(kong,'example.com'));
+  assert.throws(()=>functionsUpstream('services: []','172.18.0.1'));
+  assert.deepEqual(validationBatches(['--final']).at(-1),[]);
+  assert.throws(()=>validationBatches(['--final','--grep=algum']));
+  assert.throws(()=>validationBatches(['--project=live']));
+  console.log('19 verificações puras e 1 encerramento real de processo passaram.');
 }else if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   await main().catch(e=>{console.error(e.message);process.exitCode=1;});
 }

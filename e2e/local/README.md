@@ -9,6 +9,7 @@ Na branch do PR, adicione **um label por vez**, aguardando o encerramento comple
 | Label | O que executa |
 | --- | --- |
 | `validar:local:alvos` | f34 (Marcas), f17 (Identidade) e f19 (isolamento) |
+| `validar:local:final` | Diagnóstico, dirigidos, estabilidade e suíte completa, em sequência no mesmo SHA/ambiente; captura visual após tudo verde |
 | `validar:local:diagnostico` | Contas, fotos, pacote, produção, versões e navegação; interrompe após cinco falhas para diagnóstico, sem substituir a suíte completa |
 | `validar:local:estabilidade` | Cenários de atraso, recuperação e envio concorrente do f34, três repetições cada |
 | `validar:local:completa` | Todos os testes do projeto `e2e`, sem `@live`/`@tool` |
@@ -30,5 +31,7 @@ Ao terminar, os processos filhos são encerrados com prazo limitado e o workflow
 No runner Linux, `functions.mjs` cria um snapshot **somente local** do runtime oficial configurado pela CLI, incluindo o dispatcher que ela copia para `/root/index.ts`. Não publica imagem em registry. A segunda instância preserva fontes e verificação JWT, usa porta explícita 9998 e a rede do próprio runner, com gateway em `127.0.0.1:54521`; Auth/REST/Storage continuam na instância CLI local. Assim as funções alcançam os mesmos URLs locais de imagem que o navegador, sem substituir contratos ou criar rotas para produção. Ambas as instâncias e o snapshot são descartados.
 
 `fixtures.mjs` cria somente bitmaps sintéticos e metadados de referência do cenário F12. Não testa identidade fotográfica real. As atualizações estáticas versionadas de design são reproduzidas após os INSERTs; a ponte SQL preserva microssegundos e o search_path esperado na introspecção.
+
+Todo tráfego continua passando pelo Kong original da CLI. Apenas o upstream local `functions-v1` aponta para o runtime no runner, pelo gateway privado da rede Docker. A configuração completa é preservada, validada e recarregada localmente, inclusive plugins e tratamento de chaves/autenticação; não há reimplementação ou desativação desses controles no proxy Node.
 
 Os serviços e contratos de banco são reais no ambiente descartável. Chamadas de IA simuladas continuam simuladas conforme os specs existentes. Esse resultado não testa disponibilidade ou credenciais de serviços pagos e não aplica a correção em produção. Merge/deploy exigem os portões do M01 e confirmação do destino correto.
