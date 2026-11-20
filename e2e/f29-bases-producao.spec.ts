@@ -422,7 +422,7 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await page.getByRole('textbox',{name:'Editar legenda da sequência'}).fill(caption);
     await page.getByRole('button',{name:'Salvar legenda',exact:true}).click();
     await expect(page.getByTestId('sequence-caption')).toContainText('FIM DA LEGENDA');
-    expect((await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe(caption);
+    await expect.poll(async()=>(await sql<{caption:string}>(`select caption from user_posts where id='${pid}'`))[0].caption).toBe(caption);
     for(let i=1;i<=3;i++)await page.getByRole('button',{name:`Marcar página ${i} como revisada`,exact:true}).click();
     await expect(page.getByTestId('visual-sequence-approve')).toBeEnabled();
     await page.getByTestId('visual-sequence-approve').click();
