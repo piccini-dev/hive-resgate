@@ -8,8 +8,9 @@ import { once } from 'node:events';
 import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { localGateway, startHostRuntime, stopHostRuntime } from './functions.mjs';
+import { localGateway, startHostRuntime, stopHostRuntime, runtimePortArgs, runtimeDiagnostics } from './functions.mjs';
 import { seedVisualFixtures } from './fixtures.mjs';
+import { visualReview } from './visual.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 async function stopChild(child) {
@@ -182,12 +183,13 @@ async function main() {
       try{const r=await fetch(backend+'/functions/v1/identity-setup',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'x-bee-user-id':userId,'Content-Type':'application/json'},body:JSON.stringify({action:'context_probe'})});if(r.ok){ready=true;break;}}catch{}
       await new Promise(r=>setTimeout(r,1000));
     }
-    if(!ready)throw Error('Funções locais não ficaram prontas.');
+    if(!ready){runtimeDiagnostics();throw Error('Funções locais não ficaram prontas.');}
     const args=process.argv.slice(2);if(args.some(a=>a.includes('@live')||a.includes('--project')||a.includes('--config')))throw Error('Argumento de execução não permitido no runner local.');
     const guard=pathToFileURL(path.join(ROOT,'e2e/local/deny-hosted.mjs')).href;
     const env={...process.env,NODE_OPTIONS:`${process.env.NODE_OPTIONS??''} --import ${guard}`,HIVE_E2E_LOCAL:'1',HIVE_E2E_BACKEND_URL:backend,HIVE_E2E_MANAGEMENT_URL:'http://127.0.0.1:54330',VITE_SUPABASE_URL:backend,VITE_SUPABASE_PUBLISHABLE_KEY:anon,SUPABASE_ACCESS_TOKEN:adminKey,E2E_EMAIL:email,E2E_PASSWORD:password,E2E_USER_ID:userId};
     tests=spawn(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--project=e2e','--reporter=list',...args],{cwd:ROOT,env,detached:true,stdio:'inherit'});
     const [exit]=await once(tests,'exit');if(exit!==0)process.exitCode=exit||1;
+    if(exit===0&&args.length===0)await visualReview({db,userId,env,stopChild});
   } finally {
     console.log('Encerrando processos de teste e funções locais.');
     await stopChild(tests); await stopChild(functions);
@@ -214,7 +216,10 @@ if(process.argv.includes('--self-test')){
   const stubborn=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});process.stdout.write('ready');setInterval(()=>{},1000)"],{detached:true,stdio:['ignore','pipe','ignore']});
   await once(stubborn.stdout,'data'); await stopChild(stubborn);
   assert.equal(stubborn.signalCode,'SIGKILL');
-  console.log('10 verificações puras e 1 encerramento real de processo passaram.');
+  assert.deepEqual(runtimePortArgs(['start','--port','8081']),['start','--port','9998']);
+  assert.deepEqual(runtimePortArgs(['start','--port=8081']),['start','--port=9998']);
+  assert.deepEqual(runtimePortArgs(['edge-runtime start --port=8081 --policy=per_worker']),['edge-runtime start --port=9998 --policy=per_worker']);
+  console.log('13 verificações puras e 1 encerramento real de processo passaram.');
 }else if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   await main().catch(e=>{console.error(e.message);process.exitCode=1;});
 }

@@ -1,9 +1,16 @@
 // Rede somente do runner descartável: o mesmo loopback atende navegador e Edge Runtime.
 // Reutiliza imagem, dispatcher, verificação JWT e fontes da CLI; não muda funções do app.
 import http from 'node:http';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 const NAME='hive-local-edge-host';
+const PORT=9998;
+const redact=value=>String(value).replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g,'[JWT local omitido]');
+export function runtimePortArgs(args){
+  const out=args.map(arg=>arg.replace(/--port(?:=|\s+)\d+\b/g,'--port='+PORT));
+  for(let i=0;i<out.length-1;i++)if(['--port','-p'].includes(out[i])&&/^\d+$/.test(out[i+1]))out[++i]=String(PORT);
+  return out;
+}
 const docker=args=>{
   try{return execFileSync('docker',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']});}
   catch(e){throw Error('Docker local '+args[0]+': '+String(e.stderr??'falhou').replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g,'[JWT local omitido]').slice(0,1200));}
@@ -11,7 +18,7 @@ const docker=args=>{
 export async function localGateway() {
   const server=http.createServer((req,res)=>{
     const isFunction=req.url.startsWith('/functions/v1/');
-    const upstream=http.request({hostname:'127.0.0.1',port:isFunction?9999:54321,
+    const upstream=http.request({hostname:'127.0.0.1',port:isFunction?PORT:54321,
       path:isFunction?req.url.slice('/functions/v1'.length):req.url,method:req.method,headers:req.headers},r=>{
       res.writeHead(r.statusCode,r.headers);r.pipe(res);
     });
@@ -30,10 +37,12 @@ export function startHostRuntime(backend,database) {
   if(!oldUrl)throw Error('CLI não informou SUPABASE_URL local.');
   const args=['create','--name',NAME,'--network','host'];
   for(const raw of vars){
+    if(raw.startsWith('EDGE_RUNTIME_PORT='))continue;
     let value=raw.replaceAll(oldUrl,backend);
     if(value.startsWith('SUPABASE_DB_URL='))value='SUPABASE_DB_URL='+database;
     args.push('--env',value);
   }
+  args.push('--env','EDGE_RUNTIME_PORT='+PORT);
   for(const m of original.Mounts){
     if(!['bind','volume'].includes(m.Type))throw Error('Montagem de runtime não suportada: '+m.Type);
     args.push('--mount',`type=${m.Type},src=${m.Type==='volume'?m.Name:m.Source},dst=${m.Destination}${m.RW?'':',readonly'}`);
@@ -41,9 +50,17 @@ export function startHostRuntime(backend,database) {
   if(original.Config.User)args.push('--user',original.Config.User);
   const entry=original.Config.Entrypoint??[];
   if(entry.length)args.push('--entrypoint',entry[0]);
-  args.push(original.Config.Image,...entry.slice(1),...(original.Config.Cmd??[]));
+  args.push(original.Config.Image,...runtimePortArgs([...entry.slice(1),...(original.Config.Cmd??[])]));
   docker(args);docker(['start',NAME]);
-  console.log('Edge Runtime oficial em rede do runner; gateway e destinos somente loopback.');
+  console.log(`Edge Runtime oficial em rede do runner, porta ${PORT}; gateway e destinos somente loopback.`);
+}
+export function runtimeDiagnostics(){
+  try{
+    const [c]=JSON.parse(docker(['inspect',NAME]));
+    console.error(JSON.stringify({runtime:c.Config.Image,command:c.Config.Cmd,state:c.State.Status,network:c.HostConfig.NetworkMode}));
+    const logs=spawnSync('docker',['logs','--tail','20',NAME],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
+    console.error(redact((logs.stdout??'')+(logs.stderr??'')).slice(-3000));
+  }catch(e){console.error(redact(e.message));}
 }
 export function stopHostRuntime() {
   try{docker(['rm','--force',NAME]);}catch(e){if(!String(e.stderr).includes('No such container'))throw e;}
