@@ -4,6 +4,7 @@ import http from 'node:http';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 const NAME='hive-local-edge-host';
+const SNAPSHOT='hive-local-edge-snapshot';
 const PORT=9998;
 const redact=value=>String(value).replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g,'[JWT local omitido]');
 export function runtimePortArgs(args){
@@ -32,6 +33,9 @@ export function startHostRuntime(backend,database) {
   if(backend!=='http://127.0.0.1:54521'||new URL(database).hostname!=='127.0.0.1')throw Error('Runtime exige destinos locais explícitos.');
   const [original]=JSON.parse(docker(['inspect','supabase_edge_runtime_hive-local']));
   if(!original.Config.Image.includes('supabase/edge-runtime:'))throw Error('Imagem de runtime inesperada.');
+  // A CLI copia /root/index.ts para a camada gravável, fora dos mounts.
+  // Snapshot só local, nunca enviado a registry; conserva dispatcher e configuração gerados.
+  const image=docker(['commit','supabase_edge_runtime_hive-local',SNAPSHOT]).trim();
   const vars=original.Config.Env;
   const oldUrl=vars.find(v=>v.startsWith('SUPABASE_URL='))?.slice('SUPABASE_URL='.length);
   if(!oldUrl)throw Error('CLI não informou SUPABASE_URL local.');
@@ -50,18 +54,19 @@ export function startHostRuntime(backend,database) {
   if(original.Config.User)args.push('--user',original.Config.User);
   const entry=original.Config.Entrypoint??[];
   if(entry.length)args.push('--entrypoint',entry[0]);
-  args.push(original.Config.Image,...runtimePortArgs([...entry.slice(1),...(original.Config.Cmd??[])]));
+  args.push(image,...runtimePortArgs([...entry.slice(1),...(original.Config.Cmd??[])]));
   docker(args);docker(['start',NAME]);
   console.log(`Edge Runtime oficial em rede do runner, porta ${PORT}; gateway e destinos somente loopback.`);
 }
 export function runtimeDiagnostics(){
   try{
     const [c]=JSON.parse(docker(['inspect',NAME]));
-    console.error(JSON.stringify({runtime:c.Config.Image,command:c.Config.Cmd,state:c.State.Status,network:c.HostConfig.NetworkMode}));
+    console.error(redact(JSON.stringify({runtime:c.Config.Image,command:c.Config.Cmd,state:c.State.Status,network:c.HostConfig.NetworkMode})));
     const logs=spawnSync('docker',['logs','--tail','20',NAME],{encoding:'utf8',stdio:['ignore','pipe','pipe']});
     console.error(redact((logs.stdout??'')+(logs.stderr??'')).slice(-3000));
   }catch(e){console.error(redact(e.message));}
 }
 export function stopHostRuntime() {
-  try{docker(['rm','--force',NAME]);}catch(e){if(!String(e.stderr).includes('No such container'))throw e;}
+  try{docker(['rm','--force',NAME]);}catch(e){if(!e.message.includes('No such container'))throw e;}
+  try{docker(['image','rm','--force',SNAPSHOT]);}catch(e){if(!e.message.includes('No such image'))throw e;}
 }

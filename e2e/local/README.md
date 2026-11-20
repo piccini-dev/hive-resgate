@@ -27,7 +27,7 @@ Ao terminar, os processos filhos são encerrados com prazo limitado e o workflow
 
 ## Limites da prova
 
-No runner Linux, `functions.mjs` reutiliza a imagem oficial, as fontes, o dispatcher e a verificação JWT montados pela CLI. Uma segunda instância desse runtime usa a rede do próprio runner, com gateway em `127.0.0.1:54521`; Auth/REST/Storage continuam na instância CLI local. Assim as funções alcançam os mesmos URLs locais de imagem que o navegador, sem substituir contratos ou criar rotas para produção. Ambas as instâncias são descartadas.
+No runner Linux, `functions.mjs` cria um snapshot **somente local** do runtime oficial configurado pela CLI, incluindo o dispatcher que ela copia para `/root/index.ts`. Não publica imagem em registry. A segunda instância preserva fontes e verificação JWT, usa porta explícita 9998 e a rede do próprio runner, com gateway em `127.0.0.1:54521`; Auth/REST/Storage continuam na instância CLI local. Assim as funções alcançam os mesmos URLs locais de imagem que o navegador, sem substituir contratos ou criar rotas para produção. Ambas as instâncias e o snapshot são descartados.
 
 `fixtures.mjs` cria somente bitmaps sintéticos e metadados de referência do cenário F12. Não testa identidade fotográfica real. As atualizações estáticas versionadas de design são reproduzidas após os INSERTs; a ponte SQL preserva microssegundos e o search_path esperado na introspecção.
 
