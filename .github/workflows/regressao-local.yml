@@ -24,13 +24,18 @@ jobs:
       github.event.repository.private == false &&
       (github.event_name == 'workflow_dispatch' ||
        (github.event.pull_request.head.repo.full_name == github.repository &&
-        contains(fromJSON('["validar:local:alvos","validar:local:estabilidade","validar:local:diagnostico","validar:local:completa"]'), github.event.label.name)))
+        contains(fromJSON('["validar:local:alvos","validar:local:estabilidade","validar:local:diagnostico","validar:local:final","validar:local:completa"]'), github.event.label.name)))
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
       TZ: America/Sao_Paulo
       HIVE_E2E_LOCAL: '1'
-      SPECS: ${{ github.event_name == 'workflow_dispatch' && inputs.specs || (github.event.label.name == 'validar:local:alvos' && 'e2e/f34-marcas-contexto.spec.ts e2e/f17-minha-identidade.spec.ts e2e/f19-isolamento.spec.ts' || (github.event.label.name == 'validar:local:estabilidade' && 'e2e/f34-marcas-contexto.spec.ts --grep=atrasada|erro.de.cadastro|dois.envios|falha.de.leitura|troca.cancelada --repeat-each=3' || (github.event.label.name == 'validar:local:diagnostico' && 'e2e/f1-contas.spec.ts e2e/f12-marcos-photo.spec.ts e2e/f23-fundacao-e2.spec.ts e2e/f29-bases-producao.spec.ts e2e/f4-desenvolvimento.spec.ts e2e/f26-navegacao-e5.spec.ts e2e/f27-olhar-bee.spec.ts --max-failures=5' || ''))) }}
+      SPECS: >-
+        ${{ (github.event_name == 'workflow_dispatch' && inputs.specs) ||
+            (github.event.label.name == 'validar:local:final' && '--final') ||
+            (github.event.label.name == 'validar:local:alvos' && 'e2e/f34-marcas-contexto.spec.ts e2e/f17-minha-identidade.spec.ts e2e/f19-isolamento.spec.ts') ||
+            (github.event.label.name == 'validar:local:estabilidade' && 'e2e/f34-marcas-contexto.spec.ts --grep=atrasada|erro.de.cadastro|dois.envios|falha.de.leitura|troca.cancelada --repeat-each=3') ||
+            (github.event.label.name == 'validar:local:diagnostico' && 'e2e/f1-contas.spec.ts e2e/f12-marcos-photo.spec.ts e2e/f23-fundacao-e2.spec.ts e2e/f29-bases-producao.spec.ts e2e/f4-desenvolvimento.spec.ts e2e/f26-navegacao-e5.spec.ts e2e/f27-olhar-bee.spec.ts --max-failures=5') || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
