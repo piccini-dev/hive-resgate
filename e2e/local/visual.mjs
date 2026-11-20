@@ -30,7 +30,12 @@ export async function visualReview({db,userId,env,stopChild}){
       await expect(card).toBeVisible();
       await capture(page,label+'-lista');
       await card.getByRole('button',{name:'Editar',exact:true}).click();
-      await expect(page.getByTestId('brand-form').getByLabel('Nome da marca')).toHaveValue('Marca de teste visual');
+      const form=page.getByTestId('brand-form');
+      await expect(form.getByLabel('Nome da marca')).toHaveValue('Marca de teste visual');
+      // Em 375px o formulário abre abaixo dos cartões, dentro da rolagem da área principal.
+      // Capturar após trazer o formulário à viewport evita uma 'captura de edição' que só mostre a lista.
+      await form.scrollIntoViewIfNeeded();
+      await expect(form).toBeInViewport();
       await capture(page,label+'-edicao');
     }
     await context.close();
