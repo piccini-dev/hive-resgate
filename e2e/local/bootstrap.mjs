@@ -10,6 +10,18 @@ import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+async function stopChild(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const exited = once(child, 'exit');
+  const signal = value => {
+    try { process.kill(-child.pid, value); } catch (e) { if (e.code !== 'ESRCH') throw e; }
+  };
+  signal('SIGTERM');
+  let timer;
+  await Promise.race([exited, new Promise(resolve => { timer = setTimeout(resolve, 3000); })]);
+  clearTimeout(timer);
+  if (child.exitCode === null && child.signalCode === null) { signal('SIGKILL'); await exited; }
+}
 export function splitSql(source) {
   const statements = []; let start = 0, quote = null, escape = false, line = false, block = 0;
   for (let i = 0; i < source.length; i++) {
@@ -126,6 +138,7 @@ async function main() {
     if((await db.query("SELECT to_regclass('public.user_posts') present")).rows[0].present) throw new Error('Banco já contém a Hive; recusei sobrescrever dados existentes.');
     await db.query("CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public; DO $$ BEGIN IF (SELECT extnamespace FROM pg_extension WHERE extname='vector')<>'public'::regnamespace THEN ALTER EXTENSION vector SET SCHEMA public; END IF; END $$;");
     await db.query(await readFile(path.join(ROOT,'e2e/local/schema.sql'),'utf8'));
+    await db.query(await readFile(path.join(ROOT,'e2e/local/storage.sql'),'utf8'));
     await db.query(await readFile(path.join(ROOT,'supabase/migrations/20261119000001_marcas_permissoes.sql'),'utf8'));
     const password='LocalOnly!'+randomBytes(20).toString('hex'),email='e2e-local@example.test';
     const created=await fetch(backend+'/auth/v1/admin/users',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json'},body:JSON.stringify({email,password,email_confirm:true})});
@@ -136,12 +149,13 @@ async function main() {
     await seedCatalogs(db,userId,backend);
     await db.query("NOTIFY pgrst,'reload schema'");
     for(const id of ['media','design','packages']){
-      const response=await fetch(backend+'/storage/v1/bucket',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json'},body:JSON.stringify({id,name:id,public:id!=='packages'})});
+      const bucket={id,name:id,public:true,...(id==='media'?{file_size_limit:209715200,allowed_mime_types:['image/*','video/*','application/pdf','application/zip']}:{})};
+      const response=await fetch(backend+'/storage/v1/bucket',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json'},body:JSON.stringify(bucket)});
       if(!response.ok&&response.status!==409)throw Error('Bucket local '+id+': '+response.status+' '+await response.text());
     }
     await new Promise(r=>management.listen(54330,'127.0.0.1',r));
     const cliLog=createWriteStream(path.join(process.env.RUNNER_TEMP??'/tmp','hive-local-functions.log'));
-    functions=spawn('npx',['--yes','supabase@3.2.0','functions','serve'],{cwd:ROOT,env:{...process.env,SUPABASE_ACCESS_TOKEN:''},stdio:['ignore','pipe','pipe']});
+    functions=spawn('npx',['--yes','supabase@3.2.0','functions','serve'],{cwd:ROOT,env:{...process.env,SUPABASE_ACCESS_TOKEN:''},detached:true,stdio:['ignore','pipe','pipe']});
     functions.stdout.pipe(cliLog);functions.stderr.pipe(cliLog);
     let ready=false;
     for(let i=0;i<60;i++){
@@ -153,12 +167,15 @@ async function main() {
     const args=process.argv.slice(2);if(args.some(a=>a.includes('@live')||a.includes('--project')||a.includes('--config')))throw Error('Argumento de execução não permitido no runner local.');
     const guard=pathToFileURL(path.join(ROOT,'e2e/local/deny-hosted.mjs')).href;
     const env={...process.env,NODE_OPTIONS:`${process.env.NODE_OPTIONS??''} --import ${guard}`,HIVE_E2E_LOCAL:'1',HIVE_E2E_BACKEND_URL:backend,HIVE_E2E_MANAGEMENT_URL:'http://127.0.0.1:54330',VITE_SUPABASE_URL:backend,VITE_SUPABASE_PUBLISHABLE_KEY:anon,SUPABASE_ACCESS_TOKEN:adminKey,E2E_EMAIL:email,E2E_PASSWORD:password,E2E_USER_ID:userId};
-    tests=spawn(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--project=e2e','--reporter=list',...args],{cwd:ROOT,env,stdio:'inherit'});
+    tests=spawn(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--project=e2e','--reporter=list',...args],{cwd:ROOT,env,detached:true,stdio:'inherit'});
     const [exit]=await once(tests,'exit');if(exit!==0)process.exitCode=exit||1;
   } finally {
-    if(tests?.exitCode===null){tests.kill('SIGTERM');await once(tests,'exit').catch(()=>{});}
-    if(functions?.exitCode===null){functions.kill('SIGTERM');await once(functions,'exit').catch(()=>{});}
-    if(management.listening)await new Promise(r=>management.close(r));await db.end();
+    console.log('Encerrando processos de teste e funções locais.');
+    await stopChild(tests); await stopChild(functions);
+    functions?.stdout?.destroy(); functions?.stderr?.destroy();
+    if(management.listening){management.closeAllConnections();await new Promise(r=>management.close(r));}
+    await db.end();
+    console.log('Bootstrap local encerrado; o workflow descartará a instância local.');
   }
 }
 
@@ -173,7 +190,10 @@ if(process.argv.includes('--self-test')){
   assert.equal(insertTable('-- comentário final sem newline'),null);
   assert.throws(()=>loopback('https://example.supabase.co',['http:'],54321));
   assert.equal(loopback('http://127.0.0.1:54321',['http:'],54321).origin,'http://127.0.0.1:54321');
-  console.log('10 verificações puras do bootstrap passaram.');
+  const stubborn=spawn(process.execPath,['-e',"process.on('SIGTERM',()=>{});process.stdout.write('ready');setInterval(()=>{},1000)"],{detached:true,stdio:['ignore','pipe','ignore']});
+  await once(stubborn.stdout,'data'); await stopChild(stubborn);
+  assert.equal(stubborn.signalCode,'SIGKILL');
+  console.log('10 verificações puras e 1 encerramento real de processo passaram.');
 }else if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   await main().catch(e=>{console.error(e.message);process.exitCode=1;});
 }

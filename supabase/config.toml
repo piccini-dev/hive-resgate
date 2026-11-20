@@ -33,7 +33,7 @@ enabled = false
 
 [storage]
 enabled = true
-file_size_limit = "50MiB"
+file_size_limit = "200MiB"
 
 [storage.analytics]
 enabled = false
@@ -68,6 +68,9 @@ deno_version = 2
 [analytics]
 enabled = false
 
-# Público por contrato; a função faz sua própria validação de acesso/serviço.
-[functions.olhar-bee]
+# Metadados conferidos em leitura: somente estas funções desativam o gateway JWT.
+[functions.nano-scene]
+verify_jwt = false
+
+[functions.instagram-refresh]
 verify_jwt = false
