@@ -66,8 +66,9 @@ test('conferência só aceita sobreposição com referência real, não confunde
   expect(withoutNoveltyConflicts(['repetido','novo'],suspected)).toEqual(['novo']);
   expect(validateNoveltyConflicts({conflicts:[{index:1,against_history_index:0,reason:'Mesmo argumento'}]},2,['publicado']))
     .toEqual([{index:1,against_id:'publicado',reason:'Mesmo argumento'}]);
-  expect(()=>validateNoveltyConflicts({conflicts:[{index:0,against_index:0,reason:'Compara consigo'}]},2,[])).toThrow();
-  expect(()=>validateNoveltyConflicts({},2,[])).toThrow('Não foi possível');
+  const self=validateNoveltyConflicts({conflicts:[{index:0,against_index:0,reason:'Compara consigo'}]},2,[]);
+  expect(withoutNoveltyConflicts(['suspeito','novo'],self)).toEqual(['novo']);
+  expect(()=>validateNoveltyConflicts({},2,[])).toThrow('lista válida');
 });
 test('conflito parcial preserva recortes distintos, inclusive na mesma base e plataforma',()=>{
   const proposals=[{id:'novo-1',approach:'Diagnóstico'},{id:'novo-2',approach:'Mesmo argumento'},{id:'novo-3',approach:'Prática'}];
