@@ -66,3 +66,46 @@ export function productionCandidateText(post: { caption?: string | null; carouse
   // O roteiro é a fonte da contribuição dos carrosséis/Stories, não só a capa/legenda.
   return [post.carousel_text?.quote, ...units.map(u => [u.title, u.body].filter(Boolean).join('\n')), post.caption].filter(Boolean).join('\n\n');
 }
+
+// Ideias são uma proposta para o autor, não posts prontos. A validação semântica
+// de repetição é feita depois, sobre o texto COMPLETO, antes da revisão do post.
+// Aqui só filtramos opções inexistentes e duplicações exatas de recorte.
+export interface ProposedProductionItem {
+  content_id: string; platform: string; format: string;
+  approach: string; purpose: string; editorial_slug: string;
+  template_family: string; architecture: string | null;
+}
+export interface ProductionChoices {
+  baseIds: readonly string[];
+  formats: readonly { platform: string; format: string }[];
+  families: readonly string[];
+  editorialSlugs: readonly string[];
+}
+export function usableProductionProposals(raw: unknown, choices: ProductionChoices): ProposedProductionItem[] {
+  if (!Array.isArray(raw)) return [];
+  const bases = new Set(choices.baseIds), families = new Set(choices.families), editorials = new Set(choices.editorialSlugs);
+  const formats = new Set(choices.formats.map(f => f.platform + '/' + f.format));
+  const seen = new Set<string>(), accepted: ProposedProductionItem[] = [];
+  for (const candidate of raw) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const p = candidate as Record<string, unknown>;
+    const content_id = typeof p.content_id === 'string' ? p.content_id : '';
+    const platform = typeof p.platform === 'string' ? p.platform : '';
+    const format = typeof p.format === 'string' ? p.format : '';
+    const editorial_slug = typeof p.editorial_slug === 'string' ? p.editorial_slug : '';
+    const template_family = typeof p.template_family === 'string' ? p.template_family : '';
+    const approach = typeof p.approach === 'string' ? p.approach.trim().slice(0, 240) : '';
+    const purpose = typeof p.purpose === 'string' ? p.purpose.trim().slice(0, 600) : '';
+    if (!bases.has(content_id) || !formats.has(platform+'/'+format) || !families.has(template_family)
+      || !editorials.has(editorial_slug) || !approach || !purpose) continue;
+    const key = [content_id, platform, format, editorial_slug, approach.toLocaleLowerCase('pt-BR')].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const architecture = format === 'image' ? null
+      : typeof p.architecture === 'string' && ['conceito','perspectiva','historia','experimento'].includes(p.architecture)
+        ? p.architecture : 'conceito';
+    accepted.push({ content_id, platform, format, approach, purpose, editorial_slug, template_family, architecture });
+    if (accepted.length === 40) break;
+  }
+  return accepted;
+}
