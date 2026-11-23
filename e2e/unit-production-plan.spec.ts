@@ -2,7 +2,7 @@ import { expect,test } from '@playwright/test';
 import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,type ProductionItem } from '../src/lib/campaign/production-plan';
 import type { Content,FormatCapability,PiecePlan,PostUnit,UserPost } from '../src/types';
 import { needsSequenceRender, sequenceReviewSnapshot, sequenceVisualTodo } from '../src/lib/sequence/visual-state';
-import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts } from '../supabase/functions/_shared/production-novelty';
+import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals } from '../supabase/functions/_shared/production-novelty';
 const bases=[{id:'base',status:'validated'}] as Content[];
 const caps=[{platform:'instagram',format:'image'},{platform:'instagram',format:'carousel'},{platform:'instagram',format:'story'},{platform:'linkedin',format:'carousel'}] as FormatCapability[];
 const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',...p});
@@ -38,6 +38,38 @@ test('reserva sem produção não aparece como post pronto para revisão',()=>{
   expect(canReviewProduction(piece,[{...plan,status:'produced'}],'batch')).toBe(true);
   expect(canReviewProduction(piece,[{...plan,status:'produced'}],'outro')).toBe(false);
   expect(canReviewProduction(piece,[])).toBe(true);
+});
+test('propostas preliminares usam bases/formats/editorias reais e descartam só inválidas, sem julgar repetição histórica',()=>{
+  const options = {
+    baseIds: ['base-1','base-2'],
+    formats: [{platform:'instagram',format:'carousel'},{platform:'instagram',format:'image'},{platform:'linkedin',format:'image'}],
+    families: ['M01','M03'],
+    editorialSlugs: ['diagnostico','praticas'],
+  };
+  const card=(patch:Record<string,unknown>={})=>({
+    content_id:'base-1',platform:'instagram',format:'carousel',
+    approach:'Leitura das relações',purpose:'Abrir uma perspectiva',editorial_slug:'diagnostico',template_family:'M03',
+    architecture:'perspectiva',...patch,
+  });
+  const proposal=usableProductionProposals([
+    card(),
+    card({approach:' Leitura das relações '}), // sem repetir a mesma proposta por estética
+    card({approach:'Aplicação no cotidiano',purpose:'Exercício prático'}),
+    card({content_id:'base-2',approach:'Leitura das relações'}), // mesma tese em outra base é legítima
+    card({format:'image',architecture:'historia'}), // formato próprio
+    card({content_id:'base-estranha'}), card({format:'reel'}), card({editorial_slug:'outra'}),
+    card({template_family:'M02'}), card({purpose:'   '}), null, {}, 'inválido',
+  ],options);
+  expect(proposal).toHaveLength(4);
+  expect(proposal.map(x=>x.content_id)).toEqual(['base-1','base-1','base-2','base-1']);
+  expect(proposal[3].architecture).toBeNull();
+  expect(proposal[0].approach).toBe('Leitura das relações');
+  expect(proposal[1].approach).toBe('Aplicação no cotidiano');
+});
+test('proposta sem item válido devolve lista vazia, sem criar post nem aceitar opção inventada',()=>{
+  const options={baseIds:['base'],formats:[{platform:'instagram',format:'carousel'}],families:['M01'],editorialSlugs:['a']};
+  expect(usableProductionProposals(null,options)).toEqual([]);
+  expect(usableProductionProposals([{content_id:'base',platform:'instagram',format:'carousel',template_family:'M01',editorial_slug:'a',approach:'',purpose:'propósito'}],options)).toEqual([]);
 });
 test('sobreposição gera outro recorte antes de entregar a proposta, preservando a base',async()=>{
   const inputs:string[]=[],reviewed:string[]=[];
