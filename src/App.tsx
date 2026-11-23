@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuthStore, needsOnboarding } from '@/store/authStore';
 import { AppShell } from '@/components/layout/AppShell';
 import { Login } from '@/pages/Login';
+import { PasswordRecovery } from '@/pages/PasswordRecovery';
 import { Dashboard } from '@/pages/Dashboard';
 import { NewPost } from '@/pages/posts/NewPost';
 import { PostEditor } from '@/pages/posts/PostEditor';
@@ -83,6 +84,7 @@ export default function App() {
     <TooltipProvider delayDuration={200}>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/alterar-senha" element={<PasswordRecovery />} />
         {/* Editor de templates: tela cheia, fora do AppShell (precisa da largura).
             O editor de post continua embutido no PostEditor. */}
         <Route
