@@ -3,7 +3,7 @@ export class ProductionValidationError extends Error {
   readonly status = 422;
 }
 export class NarrativeOverlapError extends ProductionValidationError {
-  constructor(message = 'A Hive ainda não encontrou um desdobramento suficientemente diferente. Ajuste a abordagem ou peça outra proposta; suas bases estão preservadas.') {
+  constructor(message = 'A Hive ainda não encontrou um desdobramento suficientemente diferente. Ajuste a abordagem ou peça outra proposta; suas bases estão preservadas.', readonly conflicts: NoveltyConflict[] = []) {
     super(message);
     this.name = 'NarrativeOverlapError';
   }
@@ -37,6 +37,13 @@ export function validateNoveltyConflicts(data: unknown, count: number, historyId
     }
     return { index: c.index, against_id: c.against_id, against_index: c.against_index, reason: c.reason.trim().slice(0, 300) };
   });
+}
+
+// Nunca aceite uma contribuição apontada como repetitiva pela revisão.
+// Para proposta de ciclo, as demais podem seguir como um lote menor e revisável.
+export function withoutNoveltyConflicts<T>(items: readonly T[], conflicts: readonly NoveltyConflict[]): T[] {
+  const rejected = new Set(conflicts.map(c => c.index));
+  return items.filter((_, index) => !rejected.has(index));
 }
 
 export function productionCandidateText(post: { caption?: string | null; carousel_text?: { quote?: string } | null }, units: Array<{ title?: string | null; body?: string | null }> = []): string {
