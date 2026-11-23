@@ -29,13 +29,29 @@ export async function withNovelContribution<T>(
 export interface NoveltyConflict { index: number; against_id?: string; against_index?: number; reason: string }
 export function validateNoveltyConflicts(data: unknown, count: number, historyIds: string[]): NoveltyConflict[] {
   const conflicts = (data as { conflicts?: unknown })?.conflicts;
-  if (!Array.isArray(conflicts)) throw new Error('Não foi possível conferir os recortes propostos. Tente novamente.');
+  if (!Array.isArray(conflicts)) throw new ProductionValidationError('A conferência dos recortes não retornou uma lista válida. Tente novamente.');
   return conflicts.map((c) => {
-    if (!c || !Number.isInteger(c.index) || c.index < 0 || c.index >= count || typeof c.reason !== 'string' || !c.reason.trim()
-      || !(historyIds.includes(c.against_id) || (Number.isInteger(c.against_index) && c.against_index >= 0 && c.against_index < count && c.against_index !== c.index))) {
-      throw new Error('A conferência dos recortes trouxe uma referência inválida. Tente novamente.');
+    // O índice da proposta é indispensável: nunca liberar algo que a IA possa ter
+    // marcado como repetitivo, mas não conseguimos identificar.
+    if (!c || !Number.isInteger(c.index) || c.index < 0 || c.index >= count || typeof c.reason !== 'string' || !c.reason.trim()) {
+      throw new ProductionValidationError('A conferência dos recortes não identificou o item corretamente. Tente novamente.');
     }
-    return { index: c.index, against_id: c.against_id, against_index: c.against_index, reason: c.reason.trim().slice(0, 300) };
+    // A IA pode inventar um UUID ou uma posição da referência histórica. Nessa
+    // situação, a proposta sinalizada é EXCLUÍDA (fail closed), jamais aprovada.
+    // Históricos enumerados eliminam a necessidade de copiar UUIDs pelo modelo.
+    let against_id = historyIds.includes(c.against_id) ? c.against_id as string : undefined;
+    if (!against_id && Number.isInteger(c.against_history_index)
+      && c.against_history_index >= 0 && c.against_history_index < historyIds.length) {
+      against_id = historyIds[c.against_history_index];
+    }
+    const against_index = Number.isInteger(c.against_index) && c.against_index >= 0
+      && c.against_index < count && c.against_index !== c.index ? c.against_index as number : undefined;
+    return {
+      index: c.index,
+      ...(against_id ? { against_id } : {}),
+      ...(against_index !== undefined ? { against_index } : {}),
+      reason: c.reason.trim().slice(0, 300),
+    };
   });
 }
 
