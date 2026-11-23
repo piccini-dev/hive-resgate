@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { safeInternalPath, takeNext } from '@/lib/navigation';
 import { ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -78,6 +78,12 @@ export function Login() {
                   <p>{error}</p>
                 </div>
               )}
+
+              <div className="text-right">
+                <Link to="/alterar-senha" className="text-xs text-accent underline-offset-4 hover:underline">
+                  Esqueci minha senha
+                </Link>
+              </div>
 
               <Button
                 type="submit"
