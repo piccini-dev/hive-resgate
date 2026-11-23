@@ -2,7 +2,7 @@ import { expect,test } from '@playwright/test';
 import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,type ProductionItem } from '../src/lib/campaign/production-plan';
 import type { Content,FormatCapability,PiecePlan,PostUnit,UserPost } from '../src/types';
 import { needsSequenceRender, sequenceReviewSnapshot, sequenceVisualTodo } from '../src/lib/sequence/visual-state';
-import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals } from '../supabase/functions/_shared/production-novelty';
+import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals, scopedPostHistoryQuery, verifiedRepeatEvidence } from '../supabase/functions/_shared/production-novelty';
 const bases=[{id:'base',status:'validated'}] as Content[];
 const caps=[{platform:'instagram',format:'image'},{platform:'instagram',format:'carousel'},{platform:'instagram',format:'story'},{platform:'linkedin',format:'carousel'}] as FormatCapability[];
 const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',...p});
@@ -71,6 +71,41 @@ test('proposta sem item válido devolve lista vazia, sem criar post nem aceitar 
   expect(usableProductionProposals(null,options)).toEqual([]);
   expect(usableProductionProposals([{content_id:'base',platform:'instagram',format:'carousel',template_family:'M01',editorial_slug:'a',approach:'',purpose:'propósito'}],options)).toEqual([]);
 });
+test('comparação de textos completos fica restrita à marca e à mesma plataforma',()=>{
+  const user='dfa11979-83c5-4737-9601-56e4df05746a';
+  const post='89540d44-702a-4a72-866e-599200681be6';
+  const profileA='0b000000-0000-4000-8000-00000000000a';
+  const profileB='0b000000-0000-4000-8000-00000000000b';
+  const url=scopedPostHistoryQuery(user,'instagram',post,[profileA,profileB]);
+  expect(url).toContain('user_id=eq.'+user);
+  expect(url).toContain('platform=eq.instagram');
+  expect(url).toContain('id=neq.'+post);
+  expect(url).toContain('profile_id=in.('+profileA+','+profileB+')');
+  expect(url).not.toContain('profile_id=is.null');
+  expect(url).toContain('status=in.(draft,pending_approval,approved,scheduled,published)');
+  expect(()=>scopedPostHistoryQuery(user,'instagram',post,[])).toThrow('não tem perfis');
+  expect(()=>scopedPostHistoryQuery(user,'reel',post,[profileA])).toThrow('Plataforma não reconhecida');
+});
+test('só há bloqueio de repetição com post verificável e contribuição concreta',()=>{
+  const a='89540d44-702a-4a72-866e-599200681be6';
+  const b='091edc36-6673-4951-9276-1707e25c9bc9';
+  expect(verifiedRepeatEvidence({repeat:false,against_id:a},[a,b])).toEqual({repeat:false});
+  expect(verifiedRepeatEvidence({repeat:true,against_id:a,reason:'Repete o mesmo percurso e conclusão prática.'},[a,b]))
+    .toEqual({repeat:true,against_id:a,reason:'Repete o mesmo percurso e conclusão prática.'});
+  expect(()=>verifiedRepeatEvidence({repeat:true,against_id:'inventado',reason:'Repete o mesmo percurso.'},[a,b])).toThrow('sem identificar');
+  expect(()=>verifiedRepeatEvidence({repeat:true,against_id:a,reason:'tema comum'},[a,b])).toThrow('sem identificar');
+  expect(()=>verifiedRepeatEvidence({repeat:'true',against_id:a},[a,b])).toThrow('não retornou');
+});
+test('ao esgotar regeneração, preservar a razão concreta em vez do erro genérico',async()=>{
+  let n=0;
+  await expect(withNovelContribution(async feedback=>{
+    n++;
+    if(n===2)expect(feedback).toContain('conclusão anterior');
+    return n;
+  },async()=>{throw new NarrativeOverlapError('Mesma conclusão anterior sobre a escolha consciente.');})).rejects.toThrow('Mesma conclusão anterior');
+  expect(n).toBe(3);
+});
+
 test('sobreposição gera outro recorte antes de entregar a proposta, preservando a base',async()=>{
   const inputs:string[]=[],reviewed:string[]=[];
   const result=await withNovelContribution(async feedback=>{inputs.push(feedback);return {base:'mesma-base',text:inputs.length===1?'argumento repetido':'aplicação diferente'};},async value=>{
