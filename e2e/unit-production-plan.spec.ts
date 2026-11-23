@@ -59,7 +59,13 @@ test('tentativas de diferenciação são limitadas e falhas técnicas não viram
 test('conferência só aceita sobreposição com referência real, não confunde base com post',()=>{
   expect(validateNoveltyConflicts({conflicts:[]},2,['publicado'])).toEqual([]);
   expect(validateNoveltyConflicts({conflicts:[{index:1,against_index:0,reason:'Mesmo argumento'}]},2,[])).toHaveLength(1);
-  expect(()=>validateNoveltyConflicts({conflicts:[{index:0,against_id:'inventado',reason:'Mesmo argumento'}]},2,['publicado'])).toThrow('referência inválida');
+  // A IA pode inventar o UUID da referência. O item sinalizado continua
+  // bloqueado, mas isso não deve descartar toda a proposta com erro 500.
+  const suspected=validateNoveltyConflicts({conflicts:[{index:0,against_id:'inventado',reason:'Mesmo argumento'}]},2,['publicado']);
+  expect(suspected).toEqual([{index:0,reason:'Mesmo argumento'}]);
+  expect(withoutNoveltyConflicts(['repetido','novo'],suspected)).toEqual(['novo']);
+  expect(validateNoveltyConflicts({conflicts:[{index:1,against_history_index:0,reason:'Mesmo argumento'}]},2,['publicado']))
+    .toEqual([{index:1,against_id:'publicado',reason:'Mesmo argumento'}]);
   expect(()=>validateNoveltyConflicts({conflicts:[{index:0,against_index:0,reason:'Compara consigo'}]},2,[])).toThrow();
   expect(()=>validateNoveltyConflicts({},2,[])).toThrow('Não foi possível');
 });
@@ -82,6 +88,22 @@ test('se todos os recortes forem repetidos, a lista segura fica vazia (não libe
   expect(withoutNoveltyConflicts(['repetido-1','repetido-2'],conflicts)).toEqual([]);
   const error = new NarrativeOverlapError('Exemplo de conflitos',conflicts);
   expect(error.conflicts).toEqual(conflicts);
+});
+
+test('contratos inválidos do avaliador nunca transformam suspeita em aprovação',()=>{
+  // Sem índice do item, nem o conjunto seguro pode ser determinado.
+  expect(()=>validateNoveltyConflicts({conflicts:[{index:5,against_history_index:0,reason:'repete'}]},2,['antigo']))
+    .toThrow('não identificou o item');
+  expect(()=>validateNoveltyConflicts({conflicts:[{index:0,against_index:0,reason:'igual'}]},2,[])).not.toThrow();
+  const selfReference=validateNoveltyConflicts({conflicts:[{index:0,against_index:0,reason:'mesma ideia'}]},2,[]);
+  expect(withoutNoveltyConflicts(['marcado','outro'],selfReference)).toEqual(['outro']);
+  expect(()=>validateNoveltyConflicts({},2,[])).toThrow('lista válida');
+  expect(()=>validateNoveltyConflicts({conflicts:[{index:0,reason:''}]},2,[])).toThrow('não identificou o item');
+});
+test('conflito sinalizado contra histórico fora do alcance é descartado, nunca liberado',()=>{
+  const flagged=validateNoveltyConflicts({conflicts:[{index:1,against_history_index:999,reason:'repetição com post anterior'}]},3,['antigo']);
+  expect(flagged).toEqual([{index:1,reason:'repetição com post anterior'}]);
+  expect(withoutNoveltyConflicts(['primeiro','suspeito','terceiro'],flagged)).toEqual(['primeiro','terceiro']);
 });
 
 test('histórico de carrossel e Stories inclui contribuição das páginas mesmo sem legenda',()=>{
