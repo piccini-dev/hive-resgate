@@ -93,7 +93,7 @@ export async function preloadFabricImages(
 // width/height são as dimensões REAIS do canvas; multiplier escala a saída (1 = full-res).
 export async function renderFabricToDataUrl(
   fabricJson: object,
-  opts: { width: number; height: number; multiplier?: number; format?: 'png' | 'jpeg'; quality?: number },
+  opts: { width: number; height: number; multiplier?: number; format?: 'png' | 'jpeg'; quality?: number; throwOnError?: boolean },
 ): Promise<string | null> {
   try {
     // A frase do Bee Quote é Playfair — sem ela a medição/render sai torto.
@@ -128,6 +128,9 @@ export async function renderFabricToDataUrl(
     }
   } catch (e) {
     console.error('[renderFabricToDataUrl]', e);
+    // Fluxos antigos podem continuar recebendo null. Na produção de uma
+    // campanha, preserve a causa concreta para diagnóstico e retomada.
+    if (opts.throwOnError) throw e;
     return null;
   }
 }
