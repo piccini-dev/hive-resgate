@@ -2,7 +2,7 @@ import { expect,test } from '@playwright/test';
 import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,type ProductionItem } from '../src/lib/campaign/production-plan';
 import type { Content,FormatCapability,PiecePlan,PostUnit,UserPost } from '../src/types';
 import { needsSequenceRender, sequenceReviewSnapshot, sequenceVisualTodo } from '../src/lib/sequence/visual-state';
-import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution } from '../supabase/functions/_shared/production-novelty';
+import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts } from '../supabase/functions/_shared/production-novelty';
 const bases=[{id:'base',status:'validated'}] as Content[];
 const caps=[{platform:'instagram',format:'image'},{platform:'instagram',format:'carousel'},{platform:'instagram',format:'story'},{platform:'linkedin',format:'carousel'}] as FormatCapability[];
 const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',...p});
@@ -63,6 +63,27 @@ test('conferência só aceita sobreposição com referência real, não confunde
   expect(()=>validateNoveltyConflicts({conflicts:[{index:0,against_index:0,reason:'Compara consigo'}]},2,[])).toThrow();
   expect(()=>validateNoveltyConflicts({},2,[])).toThrow('Não foi possível');
 });
+test('conflito parcial preserva recortes distintos, inclusive na mesma base e plataforma',()=>{
+  const proposals=[{id:'novo-1',approach:'Diagnóstico'},{id:'novo-2',approach:'Mesmo argumento'},{id:'novo-3',approach:'Prática'}];
+  const conflicts=validateNoveltyConflicts({conflicts:[{index:1,against_id:'post-antigo',reason:'Mesma conclusão'}]},3,['post-antigo']);
+  expect(withoutNoveltyConflicts(proposals,conflicts)).toEqual([proposals[0],proposals[2]]);
+  expect(proposals).toHaveLength(3); // sem mutação
+});
+test('conflito entre recortes mantém somente o original não sinalizado',()=>{
+  const proposals=['leitura conceitual','repetição','aplicação inédita'];
+  const conflicts=validateNoveltyConflicts({conflicts:[{index:1,against_index:0,reason:'Mesmo percurso'}]},3,[]);
+  expect(withoutNoveltyConflicts(proposals,conflicts)).toEqual(['leitura conceitual','aplicação inédita']);
+});
+test('se todos os recortes forem repetidos, a lista segura fica vazia (não libera publicação)',()=>{
+  const conflicts=validateNoveltyConflicts({conflicts:[
+    {index:0,against_id:'anterior',reason:'Mesmo argumento'},
+    {index:1,against_index:0,reason:'Mesmo argumento'},
+  ]},2,['anterior']);
+  expect(withoutNoveltyConflicts(['repetido-1','repetido-2'],conflicts)).toEqual([]);
+  const error = new NarrativeOverlapError('Exemplo de conflitos',conflicts);
+  expect(error.conflicts).toEqual(conflicts);
+});
+
 test('histórico de carrossel e Stories inclui contribuição das páginas mesmo sem legenda',()=>{
   expect(productionCandidateText({caption:'',carousel_text:{quote:'Capa'}},[{title:'Situação',body:'Um argumento'},{title:'Outra leitura',body:'Uma aplicação'}])).toContain('Uma aplicação');
   expect(productionCandidateText({caption:'Legenda',carousel_text:{quote:'Frase'}})).toBe('Frase\n\nLegenda');

@@ -24,7 +24,7 @@ export async function reviewProductionProposal(apiKey: string, userId: string, i
     JSON.stringify({propostas:items.map((p,index)=>({index,...p})),historico:history}),{temperature:0.1,maxOutputTokens:2500});
   logUsage({userId,provider:'gemini',product:'text',model:model_used,tokens_input:usage.input,tokens_output:usage.output,metadata:{fn:'sequence-script',action:'proposal_novelty'}});
   const conflicts=validateNoveltyConflicts(data,items.length,history.map(p=>p.id));
-  if(conflicts.length)throw new NarrativeOverlapError(conflicts.map(c=>`Recorte ${c.index+1}: ${c.reason}`).join(' ').slice(0,900));
+  if(conflicts.length)throw new NarrativeOverlapError(conflicts.map(c=>`Recorte ${c.index+1}: ${c.reason}`).join(' ').slice(0,900), conflicts);
 }
 // Compare final contributions, not the base thesis. Account-specific gate runs at destination/scheduling.
 export async function checkProductionRepeat(apiKey: string,userId: string,postId: string,platform: string,text: string) {

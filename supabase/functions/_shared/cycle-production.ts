@@ -4,7 +4,7 @@ import { loadBeeContext, renderBrain } from './bee-context.ts';
 import { contextBlock, emitterHasPhotos, resolveAndSnapshot, userBrandScope } from './context.ts';
 import { logUsage } from './security.ts';
 import { productionHistory, reviewProductionProposal } from './production-repeat.ts';
-import { withNovelContribution } from './production-novelty.ts';
+import { NarrativeOverlapError, withNovelContribution, withoutNoveltyConflicts, type NoveltyConflict } from './production-novelty.ts';
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
 export async function cycleProductionContext(userId: string, cycleId: string) {
@@ -56,7 +56,13 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     bases: bases.map(c => ({ ...c, body: { frase:c.body?.frase, texto:String(c.body?.texto??'').slice(0,6000) } })),
     editorias: editorials, capacidades: supported, familias: families, receitas: variants.filter(v => families.includes(v.manifestacao_id)),
     historico: existing });
-  return withNovelContribution(async (feedback) => {
+  // Quando só parte da proposta conflita, preserve os recortes validados.
+  // Esta etapa não grava nem agenda posts.
+  const last: {proposal: {success:true;summary:string;items:Row[]}|null; conflicts:NoveltyConflict[]} = {
+    proposal: null, conflicts: [],
+  };
+  try {
+  return await withNovelContribution(async (feedback) => {
   const { data,model_used,usage } = await callGeminiJson<{summary?:string;items?:Row[]}>(apiKey,sys,usr+(feedback?'\n\nAJUSTE NECESSÁRIO: '+feedback:''),{temperature:0.4,maxOutputTokens:6000});
   logUsage({userId,provider:'gemini',product:'text',model:model_used,tokens_input:usage.input,tokens_output:usage.output,metadata:{fn:'sequence-script',action:'recommend_cycle_plan'}});
   if (!Array.isArray(data.items) || !data.items.length || data.items.length>40) throw new Error('A Hive não retornou uma proposta completa. Tente novamente.');
@@ -69,6 +75,28 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     return {content_id:p.content_id,platform:p.platform,format:p.format,approach:String(p.approach).slice(0,240),purpose:String(p.purpose).slice(0,600),
       editorial_slug:p.editorial_slug,template_family:p.template_family,architecture:p.format==='image'?null:(['conceito','perspectiva','historia','experimento'].includes(p.architecture)?p.architecture:'conceito')};
   });
-  return {success:true,summary:String(data.summary??'').slice(0,1800)+' A conferência considera até 100 posts recentes disponíveis, incluindo rascunhos e roteiros.',items};
-  }, async (proposal) => reviewProductionProposal(apiKey,userId,proposal.items,existing));
+  const proposal = {success:true as const,summary:String(data.summary??'').slice(0,1800)+' A conferência considera até 100 posts recentes disponíveis, incluindo rascunhos e roteiros.',items};
+  last.proposal = proposal;
+  last.conflicts = [];
+  return proposal;
+  }, async (proposal) => {
+    try {
+      await reviewProductionProposal(apiKey,userId,proposal.items,existing);
+    } catch (error) {
+      if (error instanceof NarrativeOverlapError) last.conflicts = error.conflicts;
+      throw error;
+    }
+  });
+  } catch (error) {
+    if (!(error instanceof NarrativeOverlapError) || !last.proposal || !last.conflicts.length) throw error;
+    const cleanItems = withoutNoveltyConflicts(last.proposal.items, last.conflicts);
+    // Se TODOS os recortes repetem o histórico, a recusa continua obrigatória.
+    if (!cleanItems.length) throw error;
+    const removed = last.proposal.items.length - cleanItems.length;
+    return {
+      ...last.proposal,
+      items: cleanItems,
+      summary: last.proposal.summary + ` A conferência descartou ${removed} proposta(s) por repetição; as demais podem ser revisadas.`,
+    };
+  }
 }
