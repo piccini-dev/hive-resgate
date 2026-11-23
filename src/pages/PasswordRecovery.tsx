@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Loader2, Mail, LockKeyhole } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { setAuthCache } from '@/lib/db';
+import { useAuthStore } from '@/store/authStore';
 import { BeeLogo } from '@/components/shared/BeeLogo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -126,6 +127,7 @@ export function PasswordRecovery() {
       // Não manter a sessão temporária de recuperação após a troca de senha.
       await supabase.auth.signOut({ scope: 'local' });
       setAuthCache(null, null);
+      useAuthStore.setState({ currentUser: null, settings: null });
       setPassword('');
       setConfirmation('');
       setMode('done');
