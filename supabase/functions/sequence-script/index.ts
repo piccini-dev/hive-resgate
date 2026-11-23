@@ -100,7 +100,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ------------------------------------------------------------ ações sobre uma peça
-    const [post] = await fetchRest<Row[]>(`/user_posts?id=eq.${input.post_id}&user_id=eq.${userId}&select=id,platform,format,caption,content_id,plan_id,narrative_architecture,script_status,status,metadata,version`);
+    const [post] = await fetchRest<Row[]>(`/user_posts?id=eq.${input.post_id}&user_id=eq.${userId}&select=id,platform,format,caption,content_id,plan_id,context_snapshot_id,narrative_architecture,script_status,status,metadata,version`);
     if (!post) return errorResponse('Peça não encontrada', 404);
     if (post.status === 'published') return errorResponse('Peça publicada: o histórico não muda.', 409);
     let [content] = post.content_id ? await fetchRest<Row[]>(`/contents?id=eq.${post.content_id}&select=*`) : [null];
@@ -137,7 +137,7 @@ Deno.serve(async (req: Request) => {
       const quote=String(data.quote??'').trim(), caption=String(data.caption??'').trim();
       if(!quote||quote.length>140||!caption||caption.length>2200) throw new ProductionValidationError('A Hive não trouxe um post completo e legível. Tente novamente.');
       return {quote,caption};
-      },async value=>checkProductionRepeat(apiKey,userId,post.id,post.platform,value.quote+'\n'+value.caption));
+      },async value=>checkProductionRepeat(apiKey,userId,post.id,post.platform,value.quote+'\n'+value.caption,post.context_snapshot_id));
       return jsonResponse({success:true,...generated});
     }
 
@@ -180,7 +180,7 @@ Deno.serve(async (req: Request) => {
       const architecture = ARCHITECTURES[data.architecture ?? ''] ? data.architecture : (post.narrative_architecture ?? plan?.architecture ?? 'conceito');
       return {raw,caption,architecture,notes:clean(data.notes,300)};
       },async value=>{
-        if(post.metadata?.production_flow==='base_v2')await checkProductionRepeat(apiKey,userId,post.id,post.platform,value.raw.map(u=>u.title+'\n'+u.body).join('\n\n')+'\n'+value.caption);
+        if(post.metadata?.production_flow==='base_v2')await checkProductionRepeat(apiKey,userId,post.id,post.platform,value.raw.map(u=>u.title+'\n'+u.body).join('\n\n')+'\n'+value.caption,post.context_snapshot_id);
       });
       const {raw,caption,architecture,notes}=generated;
       if (post.metadata?.production_flow === 'base_v2') {
