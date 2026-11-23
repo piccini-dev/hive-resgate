@@ -15,15 +15,18 @@ export async function withNovelContribution<T>(
   attempts = 3,
 ): Promise<T> {
   let feedback = '';
+  let lastOverlap: NarrativeOverlapError | null = null;
   for (let i = 0; i < attempts; i++) {
     const value = await generate(feedback);
     try { await review(value); return value; }
     catch (e) {
       if (!(e instanceof NarrativeOverlapError)) throw e;
+      lastOverlap = e;
       feedback = 'A tentativa anterior repetiu uma contribuição já explorada. Preserve a base e a intenção aprovadas, mas desenvolva outro argumento, aplicação ou percurso substantivo. Trocar título, sinônimos ou formato não basta. ' + e.message;
     }
   }
-  throw new NarrativeOverlapError();
+  // Informe a razão concreta da recusa, sem mascarar uma falha repetida.
+  throw lastOverlap ?? new NarrativeOverlapError();
 }
 
 export interface NoveltyConflict { index: number; against_id?: string; against_index?: number; reason: string }
@@ -108,4 +111,40 @@ export function usableProductionProposals(raw: unknown, choices: ProductionChoic
     if (accepted.length === 40) break;
   }
   return accepted;
+}
+
+
+// A comparação de posts completos deve respeitar a marca que assinou a peça.
+// Legacy posts sem perfil/brand atribuível não são tratados automaticamente
+// como pertencentes a TODAS as marcas do produtor.
+export function scopedPostHistoryQuery(
+  userId: string,
+  platform: string,
+  postId: string,
+  profileIds: readonly string[],
+): string {
+  if (!profileIds.length) throw new ProductionValidationError('A marca não tem perfis de comunicação válidos para conferir a produção.');
+  const uuids = /^[a-f\d]{8}-[a-f\d]{4}-[1-8][a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i;
+  if (![userId, postId, ...profileIds].every(id=>uuids.test(id))) {
+    throw new ProductionValidationError('Não foi possível conferir os perfis da marca para comparar os posts.');
+  }
+  if (!['instagram','linkedin'].includes(platform)) throw new ProductionValidationError('Plataforma não reconhecida para comparação de posts.');
+  return `/user_posts?user_id=eq.${userId}&platform=eq.${platform}&id=neq.${postId}&profile_id=in.(${profileIds.join(',')})&status=in.(draft,pending_approval,approved,scheduled,published)&select=id,platform,caption,carousel_text,metadata&order=created_at.desc&limit=60`;
+}
+
+export interface RepeatEvidence { repeat: boolean; against_id?: string; reason?: string }
+export function verifiedRepeatEvidence(data: unknown, historyIds: readonly string[]): RepeatEvidence {
+  const p = data as Record<string, unknown> | null;
+  if (!p || typeof p.repeat !== 'boolean') {
+    throw new ProductionValidationError('A verificação de repetição não retornou uma avaliação válida.');
+  }
+  if (!p.repeat) return { repeat: false };
+  const against_id = typeof p.against_id === 'string' ? p.against_id : '';
+  const reason = typeof p.reason === 'string' ? p.reason.trim() : '';
+  if (!historyIds.includes(against_id) || reason.length < 12) {
+    // Não aceitar um booleano sem referência real, nem declarar repetição
+    // sem saber qual contribuição foi efetivamente duplicada.
+    throw new ProductionValidationError('A verificação sinalizou repetição sem identificar o post e o argumento correspondente.');
+  }
+  return { repeat: true, against_id, reason: reason.slice(0, 260) };
 }

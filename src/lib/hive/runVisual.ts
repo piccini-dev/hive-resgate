@@ -181,8 +181,25 @@ export async function generateHiveImage(params: {
   }
 
   // 3) Render (full-res, JPEG p/ publicar — Instagram exige, LinkedIn aceita) + upload.
-  const dataUrl = await renderFabricToDataUrl(slide, { width: canvas.w, height: canvas.h, format: 'jpeg' });
-  if (!dataUrl) throw new Error('Falha ao renderizar a imagem da Hive.');
+  // O browser pode falhar na primeira exportação com fontes/imagens recém
+  // baixadas. Repita uma única vez sem recriar o conteúdo, e preserve a causa
+  // concreta em vez do erro genérico que escondia a falha do Fabric.
+  let dataUrl: string | null = null;
+  let renderError: unknown = null;
+  for (let attempt = 0; attempt < 2 && !dataUrl; attempt++) {
+    try {
+      dataUrl = await renderFabricToDataUrl(slide, {
+        width: canvas.w, height: canvas.h, format: 'jpeg', throwOnError: true,
+      });
+    } catch (e) {
+      renderError = e;
+    }
+    if (!dataUrl && attempt === 0) await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  if (!dataUrl) {
+    const reason = renderError instanceof Error ? renderError.message.slice(0, 220) : 'O navegador não conseguiu exportar o canvas.';
+    throw new Error(`Falha ao renderizar a imagem da Hive: ${reason}`);
+  }
 
   const { publicUrl } = await uploadAssetImage({ immutable: true,
     userId: params.userId,
