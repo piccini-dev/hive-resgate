@@ -5,6 +5,7 @@
 // pode escolher entre elas. loadM01Design() mantem o recorte M01 (labs/matriz).
 
 import { photoUsage } from './imagePolicy';
+import { appPublicAssetUrl } from './publicAsset';
 import { supabase } from '@/lib/supabase';
 import type { M01Recipe, DesignAsset } from './composeM01';
 
@@ -24,11 +25,11 @@ async function loadTokensAndAssets(): Promise<{ colors: Record<string, string>; 
   if (assetRes.error) throw assetRes.error;
 
   const colors: Record<string, string> = {};
-  let spiralUrl = '/bee-spiral.png';
+  let spiralUrl = appPublicAssetUrl('/bee-spiral.png', import.meta.env.BASE_URL);
   for (const t of tokRes.data ?? []) {
     const value = (t.value ?? {}) as Record<string, unknown>;
     if (t.kind === 'color' && typeof value.hex === 'string') colors[t.slug] = value.hex;
-    if (t.slug === 'espiral_oficial' && typeof value.asset_url === 'string') spiralUrl = value.asset_url;
+    if (t.slug === 'espiral_oficial' && typeof value.asset_url === 'string') spiralUrl = appPublicAssetUrl(value.asset_url, import.meta.env.BASE_URL);
   }
 
   const photos: DesignAsset[] = [];
