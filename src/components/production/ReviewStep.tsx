@@ -253,7 +253,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
                 <p className="mt-1 text-muted-foreground">Repetir a geração sem mudar a abordagem não resolverá. Você pode reformular a proposta, confirmando antes de substituir quaisquer rascunhos.</p>
                 {onReplan&&<Button variant="outline" className="mt-2" size="sm" onClick={onReplan}>Reformular recortes <ArrowRight className="h-3 w-3" /></Button>}
               </div>}
-              <Button variant="outline" disabled={!!progress||(!resumablePlans&&!visualPending)} onClick={() => setRunNonce(n => n+1)}>Retomar {resumablePlans+visualPending} produção(ões) recuperável(is)</Button>
+              <Button variant="outline" disabled={!!progress||(!resumablePlans&&!visualPending)} onClick={() => setRunNonce(n => n+1)}>Retomar produção pendente</Button>
             </section>}
             <div className="flex justify-end"><Button variant="accent" size="lg" onClick={() => setView({ kind: 'gallery' })}>Revisar produção <ArrowRight className="h-4 w-4" /></Button></div>
           </>
@@ -284,7 +284,7 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
               <p className="mt-1 text-muted-foreground">A Hive encontrou argumentos já publicados nesta marca. Não repetirá automaticamente as peças; volte à proposta para escolher contribuições diferentes.</p>
               {onReplan&&<Button variant="outline" className="mt-2" size="sm" onClick={onReplan}>Reformular recortes <ArrowRight className="h-3 w-3" /></Button>}
             </div>}
-            <Button variant="outline" disabled={!resumablePlans&&!visualPending} onClick={()=>setRunNonce(n=>n+1)}>Retomar {resumablePlans+visualPending} produção(ões) recuperável(is)</Button>
+            <Button variant="outline" disabled={!resumablePlans&&!visualPending} onClick={()=>setRunNonce(n=>n+1)}>Retomar produção pendente</Button>
           </div>}
           {pending.length>0&&<Button size="sm" variant="outline" disabled={!!progress} onClick={()=>nextPending()}>Ir para a próxima pendente <ArrowRight className="h-4 w-4"/></Button>}
         </section>}
