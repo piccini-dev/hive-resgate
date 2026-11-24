@@ -1,5 +1,6 @@
 import { expect,test } from '@playwright/test';
-import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,type ProductionItem } from '../src/lib/campaign/production-plan';
+import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,needsEditorialRebrief,type ProductionItem } from '../src/lib/campaign/production-plan';
+import { appPublicAssetUrl } from '../src/lib/hive/publicAsset';
 import type { Content,FormatCapability,PiecePlan,PostUnit,UserPost } from '../src/types';
 import { needsSequenceRender, sequenceReviewSnapshot, sequenceVisualTodo } from '../src/lib/sequence/visual-state';
 import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals, scopedPostHistoryQuery, verifiedRepeatEvidence } from '../supabase/functions/_shared/production-novelty';
@@ -7,6 +8,23 @@ const bases=[{id:'base',status:'validated'}] as Content[];
 const caps=[{platform:'instagram',format:'image'},{platform:'instagram',format:'carousel'},{platform:'instagram',format:'story'},{platform:'linkedin',format:'carousel'}] as FormatCapability[];
 const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',...p});
 const check=(items:ProductionItem[],b=bases)=>productionProblems(items,b,caps,['M01','M02','M03'],['sistemica']);
+test('espiral cadastrada com caminho antigo funciona no Github Pages e mantém URLs externas',()=>{
+  expect(appPublicAssetUrl('/bee-spiral.png','/hive-resgate/')).toBe('/hive-resgate/bee-spiral.png');
+  expect(appPublicAssetUrl('/hive-resgate/bee-spiral.png','/hive-resgate/')).toBe('/hive-resgate/bee-spiral.png');
+  expect(appPublicAssetUrl('/bee-spiral.png','/')).toBe('/bee-spiral.png');
+  expect(appPublicAssetUrl('https://cdn.example.test/simbolo.png','/hive-resgate/')).toBe('https://cdn.example.test/simbolo.png');
+  expect(appPublicAssetUrl('//cdn.example.test/simbolo.png','/hive-resgate/')).toBe('//cdn.example.test/simbolo.png');
+  expect(appPublicAssetUrl('data:image/png;base64,a','/hive-resgate/')).toBe('data:image/png;base64,a');
+});
+test('repetição comprovada pede reformulação; falha visual e limite transitório podem retomar',()=>{
+  const confirmed={generation_error:'Este texto retomou um argumento já publicado nesta marca: repetição da mesma conclusão.'} as PiecePlan;
+  const render={generation_error:'Falha ao renderizar a imagem da Hive: falha ao carregar: /bee-spiral.png'} as PiecePlan;
+  const worker={generation_error:'{"code":"WORKER_RESOURCE_LIMIT"}'} as PiecePlan;
+  expect(needsEditorialRebrief(confirmed)).toBe(true);
+  expect(needsEditorialRebrief(render)).toBe(false);
+  expect(needsEditorialRebrief(worker)).toBe(false);
+  expect(needsEditorialRebrief({generation_error:null} as PiecePlan)).toBe(false);
+});
 test('roteiro produzido com imagens pendentes continua na fila visual, sem regenerar a base',()=>{
   const p={id:'post',plan_id:'plan',format:'carousel',status:'pending_approval',metadata:{production_batch_id:'batch'}} as UserPost;
   const plan={id:'plan',production_batch_id:'batch',status:'produced'} as PiecePlan;

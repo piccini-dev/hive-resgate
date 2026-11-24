@@ -10,6 +10,7 @@ import { cycleApi, pieceApi } from '@/lib/campaignApi';
 import { productionApi } from '@/lib/campaign/production-api';
 import { FAMILY_LABELS, pendingProduction, productionProblems, type ProductionItem, type ProductionProposal, type TemplateFamily } from '@/lib/campaign/production-plan';
 import { loadHiveDesign } from '@/lib/hive/loadDesign';
+import { planApi } from '@/lib/sequence/service';
 import { capabilities, FORMAT_LABELS } from '@/lib/sequence/service';
 import { ReviewStep } from './ReviewStep';
 import { PublicationDestinations } from './PublicationDestinations';
@@ -45,6 +46,31 @@ export function ProductionHub(props: Props) {
   useEffect(()=>{void load();},[cycle.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{try{if(proposal)localStorage.setItem(key,JSON.stringify(proposal));else localStorage.removeItem(key);}catch{/* Approval always checks the server even when browser storage is unavailable. */}},[proposal,key]);
   function update(items: ProductionItem[]) { setProposal(p=>({summary:p?.summary??'',items})); setCommand(crypto.randomUUID()); setConfirmReplace(false); }
+  async function replanFailed() {
+    // Reaproveita os recortes do último plano para que o produtor possa mudar
+    // apenas os repetidos, sem reconstruir bases ou recomeçar a campanha.
+    if (!proposal && cycle.plan?.production?.batch_id) {
+      try {
+        const existing=await planApi.byCycle(cycle.id);
+        const items:ProductionItem[]=existing
+          .filter(p=>p.production_batch_id===cycle.plan?.production?.batch_id&&p.status!=='removed')
+          .map(p=>({
+            content_id:p.content_id,platform:p.platform,format:p.format,
+            approach:p.approach??'',purpose:p.purpose??'',architecture:p.architecture??null,
+            template_family:(p.template_family??'M01') as TemplateFamily,
+            editorial_slug:p.editorial_slug??bases?.find(b=>b.id===p.content_id)?.editorial_slug??editorials[0]?.slug??'',
+          }));
+        if(items.length) setProposal({
+          summary:'Plano anterior recuperado para reformulação. Revise as abordagens repetidas antes de aprovar uma nova produção; os rascunhos existentes só serão substituídos com sua confirmação.',
+          items,
+        });
+      } catch (e) {
+        toast.error('Não foi possível recuperar os recortes anteriores. Você ainda pode solicitar outra proposta.');
+      }
+    }
+    setView('plan');
+    void load();
+  }
   async function recommend() {
     setBusy(true);
     try { setProposal(await productionApi.recommend(cycle.id)); setCommand(crypto.randomUUID()); setConfirmReplace(false); }
@@ -54,9 +80,10 @@ export function ProductionHub(props: Props) {
   if(!bases)return <Loader2 className="m-8 h-5 w-5 animate-spin"/>;
   if(view==='destinations')return <PublicationDestinations {...props} onBack={()=>setView('review')}/>;
   if(view==='review'||view==='legacy')return <div className="space-y-4">
-    <Button variant="ghost" onClick={()=>{setView('plan');void load();}}><ArrowLeft className="h-4 w-4"/>Ver bases e proposta de produção</Button>
+    <Button variant="ghost" onClick={()=>void replanFailed()}><ArrowLeft className="h-4 w-4"/>Ver bases e proposta de produção</Button>
     <ReviewStep {...props} allowAutoProduction={view==='review'&&!!cycle.plan?.production} productionBatchId={view==='review'?cycle.plan?.production?.batch_id:undefined}
-      onPreparePublication={view==='review'&&cycle.plan?.production?()=>setView('destinations'):undefined}/>
+      onPreparePublication={view==='review'&&cycle.plan?.production?()=>setView('destinations'):undefined}
+      onReplan={()=>void replanFailed()}/>
   </div>;
   const errors=proposal?productionProblems(proposal.items,bases,caps,families,editorials.map(e=>e.slug)):[];
   const patch=(index:number,p:Partial<ProductionItem>)=>update(proposal!.items.map((item,i)=>i===index?{...item,...p}:item));

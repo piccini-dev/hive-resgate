@@ -29,3 +29,11 @@ export const editorialPieces = (pieces: UserPost[]) => pieces.filter(p => !p.met
 export const samePlan = (a: ProductionItem[], b: ProductionItem[]) => JSON.stringify(a) === JSON.stringify(b);
 export const canReviewProduction = (piece: UserPost, plans: PiecePlan[], batch?: string): boolean => !batch || ['approved','scheduled','published'].includes(piece.status)
   || plans.some(p=>p.id===piece.plan_id && p.production_batch_id===batch && p.status==='produced');
+
+// Recortes com uma repetição concreta já confirmada não melhoram só porque o
+// usuário clica "Retomar". Precisam de outra abordagem aprovada pelo produtor.
+// Falhas transitórias (renderização/recurso) continuam na fila de retomada.
+export function needsEditorialRebrief(plan: Pick<PiecePlan,'generation_error'>): boolean {
+  return typeof plan.generation_error === 'string'
+    && plan.generation_error.startsWith('Este texto retomou um argumento já publicado nesta marca:');
+}

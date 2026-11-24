@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { baseApi } from '@/lib/campaign/bases';
-import { canReviewProduction, editorialPieces } from '@/lib/campaign/production-plan';
+import { canReviewProduction, editorialPieces, needsEditorialRebrief } from '@/lib/campaign/production-plan';
 import { ideaApi, pieceApi } from '@/lib/campaignApi';
 import { formatRange } from '@/lib/campaign/dates';
 import {
@@ -61,9 +61,9 @@ function Preview({ piece, className = '', units = [] }: { piece: UserPost; class
   );
 }
 
-export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCycleChange, allowAutoProduction = true, productionBatchId, onPreparePublication }: {
+export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCycleChange, allowAutoProduction = true, productionBatchId, onPreparePublication, onReplan }: {
   campaign: Campaign; cycle: CampaignCycle; ideas: Idea[]; editorials: BeeEditorial[]; accounts: SocialAccount[];
-  onCycleChange: (c: CampaignCycle) => void; allowAutoProduction?: boolean; productionBatchId?: string; onPreparePublication?: () => void;
+  onCycleChange: (c: CampaignCycle) => void; allowAutoProduction?: boolean; productionBatchId?: string; onPreparePublication?: () => void; onReplan?: () => void;
 }) {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
@@ -163,6 +163,8 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
   const approvedCount = units.filter((u) => u.approved).length;
   const pending = units.filter(u=>!u.approved&&canReviewProduction(u.main,plans,productionBatchId)&&(u.main.metadata?.production_flow!=='base_v2'||stateOf(u.main)==='ready'));
   const unfinishedPlans = productionBatchId ? plans.filter(p=>p.production_batch_id===productionBatchId&&p.status==='planned') : [];
+  const editorialBlocked = unfinishedPlans.filter(needsEditorialRebrief);
+  const resumablePlans = unfinishedPlans.length - editorialBlocked.length;
   const fromValidation = units.filter((u) => u.main.piece_role === 'validation').length;
   const pieceById = (id: string) => pieces.find((p) => p.id === id);
   const replacePiece = (p: UserPost) => setPieces((ps) => ps.map((x) => (x.id === p.id ? p : x)));
@@ -246,7 +248,12 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
               <p className="text-sm">Há peças cuja produção ainda não terminou. O que já foi gerado será preservado.</p>
               <p className="text-sm">{unfinishedPlans.length} peças aguardam conteúdo; {visualPending} sequências têm imagens pendentes. {pending.length} posts já estão disponíveis para revisar.</p>
               {plans.filter(p => p.production_batch_id === productionBatchId && p.generation_error).map(p => <p key={p.id} className="text-xs text-muted-foreground">{p.format==='carousel'?'Carrossel':p.format==='story'?'Stories':'Imagem única'} · {p.approach}: {p.generation_error}</p>)}
-              <Button variant="outline" disabled={!!progress} onClick={() => setRunNonce(n => n+1)}>Retomar produção pendente</Button>
+              {editorialBlocked.length>0&&<div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm" role="status">
+                <p className="font-medium">{editorialBlocked.length} recorte(s) repetem argumentos já publicados nesta marca.</p>
+                <p className="mt-1 text-muted-foreground">Repetir a geração sem mudar a abordagem não resolverá. Você pode reformular a proposta, confirmando antes de substituir quaisquer rascunhos.</p>
+                {onReplan&&<Button variant="outline" className="mt-2" size="sm" onClick={onReplan}>Reformular recortes <ArrowRight className="h-3 w-3" /></Button>}
+              </div>}
+              <Button variant="outline" disabled={!!progress||(!resumablePlans&&!visualPending)} onClick={() => setRunNonce(n => n+1)}>Retomar produção pendente</Button>
             </section>}
             <div className="flex justify-end"><Button variant="accent" size="lg" onClick={() => setView({ kind: 'gallery' })}>Revisar produção <ArrowRight className="h-4 w-4" /></Button></div>
           </>
@@ -272,7 +279,12 @@ export function ReviewStep({ campaign, cycle, ideas, editorials, accounts, onCyc
           {progress&&<div data-testid="produce-progress"><p role="status" className="flex gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin"/>Produzindo peças e imagens: {progress.done} de {progress.total}.</p></div>}
           {!progress&&(unfinishedPlans.length>0||visualPending>0)&&<div className="space-y-2">
             <p className="text-sm">{unfinishedPlans.length} peças aguardam conteúdo; {visualPending} sequências têm imagens pendentes. {pending.length} posts já estão disponíveis para revisar.</p>
-            <Button variant="outline" onClick={()=>setRunNonce(n=>n+1)}>Retomar produção pendente</Button>
+            {editorialBlocked.length>0&&<div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm" data-testid="production-editorial-blocked">
+              <p className="font-medium">{editorialBlocked.length} recorte(s) exigem outra abordagem editorial.</p>
+              <p className="mt-1 text-muted-foreground">A Hive encontrou argumentos já publicados nesta marca. Não repetirá automaticamente as peças; volte à proposta para escolher contribuições diferentes.</p>
+              {onReplan&&<Button variant="outline" className="mt-2" size="sm" onClick={onReplan}>Reformular recortes <ArrowRight className="h-3 w-3" /></Button>}
+            </div>}
+            <Button variant="outline" disabled={!resumablePlans&&!visualPending} onClick={()=>setRunNonce(n=>n+1)}>Retomar produção pendente</Button>
           </div>}
           {pending.length>0&&<Button size="sm" variant="outline" disabled={!!progress} onClick={()=>nextPending()}>Ir para a próxima pendente <ArrowRight className="h-4 w-4"/></Button>}
         </section>}

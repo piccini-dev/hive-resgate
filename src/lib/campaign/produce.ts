@@ -14,6 +14,7 @@ import { scheduleAt } from '@/lib/scheduling';
 import { recordReviewSafely } from '@/lib/measurement';
 import { db } from '@/lib/db';
 import { cycleApi } from '@/lib/campaignApi';
+import { needsEditorialRebrief } from './production-plan';
 import { getPhotoGeneration, reviewMarcosPhoto } from '@/lib/hive/marcosPhoto';
 import type { AiVariation, CampaignCycle, Content, Idea, IdeaChannel, PiecePlan, PostUnit, SocialAccount, UserPost } from '@/types';
 import { sequenceVisualTodo } from '@/lib/sequence/visual-state';
@@ -74,7 +75,7 @@ export interface UnfoldTask { content: Content; idea?: Idea; channel: IdeaChanne
 //  - plano "planejado" sem peça → produz (imagem: adaptação + visual; carrossel: roteiro).
 export function productionTodo(contents: Content[], ideas: Idea[], pieces: UserPost[], plans: PiecePlan[] = [], batchId?: string): { validation: UserPost[]; unfold: UnfoldTask[]; sequences: UnfoldTask[] } {
   if (batchId) {
-    const tasks = plans.filter(p => p.production_batch_id === batchId && p.status === 'planned').map(plan => {
+    const tasks = plans.filter(p => p.production_batch_id === batchId && p.status === 'planned' && !needsEditorialRebrief(p)).map(plan => {
       const content = contents.find(c => c.id === plan.content_id && c.status === 'validated');
       if (!content) throw new Error('Base do plano indisponível. Atualize a produção.');
       return { content, plan, channel: { platform: plan.platform } as IdeaChannel };
@@ -229,7 +230,9 @@ export async function produceCycle(
       onProgress?.(done, total);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(2, tasks.length) }, worker));
+  // Uma produção por vez: cada peça pode chamar várias vezes IA + render pesado;
+  // em paralelo o Edge Runtime atingiu WORKER_RESOURCE_LIMIT (HTTP 546).
+  if (tasks.length) await worker();
   if (errors.length) throw new Error(`${errors.length} de ${total} produções falharam: ${errors[0].slice(0, 140)}`);
   return out;
 }
