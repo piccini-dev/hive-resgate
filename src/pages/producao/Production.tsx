@@ -11,7 +11,6 @@ import { PlanStep } from '@/components/production/PlanStep';
 import { PautaStep } from '@/components/production/PautaStep';
 import { DevelopStep } from '@/components/production/DevelopStep';
 import { ProductionHub } from '@/components/production/ProductionHub';
-import { CampaignBasePicker } from '@/components/production/CampaignBasePicker';
 import { accountApi, campaignApi, cycleApi, ideaApi } from '@/lib/campaignApi';
 import { beeApi } from '@/lib/api';
 import { isAvulso } from '@/lib/campaign/avulso';
@@ -161,10 +160,9 @@ export function Production() {
             <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground" data-testid="choose-work">
               {!campaign ? 'Escolha em qual campanha você quer trabalhar (ao lado). A Hive não abre uma campanha por conta própria quando há mais de uma.' : 'Escolha o ciclo para continuar.'}
             </div>
-          ) : archiveFlow && !ADVANCED.includes(cycle.status) ? (
-            <CampaignBasePicker key={cycle.id} campaign={campaign} cycle={cycle} accounts={accounts} onDone={replaceCycle}/>
           ) : archiveFlow ? (
-            <ProductionHub key={cycle.id} campaign={campaign} cycle={cycle} ideas={ideas} editorials={editorials} accounts={accounts} onCycleChange={replaceCycle}/>
+            // Estoque vivo: sem seletor de bases; a Hive escolhe os conteúdos-mãe e o material na proposta.
+            <ProductionHub key={cycle.id} stock campaign={campaign} cycle={cycle} ideas={ideas} editorials={editorials} accounts={accounts} onCycleChange={replaceCycle}/>
           ) : step === 2 ? (
             <PlanStep key={cycle.id} campaign={campaign} cycle={cycle} accounts={accounts}
               isCurrent={cycle.start_date <= today && today <= cycle.end_date}

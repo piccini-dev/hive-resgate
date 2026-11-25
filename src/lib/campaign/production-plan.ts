@@ -3,14 +3,16 @@ export type TemplateFamily = 'M01' | 'M02' | 'M03';
 export interface ProductionItem {
   content_id: string; platform: 'instagram' | 'linkedin'; format: PieceFormat; approach: string; purpose: string;
   architecture: string | null; template_family: TemplateFamily; editorial_slug: string;
+  discovery_ids: string[];
 }
 export interface ProductionProposal { summary: string; items: ProductionItem[] }
 // These labels describe the existing compositors/recipes, rather than renamed registry headings.
 export const FAMILY_LABELS: Record<TemplateFamily, string> = { M01: 'M01 · Texto e atmosfera', M02: 'M02 · Presença e fotografia', M03: 'M03 · Relações e mapas conceituais' };
-export function productionProblems(items: ProductionItem[], bases: Content[], caps: FormatCapability[], families: string[], editorials: string[]): string[] {
+// available (mãe → ids de material livre) só no fluxo do estoque; sem ele, o material não é exigido.
+export function productionProblems(items: ProductionItem[], bases: Content[], caps: FormatCapability[], families: string[], editorials: string[], available?: Map<string, string[]>): string[] {
   const errors: string[] = [];
   if (!items.length || items.length > 40) errors.push('Selecione de 1 a 40 peças.');
-  const seen = new Set<string>();
+  const seen = new Set<string>(), usedMaterial = new Set<string>();
   items.forEach((p, i) => {
     const prefix = `Peça ${i + 1}: `;
     if (!bases.some(c => c.id === p.content_id && c.status === 'validated')) errors.push(prefix + 'escolha uma base validada.');
@@ -21,6 +23,13 @@ export function productionProblems(items: ProductionItem[], bases: Content[], ca
     const key = [p.content_id, p.platform, p.format, p.editorial_slug, p.approach.trim().toLowerCase()].join('|');
     if (seen.has(key)) errors.push(prefix + 'repete a mesma abordagem de outra peça. Diferencie sua contribuição.');
     seen.add(key);
+    if (available) {
+      const ids = p.discovery_ids ?? [], free = available.get(p.content_id) ?? [];
+      if (ids.length < 1 || ids.length > 2 || ids.some(id => !free.includes(id) || usedMaterial.has(id)) || new Set(ids).size !== ids.length) {
+        errors.push(prefix + 'escolha material ainda não usado deste conteúdo-mãe.');
+      }
+      ids.forEach(id => usedMaterial.add(id));
+    }
   });
   return errors;
 }
