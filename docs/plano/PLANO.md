@@ -1,292 +1,289 @@
-# PLANO — Módulo de Tráfego (distribuição de conteúdo)
+# PLANO — Reconstrução do fluxo de conteúdo (estoque vivo)
 
-Repositório: `piccini-dev/hive-resgate` · Base: `main` em `fb0591e` · Data: 2026-11-15
-Planos anteriores: operação resgate (blocos 01–10) em [`PLANO-RESGATE.md`](PLANO-RESGATE.md); primeira versão do tráfego (09/11, substituída) em [`PLANO-TRAFEGO-ANTIGO.md`](PLANO-TRAFEGO-ANTIGO.md). Os blocos deste plano começam no **11**.
+> Insumos: áudio do Marcos de 24/11 (`docs/plano/insumos/2026-11-24-audio-marcos-conteudo-mae.txt`) e a especificação dele no PR #85 (`docs/plano/insumos/ATUALIZACAO_1_IDENTIDADE_CONTEUDOS-pr85.md`, §4, §8 e §14).
+> O plano do Tráfego (blocos 11–17) está **pausado** em [`PLANO-TRAFEGO.md`](PLANO-TRAFEGO.md) e volta depois desta reconstrução.
+> Decisões do Raul em 25/11: varredura de tudo aos poucos; conteúdo-mãe novo é proposto e o Marcos valida; na campanha a Hive escolhe e o Marcos pode trocar; bloco 15 pausado.
 
 ## 1. Objetivo e critério de pronto
 
-**Objetivo:** a Hive ganha um **módulo de Tráfego**, separado da parte de conteúdo, onde o Marcos cria campanhas de **distribuição de conteúdo** na Meta (Facebook e Instagram) por um wizard que segue o fluxo do Gerenciador de Anúncios (campanha → conjunto → anúncio), mais simples e com a **recomendação da IA em todas as etapas**.
+**Objetivo.** A Hive deixa de depender de o Marcos escolher bases fixas, que se esgotam depois de um post. O fluxo passa a ser o que ele descreveu:
 
-**O que o módulo compartilha com o conteúdo:** só a escolha dos conteúdos. O wizard puxa peças da Hive **aprovadas, agendadas ou publicadas**, nunca peças que ainda não foram aprovadas. Todo o resto (campanhas, configurações, resultados) mora no módulo.
+```
+Biblioteca → varredura (marca-texto) → descobertas → conteúdos-mãe vivos (estoque)
+  → campanha: a Hive escolhe editorias, conteúdos-mãe e material → produção em formatos
+```
 
-**Pronto quando:**
-1. O menu tem **Tráfego**, com as abas Campanhas, Nova campanha, Resultados e Configurações.
-2. O Marcos cria uma campanha completa pelo wizard e ela aparece na Meta **pausada**. Ele a ativa com uma confirmação.
-3. Cada etapa do wizard tem o painel **"A Hive recomenda"**, que o Marcos aplica com um clique ou ignora.
-4. O seletor de conteúdo **não mostra** peça sem aprovação, e o servidor **recusa** se alguém mandar uma (teste cobre).
-5. Nenhuma campanha é criada ou ativada acima do **teto mensal**: o servidor recusa e a recusa é testada.
-6. A aba Campanhas mostra status, gasto, alcance e custo por resultado de cada campanha criada pela Hive, vindos do espelho `meta_*` (sem tabela nova de métricas).
-7. A regressão completa fica verde e os specs novos cobrem o wizard, o filtro de aprovação, a recusa por teto e ativar/pausar.
+**Por que isso acaba com a repetição.** Medimos em 24/11: as 4 produções que falharam vinham de bases já publicadas, e a IA, mesmo avisada, repete ou declara a base esgotada. Um post novo precisa de **material novo**. Cada recorte passa a carregar descobertas da Biblioteca que ainda não foram usadas; o material é registrado como usado quando a peça é produzida.
+
+**Pronto quando**, no `hive-resgate`, logado como Marcos:
+1. A Biblioteca mostra "Ver descobertas" com trechos marcados (tags, tipo e origem), e documento novo é varrido sozinho.
+2. Conteúdos-mãe mostra o estoque: cada mãe com o material disponível ("6 materiais ainda não usados" ou "esgotado") e uma lista "Propostos pela Hive" para validar em lote.
+3. Numa campanha nova, o Marcos não escolhe bases: a Hive propõe os recortes, cada um com o conteúdo-mãe e o material de origem, e ele aprova ou troca um item.
+4. Uma produção de 5 peças a partir do estoque termina sem "retomou um argumento já publicado", e um teste sem gravar (como o de 24/11) confirma que as peças não repetem o acervo.
+5. Regressão completa verde; `/impeccable critique` das telas novas sem P0.
 
 ## 2. Escopo
 
-**Entra:**
-- Módulo `/trafego` com menu próprio.
-- Wizard com os **3 objetivos de distribuição** da Meta: Reconhecimento (`OUTCOME_AWARENESS`), Tráfego (`OUTCOME_TRAFFIC`) e Engajamento (`OUTCOME_ENGAGEMENT`).
-- Opções do Gerenciador, simplificadas: orçamento diário ou total, programação, público (Advantage+ ligado/desligado, localização, idade, gênero, interesses), posicionamentos (automáticos ou manuais), identidade (Página e Instagram), texto, título, botão (CTA) e link de destino.
-- Conteúdo de **qualquer peça com arte**: peça publicada no Instagram vira impulsionamento do próprio post; peça aprovada ou agendada (de qualquer rede) vira anúncio fora do feed, com a arte e o texto da peça.
-- IA em cada etapa (Gemini, padrão do projeto), sempre como **proposta**: nunca grava nem gasta sozinha.
-- Criar, ativar, pausar e encerrar campanhas na Meta; teto mensal no servidor.
-- Mover a seção de tráfego pago (`PaidTrafficSection`) do comparativo de contas para a aba Resultados do módulo.
-- Migrations aditivas e Edge Functions novas, com deploy feito só por ordem do Raul (ver §8).
+**Entra**
+- **Estabilização (bloco 18, já pronta na branch `fix/estabilizacao`):**
+  - checagem de repetição com o acervo inteiro (`content_memory`);
+  - proposta que conhece o que cada base já publicou;
+  - peças reservadas vazias fora das pendências;
+  - fim do GitHub Pages: Supabase Auth apontando para o Netlify.
+- Migration versionada das tabelas de descoberta que já existem no banco sem arquivo no repositório (`knowledge_discoveries`, `knowledge_analysis_runs`, criadas em 17/11 pela migration `identity_content_intelligence`), mais as colunas novas.
+- Varredura contínua da Biblioteca por cron, em lotes pequenos.
+- Conteúdo-mãe vivo:
+  - descobertas ligadas a cada mãe;
+  - estado do estoque;
+  - proposta de mães novas validada pelo Marcos.
+- Campanha em que a Hive escolhe conteúdo-mãe e material, com troca por item. Sai o passo de escolha manual de bases.
+- Registro de uso do material na produção.
 
-**Não entra (agora):**
-- Objetivos Leads, Vendas e Promoção de app (etapa de vendas, depois). A Eduzz fica para essa etapa (base no plano antigo).
-- Propostas automáticas da Hive (cron que sugere o que impulsionar) e pausa automática por regra.
-- Botão "Impulsionar" dentro da Agenda ou do editor da peça: o módulo é separado.
-- Teste A/B, orçamento de campanha Advantage+ (CBO), lances manuais, públicos personalizados ou semelhantes, remarketing, Pixel.
-- Anúncio em categoria especial (crédito, emprego, moradia, política): o wizard declara `special_ad_categories = []` e avisa que esse tipo não é suportado.
-- Editar uma campanha depois de criada (além de ativar, pausar e encerrar). Para o resto, o link "Abrir no Gerenciador".
-- LinkedIn Ads, Google Ads, TikTok e contas de anúncio de terceiros.
+**Não entra**
+- Monitoramento de desempenho e recomendação autônoma de temas (spec §9).
+- Reescrever o motor de aprendizado.
+- Migrar os 501 conteúdos legados (posts importados): eles continuam só como histórico na memória antirrepetição.
+- Tirar o Arsenal (`bee_arsenal`, 83 itens) e a Curadoria: continuam como estão. A troca para "Configurações → Inteligência" fica para depois de as descobertas substituírem os consumidores (spec §8).
+- Agenda, aprovação, publicação, Tráfego e editor visual.
+- Várias marcas: o fluxo respeita `brand_id`, mas é testado com a marca Bee.
 
 ## 3. Usuários e fluxos
 
-**Marcos** opera. **Raul** faz a configuração da primeira vez.
+Usuário: **Marcos** (produtor). Raul acompanha e decide.
 
-### F1 · Configurar (uma vez)
-1. Configurações › Contas › Meta: reconectar o Facebook (o login passa a pedir `ads_management`).
-2. Tráfego › Configurações: escolher a **conta de anúncio** e o **Instagram** que anunciam, e o **teto mensal** (R$). A **Página** do Facebook é achada pelo servidor a partir do Instagram (o banco não guarda o id da Página hoje).
-3. Sem configuração completa, as outras abas do módulo mostram só o aviso com o link para Configurações.
+### F1 · Biblioteca vira estoque (sem ação do Marcos)
+1. O Marcos sobe um documento na Biblioteca (fluxo atual `ingest-document`).
+2. O cron `library-scan` pega o próximo trecho não varrido de qualquer documento e lê 12 trechos por chamada.
+3. Para cada passagem que pode render conteúdo, grava uma **descoberta**: título, resumo, trecho literal curto, tipo (caso, conceito, pergunta, dado, história ou prática), tags e origem (documento e trecho).
+4. Em seguida, liga cada descoberta ao conteúdo-mãe mais próximo (similaridade) ou a deixa solta.
+5. "Ver descobertas" mostra a lista com filtro por tag, tipo, documento e "solta". O Marcos pode descartar ou corrigir uma descoberta; não precisa aprovar.
 
-### F2 · Nova campanha (o wizard)
-Ordem igual à do Gerenciador, com um passo de conteúdo à frente (o módulo existe para distribuir conteúdo, e a IA recomenda melhor sabendo o que vai ser anunciado).
+### F2 · Conteúdos-mãe vivos
+1. Quando há descobertas soltas suficientes sobre um mesmo assunto (mínimo de 3), a Hive propõe um **conteúdo-mãe**: frase e texto amplos, e os recortes possíveis, sem ser post. Ele usa as descobertas como fonte.
+2. Em Conteúdos-mãe › "Propostos pela Hive", o Marcos valida, edita ou descarta, em lote. Validar usa o contrato atual de versão (`content_base_versions`).
+3. Cada mãe mostra seu material: descobertas ligadas, quais já foram usadas e em qual peça. Mostra também o estado do estoque: **vivo** (há material não usado) ou **esgotado**.
 
-| Passo | O Marcos escolhe | A Hive recomenda |
-|---|---|---|
-| 1 · Conteúdo | 1 a 5 peças aprovadas, agendadas ou publicadas (busca, filtro por rede, miniatura da arte) | quais peças valem anunciar, pelo desempenho orgânico (`post_metrics`) e pela função estratégica |
-| 2 · Campanha | objetivo (3 cartões) e nome | o objetivo, a partir das peças e de uma frase opcional "o que você quer com isso?"; o nome |
-| 3 · Conjunto: orçamento e programação | diário ou total, valor, início e fim | valor e duração pelo histórico de custo da conta (`meta_ad_insights_daily`) e pelo que sobra do teto |
-| 4 · Conjunto: público | Advantage+ ligado/desligado, localização, idade, gênero, interesses | o público, a partir da identidade e do público dos editoriais (`resolveContext`); interesses já buscados na Meta |
-| 5 · Conjunto: posicionamentos | automáticos (recomendado pela Meta) ou manuais (Feed e Stories/Reels do Facebook e do Instagram) | posicionamentos pelo formato das peças (carrossel, imagem, reel) |
-| 6 · Anúncio | identidade (vem da configuração); para cada peça: texto principal, título, botão e link (este só em Tráfego). Post do Instagram publicado usa o post como está | texto, título e botão na voz do Marcos, a partir da peça |
-| 7 · Revisão | confere tudo e clica **Criar (pausada)** | checklist final: o que pode dar errado e o que melhorar; estimativa de alcance diário da Meta |
+### F3 · Campanha: a Hive escolhe
+1. Criar campanha e ciclo segue igual (estratégia, ACJ, duração).
+2. Na Produção, o passo "escolher bases" deixa de existir. Em "Proposta de produção", a Hive monta os recortes a partir do **estoque inteiro**: conteúdos-mãe validados com material não usado, filtrados pelas editorias e pela estratégia.
+3. Cada recorte mostra o conteúdo-mãe, as 1–2 descobertas de material novo, a editoria, o formato e o porquê.
+4. O Marcos aprova ou, num item, toca em "Trocar" para escolher outro mãe ou outro material da lista disponível.
+5. Se o estoque não bastar, a proposta diz isso ("3 conteúdos-mãe esgotados; a Biblioteca tem 40 descobertas soltas aguardando virar mãe") e leva a F2.
 
-Depois de criar: a campanha aparece em Campanhas como **Pausada**, com **Ativar** (confirmação mostra valor e período). O rascunho do wizard fica salvo a cada passo e pode ser retomado.
-
-### F3 · Acompanhar
-1. Tráfego › Campanhas: lista das campanhas criadas pela Hive, com status, período, gasto, alcance, resultado e custo por resultado (do espelho, atualizado pelo sync de 30 min).
-2. Ações: Ativar, Pausar, Encerrar, Abrir no Gerenciador.
-3. Tráfego › Resultados: a visão geral da conta de anúncio (a `PaidTrafficSection` atual, que hoje fica no comparativo de contas).
+### F4 · Produção sem repetição
+1. Produção como hoje, um por vez. O texto que a IA recebe inclui o material novo da peça ("MATERIAL NOVO DESTA PEÇA").
+2. A checagem de repetição continua como rede de segurança, já com o acervo inteiro (bloco 18).
+3. Quando a peça é produzida, as descobertas dela ficam marcadas como usadas e não entram no próximo recorte.
 
 ## 4. Arquitetura
 
 ```mermaid
 flowchart LR
-  subgraph Front ["Front · /trafego"]
-    CFG[Configurações] --> TM
-    WZ[Wizard 7 passos] -->|rascunho| TC[(traffic_campaigns<br/>traffic_ads)]
-    WZ --> TA
-    WZ --> TM
-    LST[Campanhas] --> TM
-    LST --> MIRROR
-    RES[Resultados<br/>PaidTrafficSection]
+  subgraph Biblioteca
+    D[knowledge_documents] --> C[knowledge_chunks<br/>embedding 1536]
   end
-  subgraph Supabase
-    TA[traffic-assist<br/>IA, só propõe] --> GEM[Gemini]
-    TA --> CTX[_shared/context.ts]
-    TM[traffic-meta<br/>contrato único com a Meta] --> SPEC[_shared/traffic-spec.ts<br/>puro: rascunho → payloads]
-    TM --> GUARD{{ads_spend_guard}}
-    TM --> TC
-    TM --> POSTS[(user_posts<br/>só aprovadas+)]
-    SYNC[meta-ads-sync<br/>cron 30 min] --> MIRROR[(meta_* espelho)]
-  end
-  TM -->|Marketing API v26| META[Meta Ads]
-  META --> SYNC
-  TC -.fb_campaign_id / fb_ad_id.-> MIRROR
-  MIRROR --> RES
+  CRON[pg_cron library-scan<br/>a cada 10 min] --> LS[Edge library-scan]
+  LS -->|lê 12 trechos| C
+  LS -->|grava| K[knowledge_discoveries]
+  LS -->|progresso| R[knowledge_analysis_runs]
+  LS -->|liga por similaridade| M[contents + content_base_versions<br/>= conteúdo-mãe]
+  LS -->|propõe mãe draft| M
+  UI1[Biblioteca › Ver descobertas] --> K
+  UI2[Conteúdos-mãe › estoque e propostos] --> M
+  UI2 --> K
+  P[sequence-script · recommend<br/>cycle-production.ts] -->|estoque inteiro| M
+  P -->|material não usado| K
+  P --> PL[content_piece_plans.discovery_ids]
+  PL --> G[sequence-script · image/script]
+  G -->|checagem| MEM[content_memory]
+  G --> SP[save_production_progress<br/>marca uso]
+  SP --> U[(uso do material)]
 ```
 
-**Regras de arquitetura:**
-- **Um contrato com a Meta:** toda leitura e escrita do módulo na Marketing API passa por `traffic-meta` (o token nunca vai ao navegador). Ações: `assets` (acha e grava a Página do Instagram configurado), `search_locations`, `search_interests`, `create`, `set_status`; `estimate` entra no bloco 14.
-- **Uma tradução:** `_shared/traffic-spec.ts` é puro (sem rede). Converte o rascunho do wizard nos payloads da Meta e valida combinações (objetivo × meta de otimização × destino × posicionamento). Testado por unitários.
-- **Uma fonte de números:** métricas só do espelho `meta_*`. `traffic_campaigns` e `traffic_ads` guardam a **intenção** (o que a Hive criou e os ids da Meta), nunca métricas.
-- **IA só propõe:** `traffic-assist` devolve recomendações em JSON; quem grava é o front, no rascunho, quando o Marcos aplica.
-- **Separado do conteúdo:** o módulo **lê** `user_posts` e não escreve nada nele.
+- **Uma função nova:** `library-scan` (varredura, ligação e proposta de mãe). Ela é chamada pelo cron com a service role e o cabeçalho `x-bee-user-id` (padrão `internalUserId`), e pelo app com JWT ("varrer agora", só para o próprio usuário).
+- **Contratos estendidos, sem atalho (AGENTS regra 7):**
+  - a proposta continua em `recommendCycleProduction` (`_shared/cycle-production.ts`, ação de `sequence-script`);
+  - a aprovação continua em `approve_cycle_production`;
+  - o progresso continua em `save_production_progress`;
+  - a validação de mãe continua no fluxo atual de Conteúdos-mãe.
+- **Lógica pura** em `_shared/discovery.ts` e `src/lib/campaign/stock.ts` (testável em Node, como `production-novelty.ts`).
 
 ## 5. Stack e versões
 
-Mantida (`package.json`). **Nenhuma dependência nova:** a Marketing API é chamada por `fetch` no Deno, como `_shared/meta-ads.ts` já faz; o wizard reaproveita `WizardShell` e `ChoiceCard` (`src/components/campaign/`).
+Sem dependência nova. React 18 + Vite + TypeScript + Tailwind + Zustand. Supabase (Postgres com pgvector, RLS, Edge Functions Deno, pg_cron, `net.http_post` com o segredo `service_role_key` do Vault, como o `campaign-tick`).
 
-| Peça | Versão | Conferido |
-|---|---|---|
-| Meta Graph / Marketing API | **v26.0** (o código atual usa v21.0 em 9 lugares) | Context7 (`/websites/developers_facebook_ads-commerce_marketing-api`), 2026-11-15 |
-| Objetivos | `OUTCOME_AWARENESS` (meta `REACH`, `IMPRESSIONS`, `AD_RECALL_LIFT`, `promoted_object.page_id`) · `OUTCOME_TRAFFIC` (site: `LINK_CLICKS`, `LANDING_PAGE_VIEWS`) · `OUTCOME_ENGAGEMENT` + `destination_type=ON_POST` (`POST_ENGAGEMENT`) | idem |
-| Público | `targeting.geo_locations`, `age_min/max`, `genders`, `flexible_spec.interests`; **`targeting_automation.advantage_audience` obrigatório (0 ou 1) desde a v23** ao criar conjunto | idem |
-| Busca | `GET /search?type=adinterest&q=` e `type=adgeolocation` | idem |
-| Posicionamentos | `publisher_platforms` (se informado, precisa incluir `facebook`), `facebook_positions` (`feed`, `story`, `facebook_reels`), `instagram_positions` (`stream`, `story`, `reels`); Stories exige `device_platforms: mobile` | idem |
-| Permissões | `ads_read` + `ads_management` + `pages_manage_ads` (criativo ligado à Página), acesso padrão (contas do próprio usuário) | Context7, 2026-11-09 e 2026-11-15 |
-| Orçamento no conjunto | desde a v24, a campanha precisa de `is_adset_budget_sharing_enabled` (`false` aqui) | Context7, 2026-11-15 |
-| Advantage+ ligado | `age_min` só de 18 a 25, `age_max` fixo em 65; a faixa escolhida vai em `age_range` | Context7, 2026-11-15 |
-| Anúncio fora do feed | `object_story_spec.link_data` com `link` obrigatório; imagem por `picture` (URL); carrossel por `child_attachments` (2 a 10, cada um com `link` e `picture`) | Context7, 2026-11-15 |
-| Post do Instagram | criativo com `object_id` (Página), `instagram_user_id` e `source_instagram_media_id` | Context7, 2026-11-15 |
+IA pela chave Gemini do usuário (`getUserGeminiKey`):
+- **Texto:** `MODEL_CHAIN` de `_shared/gemini.ts` (`gemini-3.5-flash` → `gemini-3.1-flash-lite` → `gemini-2.5-pro`).
+- **Embedding:** `gemini-embedding-001`, 1536 dimensões (`_shared/embed.ts`).
+
+A similaridade de descoberta reutiliza o embedding do trecho de origem (`knowledge_chunks.embedding`), sem chamada nova.
 
 ## 6. Modelo de dados
 
-Tudo **aditivo** e idempotente, com rollback em `supabase/rollback/`. RLS `auth.uid() = user_id` em toda tabela nova (padrão do `20261002000001_trafego_pago.sql`).
+Tudo em migration aditiva e idempotente, com rollback em `supabase/rollback/`.
 
-### 6.1 Colunas novas em `meta_connections`
-| Coluna | Tipo | Para quê |
-|---|---|---|
-| `ad_account_id` | text | conta de anúncio que o módulo usa (`act_…`) |
-| `page_id` | text | Página que anuncia; preenchida pelo `traffic-meta` (ação `assets`, bloco 12) a partir do Instagram; volta a nulo quando o Instagram muda |
-| `ig_user_id` | text | Instagram que anuncia |
-| `monthly_cap` | numeric | teto mensal em R$ (nulo = módulo não cria nem ativa) |
+### 6.1 `knowledge_discoveries` (já existe no banco; o arquivo passa a existir no repositório)
 
-### 6.2 `traffic_campaigns` (uma campanha do módulo = uma campanha + um conjunto na Meta)
-| Campo | Tipo | Nota |
-|---|---|---|
-| `id` | uuid pk | |
-| `user_id` | uuid fk auth.users | RLS |
-| `name` | text | |
-| `objective` | text check (`OUTCOME_AWARENESS`,`OUTCOME_TRAFFIC`,`OUTCOME_ENGAGEMENT`) | |
-| `status` | text check | `draft` → `creating` → `paused` ↔ `active` → `ended`; também `failed` |
-| `step` | smallint | último passo do wizard (retomar rascunho) |
-| `draft` | jsonb | conjunto: orçamento (`budget_type` daily/lifetime, `amount`), `starts_at`, `ends_at`, `optimization_goal`, `targeting` (forma da Meta), `placements` (`auto` ou listas) |
-| `ai_notes` | jsonb | última recomendação de cada passo (para mostrar de novo ao retomar) |
-| `fb_campaign_id`, `fb_adset_id` | text | ligam ao espelho |
-| `error` | text | última recusa da Meta, em português |
-| `created_at`, `updated_at`, `activated_at`, `ended_at` | timestamptz | |
+| Coluna | Tipo | Situação |
+| --- | --- | --- |
+| `id` | uuid | existente |
+| `user_id` | uuid | existente |
+| `brand_id` | uuid | existente |
+| `document_id` | uuid | existente |
+| `title` | text (1–240) | existente |
+| `summary` | text (1–6000) | existente |
+| `sources` | jsonb (array) | existente; formato `[{document_id, chunk_id, chunk_index, title}]` |
+| `status` | text: `active`, `dismissed` ou `drafted` | existente; `drafted` = está numa proposta de mãe |
+| `content_id` | uuid | existente; mãe a que a descoberta está ligada |
+| `created_at` | timestamptz | existente |
+| `kind` | text: `caso`, `conceito`, `pergunta`, `dado`, `historia` ou `pratica` | **nova** |
+| `tags` | text[], padrão `{}` | **nova** |
+| `excerpt` | text (≤ 600), trecho literal | **nova** |
+| `chunk_id` | uuid, FK `knowledge_chunks` com `ON DELETE SET NULL` | **nova** |
+| `link_similarity` | real | **nova** |
+| `updated_at` | timestamptz | **nova** |
 
-### 6.3 `traffic_ads` (um anúncio por peça escolhida)
-| Campo | Tipo | Nota |
-|---|---|---|
-| `id` | uuid pk | |
-| `user_id` | uuid | RLS |
-| `campaign_id` | uuid fk traffic_campaigns on delete cascade | |
-| `post_id` | uuid fk user_posts | a peça; o servidor confere status aprovada/agendada/publicada |
-| `mode` | text check (`ig_post`,`new_creative`) | `ig_post` = post publicado no Instagram com `metadata.ig_media_id` (ou o id tirado do `published_url`, como o `mediaIdFromUrl` de `_shared/instagram-import.ts`); `new_creative` = arte de `rendered_slides` |
-| `primary_text`, `headline`, `cta`, `link_url` | text | `link_url` obrigatório em Tráfego; recebe UTMs `utm_source=hive&utm_campaign=<id>` |
-| `fb_creative_id`, `fb_ad_id` | text | ligam ao espelho `meta_ads` |
-| `error` | text | |
-| `created_at`, `updated_at` | timestamptz | |
+Unicidade existente: `(user_id, document_id, title)`. RLS existente: `discoveries_own`.
 
-### 6.4 Conteúdo elegível (regra única)
-Peça do usuário com `status in ('approved','scheduled','published')` **e** com arte (`rendered_slides` não vazio ou `metadata.ig_media_id`). Fica numa view `traffic_eligible_posts` (com `security_invoker`), usada pelo seletor e conferida de novo pelo `traffic-meta` no `create`.
+### 6.2 `knowledge_analysis_runs` (já existe)
 
-### 6.5 Guarda de verba
-`ads_spend_guard(user_id, extra numeric)` (função SQL): compromisso do mês = soma das campanhas `active`/`creating` (diária × dias restantes no mês, ou o restante do total) + gasto real do mês no espelho + `extra`; compara com `monthly_cap`. O `traffic-meta` chama antes de `create` e de `set_status=ACTIVE`; acima do teto, recusa com o código `PT402`.
+- Chave existente: `(document_id, user_id)`.
+- Colunas existentes: `brand_id`, `status` (`running`, `completed` ou `failed`), `claim`, `started_at`, `finished_at`, `found`, `error`.
+- **Nova:** `next_chunk int not null default 0`, o cursor da varredura em lotes.
+
+### 6.3 Uso do material
+
+- `content_piece_plans.discovery_ids uuid[] not null default '{}'` (**nova**).
+- Uma descoberta conta como **usada** quando aparece em `discovery_ids` de um plano com `status = 'produced'`.
+- Uma descoberta está **reservada** quando aparece num plano `planned` do lote aprovado atual.
+- A regra fica numa view `discovery_availability(discovery_id, user_id, content_id, state)`, com `state` = `livre`, `reservada` ou `usada`, e é usada pelo front e pela proposta.
+
+### 6.4 Conteúdo-mãe
+
+Não muda de tabela: `contents` + `content_base_versions`.
+- **Proposta da Hive:** versão `draft` com `contents.metadata.origin = 'discovery'` e `metadata.discovery_ids`.
+- **Estoque de uma mãe:** descobertas `active` ligadas por `content_id` e `livre` em `discovery_availability`. Com zero livres, a mãe está **esgotada**.
 
 ## 7. Integrações
 
-### `traffic-meta` (Edge Function, JWT obrigatório)
-| Ação | Entrada | Faz na Meta (v26.0) |
-|---|---|---|
-| `assets` | — | `GET /me/adaccounts`, `GET /me/accounts` (Páginas) e o `instagram_business_account` de cada Página |
-| `search_locations` | `q` | `GET /search?type=adgeolocation` |
-| `search_interests` | `q` | `GET /search?type=adinterest` |
-| `estimate` | `objective`, `draft` (rascunho atual, sem salvar) | `GET /act_<id>/delivery_estimate` (`optimization_goal`, `targeting_spec`) → `{ lower, upper }` de pessoas por mês, ou `null` sem local ou sem número da Meta. Só leitura (`ads_read`). Bloco 14, no passo Público; conferido no Context7 em 17/11 |
-| `create` | `campaign_id` | valida o rascunho (`traffic-spec`), confere peças elegíveis e teto; cria campanha (`special_ad_categories=[]`, `PAUSED`) → conjunto → criativos → anúncios, todos `PAUSED`; grava os ids. Se falhar no meio, apaga o que criou e marca `failed` |
-| `set_status` | `campaign_id`, `ACTIVE`/`PAUSED`/`ARCHIVED` | `POST /{fb_campaign_id}` `status=…` (ACTIVE passa pela guarda) |
+### `library-scan` (Edge Function nova)
+- **Autenticação:** JWT do usuário, ou service role + `x-bee-user-id` (cron).
+- **Entrada:** `{ "action": "tick" }` (cron: processa até 3 lotes de 12 trechos no total, entre todos os usuários), `{ "action": "scan", "document_id": "<uuid>" }` (app: próximo lote desse documento), `{ "action": "propose_mothers" }` (app ou cron: propõe mães a partir das soltas).
+- **Saída:** `{ "success": true, "processed": n, "found": n, "linked": n, "proposed": n }`.
+- **Rate limit:** `checkRateLimit`. Uso registrado com `logUsage` (`fn: 'library-scan'`).
+- **Claim:**
+  - Lê `knowledge_analysis_runs` com `claim` e `started_at`. Um lote parado há mais de 10 min é retomado.
+  - Quando `next_chunk` alcança `chunk_count`, o status vira `completed`.
+  - Documento novo ou com mais trechos que o cursor volta a ser varrido.
 
-Erros da Meta viram mensagem em português em `error`. O token sai de `meta_connections` com service role (`_shared/meta-ads.ts` já faz).
+### `sequence-script` (estendida)
+- **Proposta** (`recommendCycleProduction`):
+  - recebe o estoque (mães validadas da marca, com as descobertas livres de cada uma e o `ja_publicado` do bloco 18);
+  - devolve `items[].discovery_ids` (1 ou 2, do próprio mãe, livres);
+  - `usableProductionProposals` descarta o item cujo material não confere.
+- **Geração** (`image`, `script`): o texto que a IA recebe ganha o material das `discovery_ids` do plano.
 
-### `traffic-assist` (Edge Function, JWT obrigatório, rate limit)
-Entrada `{ step: 'content'|'objective'|'budget'|'audience'|'placements'|'copy'|'review', campaign_id, hint? }`. Monta o contexto do passo (peças, identidade via `resolveContext`/`contextBlock`, histórico de `meta_ad_insights_daily`, teto restante), chama `callGeminiJson` (`_shared/gemini.ts`) e devolve `{ recommendation: <forma do campo do passo>, why: string }`. Não grava. Interesses sugeridos pela IA passam por `search_interests` antes de aparecer (só id real da Meta entra no público). O custo entra no registro de custos de API pelo `logUsage` (`_shared/security.ts`), como as outras funções de IA.
-
-### Front
-- `src/lib/edge.ts`: `trafficMeta(action, payload)` e `trafficAssist(step, payload)`.
-- `src/lib/traffic.ts`: leitura e gravação de rascunho (`traffic_campaigns`, `traffic_ads`, `traffic_eligible_posts`) e configuração, via `db.ts`.
+### RPCs (estendidas por migration)
+- `approve_cycle_production`: grava `discovery_ids` e cria `content_base_uses` dos mães escolhidos pela Hive. A tela deixa de chamar o seletor de bases.
+- `save_production_progress`: com `p_done`, a peça só termina se as `discovery_ids` do plano ainda estiverem livres para ele (sem corrida entre duas produções).
 
 ## 8. Convenções
 
-- **Regras técnicas:** `AGENTS.md`. Diferença desta missão: o plano **precisa** de deploy de migration e de função. Todo deploy é tarefa `exec:claude` e só roda com ordem explícita do Raul, na ordem do AGENTS §3 (migration aditiva → função → app).
-- **Pastas:** `src/pages/trafego/` (uma tela por aba e `wizard/` com um arquivo por passo), `src/components/traffic/` (painel "A Hive recomenda", cartão de campanha, seletor de peça), `supabase/functions/traffic-meta/`, `supabase/functions/traffic-assist/`, `supabase/functions/_shared/traffic-spec.ts` e `_shared/meta-marketing.ts` (chamadas de escrita, separadas do sync de leitura).
-- **Abas por `?aba=`**, como no resto do resgate: `/trafego?aba=campanhas|nova|resultados|configuracoes`. Rascunho: `/trafego?aba=nova&id=<uuid>`.
-- **UI:** linguagem do Gerenciador quando ela ajuda o Marcos a reconhecer a tela (Campanha, Conjunto, Anúncio, Público, Posicionamentos), com uma linha de explicação em cada passo. Nada de "bid", "CBO" ou "billing event". Painel da IA sempre no mesmo lugar (lateral no desktop, recolhível no topo em 375 px).
+- **Regras técnicas:** `AGENTS.md`. Migration, deploy de função e cron são tarefas `exec:claude`, na ordem do AGENTS §3: migration aditiva → função → app.
+- **Pastas:**
+  - `supabase/functions/library-scan/index.ts`;
+  - `supabase/functions/_shared/discovery.ts` (puro: parse e validação da resposta da IA, montagem dos lotes, escolha de ligação por similaridade, agrupamento de soltas);
+  - `src/lib/campaign/stock.ts` (puro: estado do estoque e material disponível por mãe);
+  - `src/lib/discoveryApi.ts` (REST via `db.ts`);
+  - telas em `src/pages/biblioteca/` (descobertas) e `src/pages/conhecimento/MotherContents.tsx` (estoque e propostos).
 - **Testes:**
-  - `e2e/unit-traffic-spec.spec.ts`: rascunho → payloads, combinações inválidas, `advantage_audience` sempre explícito, `publisher_platforms` com `facebook`, Stories → `mobile`.
-  - `e2e/unit-traffic-guard.spec.ts` (se a guarda tiver parte pura) ou E2E da recusa `PT402`.
-  - E2E do wizard com `mockEdge` para `traffic-meta` e `traffic-assist`. **A Meta nunca é chamada nos testes** (aqui ela gasta dinheiro).
-  - Prova real: `exec:claude`, na conta de anúncio do Raul, campanha criada `PAUSED` e arquivada no fim. Só com ordem.
-  - Somar `traffic_campaigns` e `traffic_ads` ao `E2E_OWNED_TABLES`.
-- **Ambiente:** sem variável nova (usa `GEMINI` por usuário, `SUPABASE_*` e o token de `meta_connections`).
+  - unitários `e2e/unit-discovery.spec.ts` e `e2e/unit-stock.spec.ts`, e mais casos em `e2e/unit-production-plan.spec.ts`;
+  - E2E novo `e2e/f35-estoque-vivo.spec.ts` com `mockEdge` para `library-scan` e `sequence-script`; somar as tabelas novas ao cleanup do usuário de teste;
+  - teste real sem gravar (script em `scripts/`, como o de 24/11), `exec:claude`.
+- **Ambiente:** sem variável nova.
 
 ## 9. Segurança e dados pessoais
 
-- **Dinheiro:** teto verificado **no servidor** (`ads_spend_guard`); tudo nasce `PAUSED`; ativar exige ação do usuário autenticado e passa pela guarda. Testes cobrem a recusa.
-- **Aprovação:** o servidor confere de novo que cada peça é do usuário e está aprovada, agendada ou publicada; o filtro do front não basta.
-- **Token da Meta** só no banco (RLS + service role); nenhuma resposta do `traffic-meta` devolve token.
-- **IA:** `traffic-assist` não grava nem chama a Meta para escrever; prompt usa `resolveContext` (nada de "Bee/Marcos" fixo, regra 9 do AGENTS).
-- **Site de teste = banco real:** uma campanha ativada no `hive-resgate` gasta de verdade. A confirmação de ativar mostra isso.
-- **Auditoria de segurança** (módulo producao-cliente) no bloco 12 (contrato com a Meta) e no 15 (fechamento).
+- **RLS** em tudo que é novo, por `user_id`. A view `discovery_availability` usa `security_invoker`.
+- **`library-scan`:**
+  - no modo cron, aceita a service role só com `x-bee-user-id`;
+  - no modo app, ignora qualquer `user_id` do corpo.
+- **Biblioteca tem casos reais de clientes e alunos.**
+  - A descoberta guarda o trecho para o Marcos conferir, mas os textos que a IA recebe na geração mantêm a regra atual: nada de caso real, nome ou detalhe identificável, só princípios e exemplos explicitamente fictícios.
+  - O `excerpt` nunca vai para post.
+- **Voz (AGENTS regra 9):** nada vira metodologia sem curadoria. A descoberta é material, não regra; o conteúdo-mãe só entra validado pelo Marcos.
+- **Custo:** a varredura usa a chave do Marcos. O cron limita a 3 lotes por execução e para no erro 429.
+- Auditoria de segurança no fechamento do bloco 19 (nova função com service role).
 
 ## 10. Blocos
 
 | NN | Nome | Objetivo | Entregável verificável | Depende de | Tarefas |
-|---|---|---|---|---|---|
-| 11 | Base do módulo | O módulo existe e está configurado | Menu **Tráfego** com as 4 abas; Resultados com a `PaidTrafficSection` (sai do comparativo de contas); Graph v26 em todo o código; login pede `ads_management`; Configurações salva conta, Instagram e teto; migration §6 aplicada | — | 8 |
-| 12 | Contrato com a Meta | Criar e controlar campanhas com segurança | `traffic-meta` com 5 ações (`estimate` vai para o 14); login pede `pages_manage_ads`; `traffic-spec` puro com unitários; `ads_spend_guard` recusando com `PT402`; E2E `f32` das recusas; auditoria de segurança (a prova real foi para o 17) | 11 | 8 |
-| 13 | Wizard | O Marcos monta e cria a campanha | 7 passos com rascunho salvo e retomável; seletor só com peças elegíveis; Revisão → Criar (pausada) pelo contrato; E2E com `mockEdge` | 12 | 9 |
-| 14 | Ajustes da call | Os pedidos do Marcos na call de 16/11 | Passo Público com o tamanho estimado do público (`estimate` na `traffic-meta`, `delivery_estimate` da Meta, só leitura); etapas do wizard abertas e clicáveis; prévia do feed do Instagram no passo Conteúdo e o anúncio completo nos passos Anúncio e Revisão (view `traffic_eligible_posts` com `caption`); E2E `f33` atualizado | 13 | 9 |
-| 15 | A Hive recomenda | IA em todas as etapas | `traffic-assist` com os 7 passos; painel "A Hive recomenda" com Aplicar em cada passo; interesses validados na Meta; custo registrado; E2E com `mockEdge` | 14 | 6 |
-| 16 | Campanhas | Acompanhar e controlar | Aba Campanhas com status e números do espelho; Ativar (confirmação + guarda), Pausar, Encerrar, Abrir no Gerenciador; E2E com `mockEdge`; `/impeccable critique` + `polish` | 15 | 6 |
-| 17 | Conexão real e testes finais | Provar o módulo na conta do Marcos | Facebook do Marcos reconectado com `ads_management` e `pages_manage_ads`; prova real (campanha de Engajamento `PAUSED` na conta LS6D, arquivada, sem gasto); primeira leitura real de `assets` e das buscas; regressão completa na máquina; nota para o Marcos | 16 | 3 |
+| --- | --- | --- | --- | --- | --- |
+| 18 | Estabilização | Parar os incêndios e preparar o terreno | Branch `fix/estabilizacao` integrada; `sequence-script` publicada; Supabase Auth apontando para o Netlify; GitHub Pages desligado; regressão verde | — | 4 (todas `exec:claude`) |
+| 19 | Dados do estoque | Tabelas de descoberta no repositório, colunas novas e regra de disponibilidade | Migration e rollback aplicados; `discovery_availability` respondendo; `stock.ts` e `discoveryApi` com testes | 18 | 5 |
+| 20 | Varredura da Biblioteca | O marca-texto: descobertas a partir dos documentos | `library-scan` publicada e no cron; "Ver descobertas" na Biblioteca; documento de teste vira descobertas com tags e origem | 19 | 7 |
+| 21 | Conteúdos-mãe vivos | Ligar descobertas aos mães, propor mães novos, mostrar o estoque | Os 10 mães atuais ligados ao material; "Propostos pela Hive" com validação em lote; estado vivo ou esgotado por mãe | 20 | 6 |
+| 22 | Campanha: a Hive escolhe | Proposta a partir do estoque inteiro, com material e troca por item | Sem seletor de bases; cada recorte com mãe e material; aprovar grava `discovery_ids` e os usos | 21 | 7 |
+| 23 | Produção com material novo | O material entra na geração, o uso fica registrado e o fluxo é testado de ponta a ponta | Geração com "MATERIAL NOVO"; uso marcado; `f35` verde; teste real sem repetição; critique sem P0 | 22 | 6 |
 
-Ordem: 11 → 12 → 13 → 14 → 15 → 16 → 17, em sequência (13, 14 e 15 mexem nos mesmos arquivos do wizard). Mudança de 17/11: os pedidos da call com o Marcos viraram o bloco 14; a IA foi para o 15, Campanhas para o 16 e a conexão real para o 17. Mudança de 16/11: a prova real e a regressão completa na máquina saíram do 12 e do 15 para o 16, para as telas (13–15) virem antes; até lá, cada merge passa pela regressão completa no GitHub (`regressao.yml`, disparada pelo orquestrador antes do merge) e tudo que fala com a Meta é testado com token falso ou `mockEdge`.
+### Tarefas previstas por bloco
 
-### Issues planejadas por bloco
+**18 · Estabilização** (`exec:claude`)
+1. Revisão final e PR de `fix/estabilizacao`; regressão local isolada (`validar:local:completa`).
+2. Deploy da `sequence-script`; conferir a versão pela Management API.
+3. Supabase Auth: `site_url` = `https://hive-resgate.netlify.app/` e `uri_allow_list` com `https://hive-resgate.netlify.app/**` e `http://localhost:5173/**`, sem as entradas do `github.io`. Testar "Esqueci minha senha".
+4. Merge na `main`; desligar o GitHub Pages do repositório; fechar a #111 (migration já aplicada) e registrar a migration órfã no bloco 19.
 
-Só as do bloco atual viram issue (`/issues`). As seguintes são detalhadas no `/integrar` do bloco anterior, sobre o código já integrado.
+**19 · Dados do estoque**
+1. Migration `AAAAMMDD_estoque_vivo.sql`, `exec:claude`: `CREATE TABLE IF NOT EXISTS` idêntico ao banco para as duas tabelas, colunas novas, `content_piece_plans.discovery_ids`, view `discovery_availability`, rollback.
+2. Tipos `KnowledgeDiscovery`, `DiscoveryState` e `MotherStock` em `src/types/`.
+3. `src/lib/campaign/stock.ts`: `motherStock(mother, discoveries, availability)` → `{ livres, usadas, estado }`, com testes.
+4. `src/lib/discoveryApi.ts`: listar por filtro, descartar, corrigir título/tags, mover para outra mãe; com testes de montagem de query.
+5. E2E cleanup: tabelas novas em `E2E_OWNED_TABLES`, fixture `seedDiscoveries`.
 
-**11 · Base do módulo** — issues no milestone `11 · Base do módulo` (ver o GitHub; a quebra está em `.central/DECISOES.md`).
+**20 · Varredura da Biblioteca**
+1. `_shared/discovery.ts`:
+   - `scanBatch(chunks)` monta o texto que a IA recebe;
+   - `parseDiscoveries(data, chunkIds)` valida a resposta (tipo, tags ≤ 6, excerpt literal presente no trecho, título 1–240);
+   - testes.
+2. `_shared/discovery.ts`: `pickMother(similarities, threshold)` para ligar ou deixar solta; testes.
+3. `library-scan`: ações `scan` e `tick` com claim, cursor e `completed`.
+4. `library-scan`: ligação por similaridade (embedding do trecho × embedding do texto do mãe, guardado em `contents.metadata.embedding` ou calculado e cacheado na própria função).
+5. Cron `library-scan` a cada 10 min e deploy (`exec:claude`); primeira execução acompanhada.
+6. Tela "Ver descobertas" (Biblioteca): lista, filtros, descartar e corrigir; vazio e carregando claros.
+7. E2E `f35` parte 1 (descobertas com `mockEdge`).
 
-**12 · Contrato com a Meta**
-- `_shared/traffic-spec.ts` (puro) + `e2e/unit-traffic-spec.spec.ts`.
-- `_shared/meta-marketing.ts`: criar campanha, conjunto, criativo (post do Instagram e criativo novo de imagem/carrossel) e anúncio; mudar status; buscas (só `fetch`). Formatos de criativo conferidos no Context7 antes.
-- `exec:claude` Migration `ads_spend_guard` + rollback.
-- `traffic-meta/index.ts`: ações `assets` (inclui achar a Página do Instagram configurado e gravar `page_id`), `search_locations`, `search_interests`, `estimate`.
-- `traffic-meta/index.ts`: ações `create` (com desfazer em falha) e `set_status`, guarda e conferência de elegibilidade.
-- `src/lib/edge.ts` + `src/lib/traffic.ts`.
-- `exec:claude` Deploy (com ordem), prova real `PAUSED`, E2E da recusa por teto e da peça não aprovada, auditoria de segurança.
+**21 · Conteúdos-mãe vivos**
+1. `_shared/discovery.ts`: `groupLoose(discoveries, minSize=3)` (agrupa soltas por similaridade de tags e embedding); testes.
+2. `library-scan` ação `propose_mothers`: a IA escreve mãe amplo (frase, texto, recortes possíveis) a partir de um grupo; grava `contents` + versão `draft` + `status = drafted` nas descobertas.
+3. Conteúdos-mãe: seção "Propostos pela Hive" com validar, editar e descartar em lote (reusa a validação de versão atual).
+4. Conteúdos-mãe: estoque por mãe (material, usadas, vivo ou esgotado).
+5. Ligação dos 10 mães atuais ao material existente, `exec:claude`: rodar `tick` até cobrir a Biblioteca e conferir a amostra com o Raul.
+6. E2E `f35` parte 2.
 
-**13 · Wizard** (#75–#83, branch `bloco/13-wizard`)
-- #75 `src/lib/traffic-wizard.ts` (puro: estado, padrões, datas em SP, validação do servidor por passo) + `e2e/unit-traffic-wizard.spec.ts`.
-- #76 `src/lib/traffic.ts`: rascunho em `traffic_campaigns`/`traffic_ads` (listar, criar, carregar, salvar só em draft/failed, apagar) e peças elegíveis.
-- #77–#81 Passos em `src/pages/trafego/wizard/`: Conteúdo; Campanha + Orçamento + Posicionamentos; Público; Anúncio; Revisão com Criar (pausada).
-- #82 `NovaCampanha.tsx`: lista de rascunhos e o wizard (salva a cada passo, retoma pelo `?aba=nova&id=`).
-- #83 `exec:claude` E2E `f33-trafego-wizard` com `mockEdge`, Impeccable critique e polish, 375 px.
+**22 · Campanha: a Hive escolhe**
+1. `recommendCycleProduction`: estoque inteiro (mães validados com material livre), `discovery_ids` por item e as regras de escolha no texto que a IA recebe.
+2. `usableProductionProposals`: valida `discovery_ids` (do próprio mãe, livres, 1 ou 2, sem repetir no lote); testes.
+3. Migration `approve_cycle_production` (`exec:claude`): grava `discovery_ids`; cria `content_base_uses` dos mães escolhidos.
+4. ProductionHub: tirar o passo do `CampaignBasePicker`; mostrar mãe e material por recorte.
+5. "Trocar" num recorte: lista de mães e material livre; `productionProblems` cobre a troca inválida.
+6. Aviso de estoque insuficiente, com link para Conteúdos-mãe.
+7. E2E `f29`/`f33` ajustados e `f35` parte 3.
 
-**14 · Ajustes da call** (#86–#94, branch `bloco/14-ajustes-call`; migration `20261117000001_traffic_eligible_caption` já aplicada)
-- #86 `traffic-spec`: `estimateParams`, `parseEstimate`, `formatAudience`, `audienceGauge` + unitários.
-- #87 `traffic-wizard`/`traffic`: legenda das peças, @ do Instagram, `postPreview`/`adPreview`/`feedUsername` + unitários.
-- #88 `src/components/traffic/InstagramPreview.tsx`.
-- #89 `traffic-meta` ação `estimate` + `edge.trafficEstimate`.
-- #90 Cartão "Tamanho estimado do público" no passo Público.
-- #91 `WizardSteps` (etapas clicáveis) + `progress` no `WizardShell` + `account` na `NovaCampanha`.
-- #92 Passo Conteúdo como feed de prévias.
-- #93 Prévia do anúncio nos passos Anúncio e Revisão.
-- #94 `exec:claude` deploy da `traffic-meta`, estimativa real (leitura), `f33`, Impeccable, 375 px.
-
-**15–16** — detalhados no `/integrar` do bloco anterior.
-
-**17 · Conexão real e testes finais** (todas `exec:claude`)
-- Reconexão do Facebook pelo Marcos e conferência de `meta_connections.scopes`; primeira chamada real de `assets` (grava `page_id`) e das buscas.
-- Prova real pela `traffic-meta` (o P3 que saiu da #73): Engajamento, 1 post publicado (`ig_post`), R$ 6/dia, 1 dia → conferir pausada no Gerenciador → `set_status ARCHIVED`. Nunca `ACTIVE`.
-- Regressão completa na máquina + nota para o Marcos.
+**23 · Produção com material novo**
+1. `sequence-script` (`image` e `script`): bloco "MATERIAL NOVO DESTA PEÇA" a partir das `discovery_ids` do plano.
+2. Migration `save_production_progress` (`exec:claude`): conferir material livre no `p_done`.
+3. Deploy da `sequence-script` e da migration (`exec:claude`).
+4. Teste real sem gravar (script) com 5 recortes do estoque; relatório para o Raul.
+5. `/impeccable critique` e `polish` das telas novas (descobertas, estoque, proposta).
+6. Regressão completa e nota para o Marcos.
 
 ## 11. Riscos e perguntas em aberto
 
-| # | Risco | Mitigação |
-|---|---|---|
-| R1 | O OAuth da Meta recusa `hive-resgate.netlify.app` | Cadastrar o domínio no app da Meta no bloco 11 (`exec:claude`, o Raul faz no painel) |
-| R2 | Token da Meta vence em **01/12/2026**; sem reconexão, sync e módulo param | Reconectar com `ads_management` e `pages_manage_ads` antes dessa data (a reunião de 16/11 serve); o bloco 16 só confere e testa |
-| R3 | Acesso padrão só vale se o Facebook do Marcos tiver papel no app ou a conta de anúncio for do mesmo Business | Conferir no bloco 11; se não, papel de testador ou acesso avançado (revisão da Meta, semanas) |
-| R4 | Campanha ativada no site de teste gasta de verdade (mesmo banco) | Tudo nasce pausado, confirmação de ativar avisa, teto mensal no servidor |
-| R5 | A Meta rejeita criativo ou combinação de opções | `traffic-spec` barra as combinações conhecidas antes; `failed` + mensagem em português; desfaz o que criou |
-| R6 | Peça aprovada sem arte renderizada (`rendered_slides` vazio) | Fica fora da view de elegíveis; o seletor explica por quê |
-| R7 | IA sugere interesse que não existe na Meta | Toda sugestão de interesse passa pela busca da Meta antes de aparecer |
-| R8 | Testes não podem chamar a Meta | `mockEdge` no E2E; prova real só `PAUSED`, com ordem |
-
-**Decisões (2026-11-15):**
-- **D4 · Módulo separado:** Tráfego é uma aba própria; do conteúdo, só lê as peças aprovadas, agendadas ou publicadas. Substitui o princípio "anúncio = peça + verba + objetivo" do plano antigo.
-- **D5 · O wizard cria na Meta** (não é só rascunho): tudo nasce pausado e o Marcos ativa com confirmação; teto mensal no servidor.
-- **D6 · Só os 3 objetivos de distribuição** (Reconhecimento, Tráfego, Engajamento).
-- **D7 · Qualquer peça com arte:** post publicado no Instagram é impulsionado; o resto vira anúncio fora do feed com a arte e o texto da peça.
-- **D8 · Passo de conteúdo antes da campanha** (desvio do Gerenciador) para a IA recomendar sabendo o que vai ser anunciado. Aprovado pelo Raul.
-- Do plano antigo **caem**: proposta automática, pausa automática, botão Impulsionar na peça e etapa de vendas (adiada). **Fica**: teto mensal no servidor, métricas só do espelho, Graph v26 e `ads_management`.
-
-**Respostas (2026-11-15):**
-- **P1** Conta de anúncio: a última com anúncios, `act_611235354835759` ("LS6D", ativa, BRL, último dia com gasto 13/03/2026). É o valor inicial da Configuração; o Marcos pode trocar na aba.
-- **P2** O Facebook do Marcos já tem papel no app da Meta (R3 resolvido).
-- **P3** Teto mensal inicial: **R$ 1.000**.
-- **P4** Limite de 5 peças por campanha: mantido.
+- **Qualidade da varredura.** O sucesso depende de a IA marcar trechos úteis, e não tudo. Mitigação: limite de descobertas por lote, `excerpt` obrigatório e literal, e conferência de uma amostra com o Raul no bloco 20 antes de ligar o cron em todos os documentos.
+- **Custo e cota do Gemini** na chave do Marcos (cerca de 1.400 chamadas para 17 mil trechos). Mitigação: 3 lotes por execução, parada no 429 e progresso visível.
+- **Casos reais na Biblioteca.** Risco de o material levar o nome de um cliente para o post. Mitigação: a regra de anonimização continua na geração, e a checagem de repetição não substitui revisão.
+- **Mães propostos rasos ou demais.** Mínimo de 3 descobertas por grupo, e o Marcos valida em lote. Se a proposta vier ruim, ajustamos o texto que a IA recebe antes de ligar a proposta no cron.
+- **Migration órfã de 17/11** (`identity_content_intelligence`): o arquivo do bloco 19 precisa reproduzir exatamente o que já existe. O P1 começa lendo o schema real.
+- **Contrato da aprovação:** o app antigo (Netlify em deploy) ainda chama o seletor de bases. Ordem: migration aditiva → função → app. A coluna nova tem padrão `{}`, então o contrato antigo segue funcionando.
+- **Pergunta para o Marcos (antes do bloco 21):** os 10 mães atuais continuam como estão (com material ligado) ou ele quer reescrever algum ao ver o material?
