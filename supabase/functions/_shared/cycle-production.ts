@@ -21,17 +21,18 @@ export async function cycleProductionContext(userId: string, cycleId: string) {
 }
 // Estoque vivo: mães validados do usuário (corpo da última versão validada) com o material livre de cada um.
 async function motherStock(userId: string, profileId: string | null) {
-  const [contents, versions, free] = await Promise.all([
+  // Material sem lista de ids na URL: com dezenas de mães, o in.(...) estoura o tamanho da requisição.
+  const [contents, versions, free, discoveries] = await Promise.all([
     fetchRest<Row[]>(`/contents?user_id=eq.${userId}&status=neq.discarded&select=id,title,editorial_slug,strategic_function,profile_id`),
     fetchRest<Row[]>(`/content_base_versions?user_id=eq.${userId}&status=eq.validated&select=id,content_id,body&order=ordinal.desc`),
     fetchRest<Row[]>(`/discovery_availability?user_id=eq.${userId}&state=eq.livre&select=discovery_id`),
+    fetchRest<Row[]>(`/knowledge_discoveries?user_id=eq.${userId}&status=eq.active&content_id=not.is.null&select=id,title,summary,excerpt,kind,content_id&order=created_at.asc`),
   ]);
   const latest = new Map<string, Row>();
   for (const v of versions) if (!latest.has(v.content_id)) latest.set(v.content_id, v);
   // Mesmo filtro de voz do antigo seletor de bases: mãe de outro perfil não entra na campanha.
   const mothers = contents.filter(c => latest.has(c.id) && (!profileId || !c.profile_id || c.profile_id === profileId));
   const freeIds = new Set(free.map(f => f.discovery_id));
-  const discoveries = mothers.length ? await fetchRest<Row[]>(`/knowledge_discoveries?user_id=eq.${userId}&status=eq.active&content_id=in.(${mothers.map(c=>c.id).join(',')})&select=id,title,summary,excerpt,kind,content_id&order=created_at.asc`) : [];
   const material = new Map<string, Row[]>();
   for (const d of discoveries) if (freeIds.has(d.id)) material.set(d.content_id, [...(material.get(d.content_id) ?? []), d]);
   return { mothers, latest, material };

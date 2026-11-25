@@ -30,7 +30,6 @@ export function ProductionHub(props: Props) {
   const { cycle, campaign, editorials, onCycleChange, stock = false } = props;
   const [bases, setBases] = useState<Content[] | null>(null);
   const [material, setMaterial] = useState<Map<string, Material[]>>(new Map());
-  const [exhausted, setExhausted] = useState(0);
   const [swapping, setSwapping] = useState<number | null>(null);
   const [pieces, setPieces] = useState<UserPost[]>([]);
   const [caps, setCaps] = useState<FormatCapability[]>([]);
@@ -61,10 +60,8 @@ export function ProductionHub(props: Props) {
     for(const c of adopted)all.set(c.id,c);
     const freeIds=new Set(free.map(f=>f.discovery_id)), byMother=new Map<string,Material[]>();
     for(const d of found)if(d.content_id&&freeIds.has(d.id))byMother.set(d.content_id,[...(byMother.get(d.content_id)??[]),d]);
-    const mothers=[...all.values()];
     setMaterial(byMother);
-    setExhausted(mothers.filter(c=>!byMother.get(c.id)?.length).length);
-    return mothers.filter(c=>byMother.get(c.id)?.length||adopted.some(a=>a.id===c.id));
+    return [...all.values()].filter(c=>byMother.get(c.id)?.length||adopted.some(a=>a.id===c.id));
   }
   async function load() {
     setFailed(false);
@@ -147,8 +144,8 @@ export function ProductionHub(props: Props) {
         ?`Você tem ${withMaterial.length} conteúdos-mãe com material novo (${freeCount} materiais ainda não usados). A Hive escolhe no seu estoque o que combina com esta campanha e propõe peças com contribuições distintas. As contas serão escolhidas depois da aprovação dos posts.`
         :`Você tem ${bases.length} bases validadas. A Hive conecta esse conhecimento às necessidades da campanha e propõe peças com contribuições distintas. As contas serão escolhidas depois da aprovação dos posts.`}</p>
     </div>
-    {stock&&(noStock||exhausted>0||freeCount<planned)&&<div role="status" className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm" data-testid="stock-warning">
-      <p className="font-semibold">{noStock?'Seus conteúdos-mãe estão sem material novo.':freeCount<planned?`O estoque está curto: ${freeCount} materiais livres para ${planned} conteúdos previstos neste ciclo.`:`${exhausted} conteúdo(s)-mãe já usaram todo o material.`}</p>
+    {stock&&(noStock||freeCount<planned)&&<div role="status" className="space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm" data-testid="stock-warning">
+      <p className="font-semibold">{noStock?'Seus conteúdos-mãe estão sem material novo.':`O estoque está curto: ${freeCount} materiais livres para ${planned} conteúdos previstos neste ciclo.`}</p>
       <p className="text-muted-foreground">Valide os conteúdos-mãe propostos pela Hive ou aguarde a leitura da Biblioteca para ter material novo.</p>
       <Link className="inline-block font-medium underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" to="/conteudos-mae">Ver conteúdos-mãe</Link>
     </div>}
