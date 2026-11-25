@@ -76,19 +76,21 @@ export function productionCandidateText(post: { caption?: string | null; carouse
 export interface ProposedProductionItem {
   content_id: string; platform: string; format: string;
   approach: string; purpose: string; editorial_slug: string;
-  template_family: string; architecture: string | null;
+  template_family: string; architecture: string | null; discovery_ids: string[];
 }
 export interface ProductionChoices {
   baseIds: readonly string[];
   formats: readonly { platform: string; format: string }[];
   families: readonly string[];
   editorialSlugs: readonly string[];
+  // Estoque: mãe → ids de material livre. Sem o mapa (fluxo antigo), o item não leva material.
+  material?: ReadonlyMap<string, readonly string[]>;
 }
 export function usableProductionProposals(raw: unknown, choices: ProductionChoices): ProposedProductionItem[] {
   if (!Array.isArray(raw)) return [];
   const bases = new Set(choices.baseIds), families = new Set(choices.families), editorials = new Set(choices.editorialSlugs);
   const formats = new Set(choices.formats.map(f => f.platform + '/' + f.format));
-  const seen = new Set<string>(), accepted: ProposedProductionItem[] = [];
+  const seen = new Set<string>(), usedMaterial = new Set<string>(), accepted: ProposedProductionItem[] = [];
   for (const candidate of raw) {
     if (!candidate || typeof candidate !== 'object') continue;
     const p = candidate as Record<string, unknown>;
@@ -103,11 +105,21 @@ export function usableProductionProposals(raw: unknown, choices: ProductionChoic
       || !editorials.has(editorial_slug) || !approach || !purpose) continue;
     const key = [content_id, platform, format, editorial_slug, approach.toLocaleLowerCase('pt-BR')].join('|');
     if (seen.has(key)) continue;
+    let discovery_ids: string[] = [];
+    if (choices.material) {
+      // Material inventado, de outro mãe, já usado ou repetido no lote derruba só este item.
+      const free = new Set(choices.material.get(content_id) ?? []);
+      const ids = Array.isArray(p.discovery_ids) ? p.discovery_ids : [];
+      if (ids.length < 1 || ids.length > 2 || new Set(ids).size !== ids.length
+        || !ids.every(id => typeof id === 'string' && free.has(id) && !usedMaterial.has(id))) continue;
+      discovery_ids = [...ids] as string[];
+      discovery_ids.forEach(id => usedMaterial.add(id));
+    }
     seen.add(key);
     const architecture = format === 'image' ? null
       : typeof p.architecture === 'string' && ['conceito','perspectiva','historia','experimento'].includes(p.architecture)
         ? p.architecture : 'conceito';
-    accepted.push({ content_id, platform, format, approach, purpose, editorial_slug, template_family, architecture });
+    accepted.push({ content_id, platform, format, approach, purpose, editorial_slug, template_family, architecture, discovery_ids });
     if (accepted.length === 40) break;
   }
   return accepted;
