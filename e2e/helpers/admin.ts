@@ -33,6 +33,7 @@ export const E2E_OWNED_TABLES = [
   'post_metrics',
   'post_unit_publications', 'post_publications', 'schedule_commands', 'schedule_plans', 'ai_measurement_events',   // antes da peça (pacotes saem em cascata com ela)
   'user_posts',
+  'knowledge_discoveries', 'knowledge_analysis_runs',   // estoque vivo: antes de contents e dos documentos
   'content_base_uses', 'ideas', 'content_base_versions', 'contents',
   'campaign_cycles',
   'campaigns',
