@@ -10,6 +10,7 @@ import { Dashboard } from '@/pages/Dashboard';
 import { NewPost } from '@/pages/posts/NewPost';
 import { PostEditor } from '@/pages/posts/PostEditor';
 import { Biblioteca } from '@/pages/biblioteca/Biblioteca';
+import { Descobertas } from '@/pages/biblioteca/Descobertas';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { OnboardingWizard } from '@/pages/onboarding/OnboardingWizard';
 import { KnowledgeBase } from '@/pages/conhecimento/KnowledgeBase';
@@ -163,6 +164,7 @@ export default function App() {
           {/* Linhas editoriais foram encerradas no cutover (D11): a estrutura agora é Campanhas. */}
           <Route path="linhas" element={<Navigate to="/campanhas" replace />} />
           <Route path="biblioteca" element={<Biblioteca />} />
+          <Route path="biblioteca/descobertas" element={<Descobertas />} />
           <Route path="conhecimento" element={<KnowledgeBase />} />
           <Route path="conteudos-mae" element={<MotherContents />} />
           <Route path="configuracoes" element={<SettingsPage />} />

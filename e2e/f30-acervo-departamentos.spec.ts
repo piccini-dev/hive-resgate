@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { cleanupE2EData, cleanupE2EStorage, seed, sql } from './helpers/admin';
-import { seedAccounts, seedCampaign, seedValidatedContents } from './helpers/fixtures';
+import { seedAccounts, seedCampaign, seedDiscoveries, seedValidatedContents } from './helpers/fixtures';
 import { e2eUser } from './helpers/env';
 import { loginAs } from './helpers/tenant';
-import { mockDevelop, mockProduction } from './helpers/mocks';
+import { mockDevelop, mockEdge, mockProduction } from './helpers/mocks';
 import { legacyDiagram } from './helpers/diagram-fixture';
 
 // Decisão Marcos 12/11: conteúdos mãe pertencem à Voz; campanhas usam versões
@@ -58,19 +58,34 @@ test.describe('F30 · departamentos e recuperação do editor', () => {
     expect((await sql(`select * from user_posts where id='${pid}'`))[0]).toEqual(before);
   });
   test('campanha usa base do acervo sem gerar ideias mãe ou desenvolver novas bases', async ({page}) => {
+    test.setTimeout(180000);
     const f = await base(), target = await seedCampaign({weeks: 1, name: 'Campanha com acervo', accountIds: [f.accounts.instagram]});
     await sql(`update campaigns set metadata='{"content_source":"archive"}' where id='${target.id}'`);
+    const material = await seedDiscoveries(f.base.contentId, 2);
     const calls: Array<Record<string,unknown>> = []; await mockDevelop(page,calls); await mockProduction(page);
     const pauta: unknown[] = []; await page.route('**/functions/v1/cycle-pauta', route => { pauta.push(route.request().postDataJSON()); return route.abort(); });
+    const script: Array<Record<string,unknown>> = [];
+    await mockEdge(page, 'sequence-script', b => {
+      if (b.action === 'production_context') return {success: true, snapshot_id: null, profile_id: null};
+      if (b.action === 'recommend_cycle_plan') return {success: true, summary: 'Um recorte com material novo do acervo.', items: [{content_id: f.base.contentId, version_id: f.version, platform: 'instagram', format: 'image', approach: 'Aplicar o material novo', purpose: 'Abrir a campanha com o acervo.', template_family: 'M01', editorial_slug: 'diagnostico-sistemico', architecture: null, discovery_ids: [material[0]]}]};
+      if (b.action === 'image') return {success: true, quote: 'O que o acervo ainda não disse?', caption: 'Um recorte do conhecimento validado.'};
+      throw new Error('Ação inesperada: ' + String(b.action));
+    }, script);
     await page.goto(`/producao?campaign=${target.id}&cycle=${target.cycleIds[0]}`);
-    await expect(page.getByTestId('campaign-base-picker')).toBeVisible();
-    await page.getByRole('checkbox', {name: /Base ampla/}).check();
-    await page.getByRole('button', {name: 'Usar bases e propor recortes'}).click();
-    await expect(page.getByTestId('production-plan')).toContainText('1 bases validadas');
+    // Estoque vivo: sem seletor de bases; a Hive escolhe o conteúdo-mãe e o material na proposta.
+    await expect(page.getByTestId('production-plan')).toContainText('1 conteúdos-mãe com material novo (2 materiais ainda não usados)');
+    await expect(page.getByTestId('campaign-base-picker')).toHaveCount(0);
+    await page.getByRole('button', {name: 'Propor produção com a Hive'}).click();
+    const item = page.getByTestId('production-item-stock');
+    await expect(item).toContainText('Base ampla para aplicações diferentes'); await expect(item).toContainText('Material 1');
+    await page.getByRole('button', {name: /Aprovar proposta e produzir/}).click();
+    await expect(page.getByTestId('production-summary')).toBeVisible({timeout: 120000});
+    expect(script.find(c => c.action === 'recommend_cycle_plan')?.stock).toBe(true);
     expect(calls).toHaveLength(0); expect(pauta).toHaveLength(0);
     expect(await sql(`select id from ideas where campaign_id='${target.id}'`)).toHaveLength(0);
     expect(await sql(`select id from contents where campaign_id='${target.id}'`)).toHaveLength(0);
     expect((await sql<{version_id:string}>(`select version_id from content_base_uses where cycle_id='${target.cycleIds[0]}'`))[0].version_id).toBe(f.version);
+    expect(await sql(`select discovery_ids::text ids from content_piece_plans where cycle_id='${target.cycleIds[0]}'`)).toEqual([{ids: `{${material[0]}}`}]);
   });
   test('editor libera a captura após abrir repetidamente e salva sem perder objetos', async ({page}) => {
     const art = legacyDiagram('Arte que precisa carregar por inteiro');

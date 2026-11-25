@@ -76,19 +76,21 @@ export function productionCandidateText(post: { caption?: string | null; carouse
 export interface ProposedProductionItem {
   content_id: string; platform: string; format: string;
   approach: string; purpose: string; editorial_slug: string;
-  template_family: string; architecture: string | null;
+  template_family: string; architecture: string | null; discovery_ids: string[];
 }
 export interface ProductionChoices {
   baseIds: readonly string[];
   formats: readonly { platform: string; format: string }[];
   families: readonly string[];
   editorialSlugs: readonly string[];
+  // Estoque: mãe → ids de material livre. Sem o mapa (fluxo antigo), o item não leva material.
+  material?: ReadonlyMap<string, readonly string[]>;
 }
 export function usableProductionProposals(raw: unknown, choices: ProductionChoices): ProposedProductionItem[] {
   if (!Array.isArray(raw)) return [];
   const bases = new Set(choices.baseIds), families = new Set(choices.families), editorials = new Set(choices.editorialSlugs);
   const formats = new Set(choices.formats.map(f => f.platform + '/' + f.format));
-  const seen = new Set<string>(), accepted: ProposedProductionItem[] = [];
+  const seen = new Set<string>(), usedMaterial = new Set<string>(), accepted: ProposedProductionItem[] = [];
   for (const candidate of raw) {
     if (!candidate || typeof candidate !== 'object') continue;
     const p = candidate as Record<string, unknown>;
@@ -103,11 +105,21 @@ export function usableProductionProposals(raw: unknown, choices: ProductionChoic
       || !editorials.has(editorial_slug) || !approach || !purpose) continue;
     const key = [content_id, platform, format, editorial_slug, approach.toLocaleLowerCase('pt-BR')].join('|');
     if (seen.has(key)) continue;
+    let discovery_ids: string[] = [];
+    if (choices.material) {
+      // Material inventado, de outro mãe, já usado ou repetido no lote derruba só este item.
+      const free = new Set(choices.material.get(content_id) ?? []);
+      const ids = Array.isArray(p.discovery_ids) ? p.discovery_ids : [];
+      if (ids.length < 1 || ids.length > 2 || new Set(ids).size !== ids.length
+        || !ids.every(id => typeof id === 'string' && free.has(id) && !usedMaterial.has(id))) continue;
+      discovery_ids = [...ids] as string[];
+      discovery_ids.forEach(id => usedMaterial.add(id));
+    }
     seen.add(key);
     const architecture = format === 'image' ? null
       : typeof p.architecture === 'string' && ['conceito','perspectiva','historia','experimento'].includes(p.architecture)
         ? p.architecture : 'conceito';
-    accepted.push({ content_id, platform, format, approach, purpose, editorial_slug, template_family, architecture });
+    accepted.push({ content_id, platform, format, approach, purpose, editorial_slug, template_family, architecture, discovery_ids });
     if (accepted.length === 40) break;
   }
   return accepted;
@@ -130,6 +142,46 @@ export function scopedPostHistoryQuery(
   }
   if (!['instagram','linkedin'].includes(platform)) throw new ProductionValidationError('Plataforma não reconhecida para comparação de posts.');
   return `/user_posts?user_id=eq.${userId}&platform=eq.${platform}&id=neq.${postId}&profile_id=in.(${profileIds.join(',')})&status=in.(draft,pending_approval,approved,scheduled,published)&select=id,platform,caption,carousel_text,metadata&order=created_at.desc&limit=60`;
+}
+
+// O que cada base já entregou ao leitor, para a proposta buscar outra contribuição
+// (ou declarar a base esgotada) em vez de repetir e ser barrada só no texto final.
+export interface PublishedFromBase { quando: string; plataforma: string; formato: string; abordagem: string | null; disse: string }
+export function publishedByBase(
+  posts: readonly { content_id: string | null; platform: string; format: string; created_at: string; plan_id?: string | null; text: string; metadata?: Record<string, unknown> | null }[],
+  approaches: ReadonlyMap<string, string>,
+  perBase = 6,
+): Map<string, PublishedFromBase[]> {
+  const out = new Map<string, PublishedFromBase[]>();
+  for (const p of posts) {
+    if (!p.content_id || p.metadata?.delivery_of || !p.text.trim()) continue;
+    const list = out.get(p.content_id) ?? [];
+    if (list.length >= perBase) continue;
+    list.push({ quando: p.created_at.slice(0, 10), plataforma: p.platform, formato: p.format,
+      abordagem: (p.plan_id && approaches.get(p.plan_id)) || null, disse: p.text.slice(0, 400) });
+    out.set(p.content_id, list);
+  }
+  return out;
+}
+
+// Junta a janela recente da marca com os vizinhos semânticos da memória (acervo
+// inteiro). Fica de fora: a própria peça, outra plataforma, vizinho distante e
+// post atribuído a outra marca. Post importado sem perfil pertence ao produtor.
+export interface RepeatCandidate { id: string; platform: string; text: string }
+export function withMemoryNeighbors(
+  recent: readonly RepeatCandidate[],
+  near: readonly { post_id: string | null; platform: string | null; text: string; similarity: number }[],
+  opts: { postId: string; platform: string; minSimilarity: number; otherBrandPosts: ReadonlySet<string> },
+): RepeatCandidate[] {
+  const out = [...recent];
+  const seen = new Set(out.map(c => c.id));
+  for (const h of near) {
+    if (!h.post_id || h.post_id === opts.postId || seen.has(h.post_id) || h.platform !== opts.platform
+      || h.similarity < opts.minSimilarity || opts.otherBrandPosts.has(h.post_id) || !h.text.trim()) continue;
+    seen.add(h.post_id);
+    out.push({ id: h.post_id, platform: h.platform, text: h.text.slice(0, 2400) });
+  }
+  return out;
 }
 
 export interface RepeatEvidence { repeat: boolean; against_id?: string; reason?: string }

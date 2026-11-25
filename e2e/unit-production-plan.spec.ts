@@ -1,12 +1,12 @@
 import { expect,test } from '@playwright/test';
-import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,needsEditorialRebrief,type ProductionItem } from '../src/lib/campaign/production-plan';
+import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,needsEditorialRebrief,isEmptyProductionShell,type ProductionItem } from '../src/lib/campaign/production-plan';
 import { appPublicAssetUrl } from '../src/lib/hive/publicAsset';
 import type { Content,FormatCapability,PiecePlan,PostUnit,UserPost } from '../src/types';
 import { needsSequenceRender, sequenceReviewSnapshot, sequenceVisualTodo } from '../src/lib/sequence/visual-state';
-import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals, scopedPostHistoryQuery, verifiedRepeatEvidence } from '../supabase/functions/_shared/production-novelty';
+import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals, scopedPostHistoryQuery, verifiedRepeatEvidence, withMemoryNeighbors, publishedByBase } from '../supabase/functions/_shared/production-novelty';
 const bases=[{id:'base',status:'validated'}] as Content[];
 const caps=[{platform:'instagram',format:'image'},{platform:'instagram',format:'carousel'},{platform:'instagram',format:'story'},{platform:'linkedin',format:'carousel'}] as FormatCapability[];
-const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',...p});
+const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',discovery_ids:[],...p});
 const check=(items:ProductionItem[],b=bases)=>productionProblems(items,b,caps,['M01','M02','M03'],['sistemica']);
 test('espiral cadastrada com caminho antigo funciona no Github Pages e mantém URLs externas',()=>{
   expect(appPublicAssetUrl('/bee-spiral.png','/hive-resgate/')).toBe('/hive-resgate/bee-spiral.png');
@@ -83,6 +83,52 @@ test('propostas preliminares usam bases/formats/editorias reais e descartam só 
   expect(proposal[3].architecture).toBeNull();
   expect(proposal[0].approach).toBe('Leitura das relações');
   expect(proposal[1].approach).toBe('Aplicação no cotidiano');
+});
+test('proposta do estoque aceita só 1 ou 2 materiais livres do próprio mãe, sem repetir no lote',()=>{
+  const options={
+    baseIds:['mae-1','mae-2'],formats:[{platform:'instagram',format:'carousel'}],families:['M03'],editorialSlugs:['diagnostico'],
+    material:new Map([['mae-1',['d1','d2','d3']],['mae-2',['d4']]]),
+  };
+  const card=(approach:string,patch:Record<string,unknown>={})=>({content_id:'mae-1',platform:'instagram',format:'carousel',
+    approach,purpose:'Abrir uma perspectiva',editorial_slug:'diagnostico',template_family:'M03',...patch});
+  const out=usableProductionProposals([
+    card('três materiais',{discovery_ids:['d1','d2','d3']}), // recusado sem reservar d1
+    card('um material',{discovery_ids:['d1']}),
+    card('dois materiais',{discovery_ids:['d2','d3']}),
+    card('material de outro mãe',{discovery_ids:['d4']}),
+    card('material que não está livre',{discovery_ids:['usado']}),
+    card('sem material',{discovery_ids:[]}),
+    card('sem campo'),
+    card('repete material aceito antes',{discovery_ids:['d1']}),
+    card('repete dentro do item',{content_id:'mae-2',discovery_ids:['d4','d4']}),
+    card('mãe 2 válido',{content_id:'mae-2',discovery_ids:['d4']}),
+  ],options);
+  expect(out.map(x=>x.approach)).toEqual(['um material','dois materiais','mãe 2 válido']);
+  expect(out.map(x=>x.discovery_ids)).toEqual([['d1'],['d2','d3'],['d4']]);
+  // Item recusado pelo material não "gasta" a abordagem: a versão válida seguinte entra.
+  const retry=usableProductionProposals([card('mesma',{discovery_ids:['x']}),card('mesma',{discovery_ids:['d1']})],options);
+  expect(retry.map(x=>x.discovery_ids)).toEqual([['d1']]);
+});
+test('sem mapa de material (fluxo antigo), proposta segue aceita e sem material',()=>{
+  const options={baseIds:['base'],formats:[{platform:'instagram',format:'carousel'}],families:['M01'],editorialSlugs:['a']};
+  const out=usableProductionProposals([{content_id:'base',platform:'instagram',format:'carousel',template_family:'M01',editorial_slug:'a',approach:'recorte',purpose:'propósito',discovery_ids:['qualquer']}],options);
+  expect(out).toHaveLength(1);
+  expect(out[0].discovery_ids).toEqual([]);
+});
+test('troca de material na tela exige material livre do próprio mãe, sem repetir entre peças',()=>{
+  const two=[{id:'base',status:'validated'},{id:'outra',status:'validated'}] as Content[];
+  const available=new Map([['base',['d1','d2','d3']],['outra',['d9']]]);
+  const run=(items:ProductionItem[])=>productionProblems(items,two,caps,['M01','M02','M03'],['sistemica'],available).filter(e=>e.includes('material'));
+  const msg=(n:number)=>`Peça ${n}: escolha material ainda não usado deste conteúdo-mãe.`;
+  expect(run([item({discovery_ids:['d1']}),item({approach:'Outra',discovery_ids:['d2','d3']}),item({content_id:'outra',discovery_ids:['d9']})])).toEqual([]);
+  expect(run([item({discovery_ids:[]})])).toEqual([msg(1)]);
+  expect(run([item({discovery_ids:['d1','d2','d3']})])).toEqual([msg(1)]);
+  expect(run([item({discovery_ids:['d9']})])).toEqual([msg(1)]);
+  expect(run([item({discovery_ids:['usado']})])).toEqual([msg(1)]);
+  expect(run([item({discovery_ids:['d1','d1']})])).toEqual([msg(1)]);
+  expect(run([item({discovery_ids:['d1']}),item({approach:'Outra',discovery_ids:['d1']})])).toEqual([msg(2)]);
+  // Sem available (fluxo antigo), material não é exigido.
+  expect(check([item({discovery_ids:[]})])).toEqual([]);
 });
 test('proposta sem item válido devolve lista vazia, sem criar post nem aceitar opção inventada',()=>{
   const options={baseIds:['base'],formats:[{platform:'instagram',format:'carousel'}],families:['M01'],editorialSlugs:['a']};
@@ -278,4 +324,37 @@ test('edição na arte libera formas, imagens e grupos sem alterar o original',a
   expect((copy.objects[2].objects as Array<Record<string,unknown>>)[0].selectable).toBe(true);
   expect(source.objects[0].selectable).toBe(false);expect(source.objects[0].evented).toBe(false);
   expect(source.objects[1].src).toBe('foto.jpg');
+});
+
+test('peça reservada e ainda vazia não aparece como pendência; com texto, aparece',()=>{
+  const shell={status:'pending_approval',caption:'',carousel_text:null,metadata:{production_flow:'base_v2'}} as unknown as UserPost;
+  expect(isEmptyProductionShell(shell)).toBe(true);
+  expect(isEmptyProductionShell({...shell,caption:'Legenda escrita'})).toBe(false);
+  expect(isEmptyProductionShell({...shell,carousel_text:{quote:'Capa do roteiro'}} as UserPost)).toBe(false);
+  expect(isEmptyProductionShell({...shell,metadata:{}} as UserPost)).toBe(false);
+  expect(isEmptyProductionShell({...shell,status:'approved'} as UserPost)).toBe(false);
+});
+
+test('repetição compara também o acervo da memória, sem a própria peça, outra plataforma ou outra marca',()=>{
+  const recent=[{id:'recente',platform:'instagram',text:'post recente da marca'}];
+  const near=[
+    {post_id:'importado',platform:'instagram',text:'post antigo importado',similarity:0.8},
+    {post_id:'recente',platform:'instagram',text:'duplicado',similarity:0.9},
+    {post_id:'peca',platform:'instagram',text:'a própria peça',similarity:0.99},
+    {post_id:'linkedin',platform:'linkedin',text:'outra rede',similarity:0.9},
+    {post_id:'distante',platform:'instagram',text:'pouco parecido',similarity:0.5},
+    {post_id:'outra-marca',platform:'instagram',text:'de outra marca',similarity:0.9},
+    {post_id:null,platform:'instagram',text:'sem post',similarity:0.9},
+  ];
+  const out=withMemoryNeighbors(recent,near,{postId:'peca',platform:'instagram',minSimilarity:0.68,otherBrandPosts:new Set(['outra-marca'])});
+  expect(out.map(c=>c.id)).toEqual(['recente','importado']);
+  expect(withMemoryNeighbors([],[],{postId:'peca',platform:'instagram',minSimilarity:0.68,otherBrandPosts:new Set()})).toEqual([]);
+});
+
+test('proposta recebe o que cada base já publicou, sem espelhos e com limite por base',()=>{
+  const post=(id:string,base:string|null,extra:Record<string,unknown>={})=>({content_id:base,platform:'instagram',format:'image',created_at:'2026-11-10T12:00:00Z',plan_id:id,text:'disse '+id,metadata:null,...extra});
+  const byBase=publishedByBase([post('a','b1'),post('b','b1',{metadata:{delivery_of:'a'}}),post('c','b2'),post('d',null),post('e','b1',{text:'  '}),post('f','b1')],new Map([['a','abordagem A']]),1);
+  expect(byBase.get('b1')).toEqual([{quando:'2026-11-10',plataforma:'instagram',formato:'image',abordagem:'abordagem A',disse:'disse a'}]);
+  expect(byBase.get('b2')?.[0].abordagem).toBeNull();
+  expect([...byBase.keys()]).toEqual(['b1','b2']);
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Mic } from 'lucide-react';
+import { FileText, Mic, Sparkles } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePostStore } from '@/store/postStore';
@@ -26,6 +26,7 @@ export function Biblioteca() {
       <header>
         <h1 className="font-display text-3xl font-bold">Biblioteca</h1>
         <p className="text-sm text-muted-foreground">Tudo que ja foi publicado e os cortes de podcast guardados.</p>
+        <Link to="/biblioteca/descobertas" className="mt-2 inline-flex items-center gap-1.5 text-sm text-accent hover:underline"><Sparkles className="h-4 w-4" />Ver descobertas</Link>
       </header>
 
       <Tabs defaultValue="publicados">
