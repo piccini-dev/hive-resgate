@@ -69,7 +69,8 @@ ALTER TABLE public.content_piece_plans ADD COLUMN IF NOT EXISTS discovery_ids uu
 CREATE INDEX IF NOT EXISTS content_piece_plans_discovery_ids_idx ON public.content_piece_plans USING gin (discovery_ids);
 
 -- 1.3 Estado de cada descoberta. A reserva só vale para o lote aprovado atual do ciclo:
--- um lote substituído deixa de prender o material.
+-- um lote substituído deixa de prender o material. reserved_cycle_id permite que o próprio
+-- ciclo reformule a proposta reaproveitando o material que ele mesmo reservou.
 CREATE OR REPLACE VIEW public.discovery_availability WITH (security_invoker = true) AS
 SELECT k.id AS discovery_id, k.user_id, k.content_id,
   CASE
@@ -79,7 +80,11 @@ SELECT k.id AS discovery_id, k.user_id, k.content_id,
                  WHERE p.status = 'planned' AND p.discovery_ids @> ARRAY[k.id]
                    AND p.production_batch_id::text = cy.plan->'production'->>'batch_id') THEN 'reservada'
     ELSE 'livre'
-  END AS state
+  END AS state,
+  (SELECT p.cycle_id FROM public.content_piece_plans p JOIN public.campaign_cycles cy ON cy.id = p.cycle_id
+    WHERE p.status = 'planned' AND p.discovery_ids @> ARRAY[k.id]
+      AND p.production_batch_id::text = cy.plan->'production'->>'batch_id'
+    ORDER BY p.created_at LIMIT 1) AS reserved_cycle_id
 FROM public.knowledge_discoveries k
 WHERE k.status <> 'dismissed';
 REVOKE ALL ON public.discovery_availability FROM PUBLIC, anon, authenticated, service_role;
@@ -173,7 +178,8 @@ BEGIN
       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(NULLIF(x->'discovery_ids','null'::jsonb),'[]'::jsonb)) e(id)
       WHERE NOT EXISTS (SELECT 1 FROM public.knowledge_discoveries k JOIN public.discovery_availability a ON a.discovery_id=k.id
         WHERE k.id=e.id::uuid AND k.user_id=auth.uid() AND k.status='active'
-          AND k.content_id=(x->>'content_id')::uuid AND a.state='livre')) THEN
+          AND k.content_id=(x->>'content_id')::uuid
+          AND (a.state='livre' OR (a.state='reservada' AND a.reserved_cycle_id=p_cycle)))) THEN
     RAISE EXCEPTION '%', taken USING ERRCODE='PT409';
   END IF;
   FOR item IN SELECT value FROM jsonb_array_elements(p_items) LOOP

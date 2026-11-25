@@ -20,12 +20,13 @@ export async function cycleProductionContext(userId: string, cycleId: string) {
   return { cycle, campaign, ctx };
 }
 // Estoque vivo: mães validados do usuário (corpo da última versão validada) com o material livre de cada um.
-async function motherStock(userId: string, profileId: string | null) {
+async function motherStock(userId: string, profileId: string | null, cycleId: string) {
   // Material sem lista de ids na URL: com dezenas de mães, o in.(...) estoura o tamanho da requisição.
   const [contents, versions, free, discoveries] = await Promise.all([
     fetchRest<Row[]>(`/contents?user_id=eq.${userId}&status=neq.discarded&select=id,title,editorial_slug,strategic_function,profile_id`),
     fetchRest<Row[]>(`/content_base_versions?user_id=eq.${userId}&status=eq.validated&select=id,content_id,body&order=ordinal.desc`),
-    fetchRest<Row[]>(`/discovery_availability?user_id=eq.${userId}&state=eq.livre&select=discovery_id`),
+    // Material reservado pelo próprio ciclo conta como livre: a nova aprovação substitui o lote.
+    fetchRest<Row[]>(`/discovery_availability?user_id=eq.${userId}&or=(state.eq.livre,and(state.eq.reservada,reserved_cycle_id.eq.${cycleId}))&select=discovery_id`),
     fetchRest<Row[]>(`/knowledge_discoveries?user_id=eq.${userId}&status=eq.active&content_id=not.is.null&select=id,title,summary,excerpt,kind,content_id&order=created_at.asc`),
   ]);
   const latest = new Map<string, Row>();
@@ -46,7 +47,7 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     fetchRest<Row[]>(`/format_capabilities?select=platform,format,min_units,max_units,notes`),
     fetchRest<Row[]>(`/design_variacoes?status=eq.frozen&ativo=eq.true&select=id,manifestacao_id,nome,operacao${scope}`),
     fetchRest<Row[]>(`/bee_editorials?select=slug,name,description${scope}`),
-    opts.stock ? motherStock(userId, campaign.profile_id ?? null) : Promise.resolve(null),
+    opts.stock ? motherStock(userId, campaign.profile_id ?? null, cycleId) : Promise.resolve(null),
   ]);
   const all = new Map(originals.map(c => [c.id, c]));
   const versionOf = new Map<string, string>();
@@ -62,8 +63,12 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     all.set(use.content_id, { ...use.content, id: use.content_id, body: use.version.body });
     versionOf.set(use.content_id, use.version_id);
   }
-  const bases = [...all.values()];
   const material = (id: string) => (stock?.material.get(id) ?? []).slice(0, 6);
+  // shortcut: no modo estoque, até 15 mães (os com mais material livre) e 2500 caracteres de texto cada,
+  // para a chamada caber no tempo da função; com estoque muito maior, pré-filtrar pela estratégia/editoria.
+  const bases = opts.stock
+    ? [...all.values()].sort((a, b) => (stock?.material.get(b.id)?.length ?? 0) - (stock?.material.get(a.id)?.length ?? 0)).slice(0, 15)
+    : [...all.values()];
   if (opts.stock && !bases.some(c => material(c.id).length)) {
     throw new ProductionValidationError('Seus conteúdos-mãe estão sem material novo. Valide os propostos pela Hive em Conteúdos-mãe ou aguarde a leitura da Biblioteca.');
   }
@@ -91,7 +96,7 @@ export async function recommendCycleProduction(userId: string, cycleId: string, 
     `JSON puro: {"summary":"recomendação do conjunto e seus limites, em até 4 frases","items":[{"content_id":"uuid da base","platform":"instagram|linkedin","format":"image|carousel|story","approach":"recorte e contribuição específica","purpose":"por que esta peça/formato/família agora","editorial_slug":"slug disponível","template_family":"M01|M02|M03","architecture":"conceito|perspectiva|historia|experimento"${opts.stock ? ',"discovery_ids":["id do material da base"]' : ''}}]}`,
   ].join('\n\n');
   const usr = JSON.stringify({ campanha: { name: campaign.name, intent: campaign.intent, strategy: campaign.strategy }, ciclo: { start: cycle.start_date, end: cycle.end_date, plan: cycle.plan },
-    bases: bases.map(c => ({ ...c, body: { frase:c.body?.frase, texto:String(c.body?.texto??'').slice(0,6000) }, ja_publicado: alreadySaid.get(c.id) ?? [],
+    bases: bases.map(c => ({ ...c, body: { frase:c.body?.frase, texto:String(c.body?.texto??'').slice(0,opts.stock?2500:6000) }, ja_publicado: alreadySaid.get(c.id) ?? [],
       ...(opts.stock ? { material: material(c.id).map(d => ({ id: d.id, title: d.title, summary: d.summary, excerpt: d.excerpt, kind: d.kind })) } : {}) })),
     editorias: editorials, capacidades: supported, familias: families, receitas: variants.filter(v => families.includes(v.manifestacao_id)) });
   // Não use um segundo julgamento semântico sobre ideias curtas: com centenas

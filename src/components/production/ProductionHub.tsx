@@ -48,7 +48,7 @@ export function ProductionHub(props: Props) {
   async function loadStock() {
     const [catalog, inCycle, free, found] = await Promise.all([
       baseApi.catalog(), baseApi.listByCycle(cycle.id,false),
-      db.select<DiscoveryAvailability>('discovery_availability',{state:'eq.livre',select:'discovery_id'}),
+      db.select<DiscoveryAvailability>('discovery_availability',{or:`(state.eq.livre,and(state.eq.reservada,reserved_cycle_id.eq.${cycle.id}))`,select:'discovery_id'}),
       db.select<Material>('knowledge_discoveries',{status:'eq.active',content_id:'not.is.null',select:'id,title,kind,content_id',order:'created_at.asc'}),
     ]);
     const all=new Map<string,Content>();

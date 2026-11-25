@@ -158,12 +158,15 @@ async function tick(): Promise<Result> {
   const runs = await rest<Row[]>(`/knowledge_analysis_runs?select=document_id,user_id,status,next_chunk,started_at,finished_at&limit=5000`);
   const runOf = new Map(runs.map((r) => [`${r.document_id}:${r.user_id}`, r]));
   const pending = docs.filter((d) => { const r = runOf.get(`${d.id}:${d.user_id}`); return !r || (r.next_chunk < d.chunk_count && !claimActive(r)); });
-  const keys = new Map<string, string | null>();
+  // Só varre quem tem chave Gemini própria: o fallback global de getUserGeminiKey
+  // faria a plataforma pagar a varredura de todos (inclusive o usuário de teste).
+  const owners = [...new Set(pending.map((d) => d.user_id))];
+  const settings = owners.length ? await rest<Row[]>(`/user_settings?user_id=in.(${owners.join(',')})&gemini_api_key=not.is.null&select=user_id,gemini_api_key`) : [];
+  const keys = new Map<string, string>(settings.map((s) => [s.user_id as string, s.gemini_api_key as string]));
   const mothers = new Map<string, Array<{ id: string; vec: number[] }>>();
   let batches = 0;
   for (const doc of pending) {
     if (batches >= TICK_BATCHES) break;
-    if (!keys.has(doc.user_id)) keys.set(doc.user_id, await getUserGeminiKey(doc.user_id));
     const apiKey = keys.get(doc.user_id);
     if (!apiKey) continue;
     while (batches < TICK_BATCHES) {

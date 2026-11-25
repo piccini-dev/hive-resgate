@@ -373,7 +373,7 @@ export const edge = {
   // Valida um token do LinkedIn no servidor (o browser bloqueia por CORS).
   // --- Campanhas (F2) ---
   // Conteúdos sequenciais (Fase 4): plano recomendado, roteiro, ajuste de páginas e coerência.
-  async sequenceScript<T = Record<string, unknown>>(input: { action: 'production_context' | 'recommend_cycle_plan' | 'recommend_plan' | 'image' | 'script' | 'adjust_units' | 'coherence'; cycle_id?: string; generation_claim?: string; content_id?: string; post_id?: string; unit_ids?: string[]; instruction?: string; scope?: 'units' | 'sequence' | 'caption'; replace?: boolean }): Promise<T & { success: boolean }> {
+  async sequenceScript<T = Record<string, unknown>>(input: { action: 'production_context' | 'recommend_cycle_plan' | 'recommend_plan' | 'image' | 'script' | 'adjust_units' | 'coherence'; cycle_id?: string; generation_claim?: string; content_id?: string; post_id?: string; unit_ids?: string[]; instruction?: string; scope?: 'units' | 'sequence' | 'caption'; replace?: boolean; stock?: boolean }): Promise<T & { success: boolean }> {
     return postEdge('sequence-script', input);
   },
   // Estoque vivo (docs/plano/CONTRATO-ESTOQUE.md §3): varre o próximo lote de um documento ou propõe conteúdos-mãe com as soltas.

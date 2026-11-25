@@ -13,7 +13,8 @@ export interface KnowledgeDiscovery {
   link_similarity: number | null; created_at: string; updated_at: string;
 }
 
-export interface DiscoveryAvailability { discovery_id: string; user_id: string; content_id: string | null; state: DiscoveryState }
+// reserved_cycle_id: ciclo cujo lote atual reservou o material (o próprio ciclo pode reaproveitá-lo ao reformular).
+export interface DiscoveryAvailability { discovery_id: string; user_id: string; content_id: string | null; state: DiscoveryState; reserved_cycle_id?: string | null }
 
 export interface MotherStock { content_id: string; livres: number; reservadas: number; usadas: number; estado: 'vivo' | 'esgotado' }
 
