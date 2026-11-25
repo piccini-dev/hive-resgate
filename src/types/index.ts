@@ -1039,4 +1039,5 @@ export * from './campaign';
 export * from './acj';
 export * from './identity';
 export * from './sequence';
+export * from './discovery';
 import type { AcjId, AcjSnapshot } from './acj';
