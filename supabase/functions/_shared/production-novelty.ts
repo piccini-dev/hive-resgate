@@ -132,6 +132,46 @@ export function scopedPostHistoryQuery(
   return `/user_posts?user_id=eq.${userId}&platform=eq.${platform}&id=neq.${postId}&profile_id=in.(${profileIds.join(',')})&status=in.(draft,pending_approval,approved,scheduled,published)&select=id,platform,caption,carousel_text,metadata&order=created_at.desc&limit=60`;
 }
 
+// O que cada base já entregou ao leitor, para a proposta buscar outra contribuição
+// (ou declarar a base esgotada) em vez de repetir e ser barrada só no texto final.
+export interface PublishedFromBase { quando: string; plataforma: string; formato: string; abordagem: string | null; disse: string }
+export function publishedByBase(
+  posts: readonly { content_id: string | null; platform: string; format: string; created_at: string; plan_id?: string | null; text: string; metadata?: Record<string, unknown> | null }[],
+  approaches: ReadonlyMap<string, string>,
+  perBase = 6,
+): Map<string, PublishedFromBase[]> {
+  const out = new Map<string, PublishedFromBase[]>();
+  for (const p of posts) {
+    if (!p.content_id || p.metadata?.delivery_of || !p.text.trim()) continue;
+    const list = out.get(p.content_id) ?? [];
+    if (list.length >= perBase) continue;
+    list.push({ quando: p.created_at.slice(0, 10), plataforma: p.platform, formato: p.format,
+      abordagem: (p.plan_id && approaches.get(p.plan_id)) || null, disse: p.text.slice(0, 400) });
+    out.set(p.content_id, list);
+  }
+  return out;
+}
+
+// Junta a janela recente da marca com os vizinhos semânticos da memória (acervo
+// inteiro). Fica de fora: a própria peça, outra plataforma, vizinho distante e
+// post atribuído a outra marca. Post importado sem perfil pertence ao produtor.
+export interface RepeatCandidate { id: string; platform: string; text: string }
+export function withMemoryNeighbors(
+  recent: readonly RepeatCandidate[],
+  near: readonly { post_id: string | null; platform: string | null; text: string; similarity: number }[],
+  opts: { postId: string; platform: string; minSimilarity: number; otherBrandPosts: ReadonlySet<string> },
+): RepeatCandidate[] {
+  const out = [...recent];
+  const seen = new Set(out.map(c => c.id));
+  for (const h of near) {
+    if (!h.post_id || h.post_id === opts.postId || seen.has(h.post_id) || h.platform !== opts.platform
+      || h.similarity < opts.minSimilarity || opts.otherBrandPosts.has(h.post_id) || !h.text.trim()) continue;
+    seen.add(h.post_id);
+    out.push({ id: h.post_id, platform: h.platform, text: h.text.slice(0, 2400) });
+  }
+  return out;
+}
+
 export interface RepeatEvidence { repeat: boolean; against_id?: string; reason?: string }
 export function verifiedRepeatEvidence(data: unknown, historyIds: readonly string[]): RepeatEvidence {
   const p = data as Record<string, unknown> | null;

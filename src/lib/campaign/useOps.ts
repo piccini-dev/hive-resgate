@@ -1,9 +1,10 @@
 // Estado operacional completo (campanhas, ciclos, ideias, conteúdos, peças, contas)
 // para a Home e o Pipeline. Peças vêm do postStore (mesma fonte do resto do app).
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { accountApi, campaignApi, contentApi, cycleApi, ideaApi, metricsApi } from '@/lib/campaignApi';
 import { beeApi } from '@/lib/api';
 import { usePostStore } from '@/store/postStore';
+import { isEmptyProductionShell } from './production-plan';
 import type { BeeEditorial, Campaign, CampaignCycle, Content, Idea, PostMetrics, SocialAccount } from '@/types';
 
 export interface OpsState {
@@ -12,7 +13,7 @@ export interface OpsState {
 }
 
 export function useOps() {
-  const { posts, load } = usePostStore();
+  const { posts: allPosts, load } = usePostStore();
   const postsError = usePostStore((s) => s.error);
   const [ops, setOps] = useState<OpsState | null>(null);
   // Falha nas leituras ESSENCIAIS (doc 04 §13): nunca vira "nada esperando por você".
@@ -27,6 +28,7 @@ export function useOps() {
   }, [load]);
   const retry = useCallback(() => { setError(null); return reload().catch((e) => { console.error(e); setError(String((e as Error).message ?? e)); }); }, [reload]);
   useEffect(() => { void retry(); }, [retry]);
+  const visible = useMemo(() => allPosts.filter((p) => !isEmptyProductionShell(p)), [allPosts]);
   // peças com falha de leitura: o conjunto não é consistente — tratar como erro
-  return { ops: error || postsError ? null : ops, posts, reload, error: error ?? postsError, retry };
+  return { ops: error || postsError ? null : ops, posts: visible, reload, error: error ?? postsError, retry };
 }

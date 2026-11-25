@@ -1,9 +1,9 @@
 import { expect,test } from '@playwright/test';
-import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,needsEditorialRebrief,type ProductionItem } from '../src/lib/campaign/production-plan';
+import { canReviewProduction,editorialPieces,pendingProduction,productionProblems,needsEditorialRebrief,isEmptyProductionShell,type ProductionItem } from '../src/lib/campaign/production-plan';
 import { appPublicAssetUrl } from '../src/lib/hive/publicAsset';
 import type { Content,FormatCapability,PiecePlan,PostUnit,UserPost } from '../src/types';
 import { needsSequenceRender, sequenceReviewSnapshot, sequenceVisualTodo } from '../src/lib/sequence/visual-state';
-import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals, scopedPostHistoryQuery, verifiedRepeatEvidence } from '../supabase/functions/_shared/production-novelty';
+import { NarrativeOverlapError, productionCandidateText, validateNoveltyConflicts, withNovelContribution, withoutNoveltyConflicts, usableProductionProposals, scopedPostHistoryQuery, verifiedRepeatEvidence, withMemoryNeighbors, publishedByBase } from '../supabase/functions/_shared/production-novelty';
 const bases=[{id:'base',status:'validated'}] as Content[];
 const caps=[{platform:'instagram',format:'image'},{platform:'instagram',format:'carousel'},{platform:'instagram',format:'story'},{platform:'linkedin',format:'carousel'}] as FormatCapability[];
 const item=(p:Partial<ProductionItem>={}):ProductionItem=>({content_id:'base',platform:'instagram',format:'carousel',approach:'Investigar o padrão',purpose:'Dar progressão à leitura',architecture:'conceito',template_family:'M03',editorial_slug:'sistemica',...p});
@@ -278,4 +278,37 @@ test('edição na arte libera formas, imagens e grupos sem alterar o original',a
   expect((copy.objects[2].objects as Array<Record<string,unknown>>)[0].selectable).toBe(true);
   expect(source.objects[0].selectable).toBe(false);expect(source.objects[0].evented).toBe(false);
   expect(source.objects[1].src).toBe('foto.jpg');
+});
+
+test('peça reservada e ainda vazia não aparece como pendência; com texto, aparece',()=>{
+  const shell={status:'pending_approval',caption:'',carousel_text:null,metadata:{production_flow:'base_v2'}} as unknown as UserPost;
+  expect(isEmptyProductionShell(shell)).toBe(true);
+  expect(isEmptyProductionShell({...shell,caption:'Legenda escrita'})).toBe(false);
+  expect(isEmptyProductionShell({...shell,carousel_text:{quote:'Capa do roteiro'}} as UserPost)).toBe(false);
+  expect(isEmptyProductionShell({...shell,metadata:{}} as UserPost)).toBe(false);
+  expect(isEmptyProductionShell({...shell,status:'approved'} as UserPost)).toBe(false);
+});
+
+test('repetição compara também o acervo da memória, sem a própria peça, outra plataforma ou outra marca',()=>{
+  const recent=[{id:'recente',platform:'instagram',text:'post recente da marca'}];
+  const near=[
+    {post_id:'importado',platform:'instagram',text:'post antigo importado',similarity:0.8},
+    {post_id:'recente',platform:'instagram',text:'duplicado',similarity:0.9},
+    {post_id:'peca',platform:'instagram',text:'a própria peça',similarity:0.99},
+    {post_id:'linkedin',platform:'linkedin',text:'outra rede',similarity:0.9},
+    {post_id:'distante',platform:'instagram',text:'pouco parecido',similarity:0.5},
+    {post_id:'outra-marca',platform:'instagram',text:'de outra marca',similarity:0.9},
+    {post_id:null,platform:'instagram',text:'sem post',similarity:0.9},
+  ];
+  const out=withMemoryNeighbors(recent,near,{postId:'peca',platform:'instagram',minSimilarity:0.68,otherBrandPosts:new Set(['outra-marca'])});
+  expect(out.map(c=>c.id)).toEqual(['recente','importado']);
+  expect(withMemoryNeighbors([],[],{postId:'peca',platform:'instagram',minSimilarity:0.68,otherBrandPosts:new Set()})).toEqual([]);
+});
+
+test('proposta recebe o que cada base já publicou, sem espelhos e com limite por base',()=>{
+  const post=(id:string,base:string|null,extra:Record<string,unknown>={})=>({content_id:base,platform:'instagram',format:'image',created_at:'2026-11-10T12:00:00Z',plan_id:id,text:'disse '+id,metadata:null,...extra});
+  const byBase=publishedByBase([post('a','b1'),post('b','b1',{metadata:{delivery_of:'a'}}),post('c','b2'),post('d',null),post('e','b1',{text:'  '}),post('f','b1')],new Map([['a','abordagem A']]),1);
+  expect(byBase.get('b1')).toEqual([{quando:'2026-11-10',plataforma:'instagram',formato:'image',abordagem:'abordagem A',disse:'disse a'}]);
+  expect(byBase.get('b2')?.[0].abordagem).toBeNull();
+  expect([...byBase.keys()]).toEqual(['b1','b2']);
 });

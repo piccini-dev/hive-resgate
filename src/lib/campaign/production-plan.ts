@@ -26,6 +26,11 @@ export function productionProblems(items: ProductionItem[], bases: Content[], ca
 }
 export const pendingProduction = (pieces: UserPost[]) => pieces.filter(p => ['idea', 'draft', 'pending_approval'].includes(p.status) && !p.metadata?.delivery_of);
 export const editorialPieces = (pieces: UserPost[]) => pieces.filter(p => !p.metadata?.delivery_of);
+// reserve_production_piece cria a peça vazia antes de gerar o texto (e a reaproveita
+// ao retomar). Enquanto nada foi escrito, ela não é pendência nem peça para o produtor.
+export const isEmptyProductionShell = (p: Pick<UserPost,'status'|'caption'|'carousel_text'|'metadata'>): boolean =>
+  p.metadata?.production_flow === 'base_v2' && p.status === 'pending_approval'
+  && !String(p.caption ?? '').trim() && !String(p.carousel_text?.quote ?? '').trim();
 export const samePlan = (a: ProductionItem[], b: ProductionItem[]) => JSON.stringify(a) === JSON.stringify(b);
 export const canReviewProduction = (piece: UserPost, plans: PiecePlan[], batch?: string): boolean => !batch || ['approved','scheduled','published'].includes(piece.status)
   || plans.some(p=>p.id===piece.plan_id && p.production_batch_id===batch && p.status==='produced');
