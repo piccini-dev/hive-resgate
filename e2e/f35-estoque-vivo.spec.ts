@@ -179,11 +179,12 @@ test.describe('F35 · estoque vivo', () => {
     await page.goto(`/producao?campaign=${f.target.id}&cycle=${f.cycle}`);
     const plan = page.getByTestId('production-plan');
     await expect(plan).toContainText('Você tem 1 conteúdos-mãe com material novo (2 materiais ainda não usados).');
-    await expect(page.getByTestId('campaign-base-picker')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Propor produção com a Hive', exact: true }).click();
     const item = page.getByTestId('production-plan-item');
     await expect(item).toHaveCount(1);
+    // Fora do estoque cada peça tem o seletor "Base de conhecimento"; no acervo ele dá lugar ao recorte do mãe.
+    await expect(item.getByLabel('Base de conhecimento')).toHaveCount(0);
     expect(calls.find((c) => c.action === 'recommend_cycle_plan')).toMatchObject({ cycle_id: f.cycle, stock: true });
     const stock = item.getByTestId('production-item-stock');
     await expect(stock).toContainText('E2E Mãe com estoque');
