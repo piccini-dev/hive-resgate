@@ -71,12 +71,23 @@ export function MotherContents() {
     const r = await startAvulso({ title: c.title, summary: c.body.frase ?? '', strategic_function: c.strategic_function ?? 'autoridade', editorial_slug: c.editorial_slug ?? '', channels: [] }, [], c.profile_id);
     return contentApi.update(c.id, { campaign_id: r.campaign.id, cycle_id: r.cycle.id, idea_id: r.idea.id });
   }
+  // Validada, a proposta vira um mãe comum: o material sai de 'drafted' para 'active', senão approve_cycle_production o recusa.
+  // Roda antes da validação: se ela falhar, descartar a proposta ainda devolve o material.
+  async function activateMaterial(contentId: string) {
+    await db.update('knowledge_discoveries', { content_id: `eq.${contentId}`, status: 'eq.drafted' }, { status: 'active', updated_at: new Date().toISOString() });
+  }
   async function validateProposals(ids: string[]) {
     let ok = 0; const failures: string[] = [];
     for (const id of ids) {
       const e = entries?.find(x => x.content.id === id);
       if (!e) continue;
-      try { await baseApi.validate(await attach(e.content)); ok++; } catch (err) { failures.push(`${e.content.title}: ${(err as Error).message}`); }
+      try {
+        const c = await attach(e.content);
+        // O acervo lista o texto original; um rascunho salvo no ciclo da proposta é o que o Marcos quer validar.
+        const working = (await baseApi.listByCycle(c.cycle_id!)).find(b => b.id === c.id) ?? c;
+        await activateMaterial(c.id);
+        await baseApi.validate(working); ok++;
+      } catch (err) { failures.push(`${e.content.title}: ${(err as Error).message}`); }
     }
     setPicked([]); await load();
     if (ok) toast.success(ok === 1 ? '1 conteúdo mãe validado. Nenhum post foi criado.' : `${ok} conteúdos mãe validados. Nenhum post foi criado.`);
@@ -162,7 +173,7 @@ export function MotherContents() {
             if (!idea) throw new Error('Não foi possível localizar a origem desta revisão.');
             const saved = await reviseWithHive(c, idea as Idea, 'adjust', instruction); setCurrent(saved); setInstruction(''); await load();
           })}><Sparkles className="h-4 w-4"/>Propor aprofundamento</Button></div></details>
-        {current.status !== 'validated' && <Button variant="accent" disabled={busy} onClick={() => void act(async () => { const c = await baseApi.validate(await attach(current)); setCurrent(c); await load(); await open(c); toast.success('Conteúdo mãe validado. Nenhum post foi criado.'); })}>Validar conteúdo mãe</Button>}
+        {current.status !== 'validated' && <Button variant="accent" disabled={busy} onClick={() => void act(async () => { const working = await attach(current); setCurrent(working); if (isProposal(current)) await activateMaterial(current.id); const c = await baseApi.validate(working); setCurrent(c); await load(); await open(c); toast.success('Conteúdo mãe validado. Nenhum post foi criado.'); })}>Validar conteúdo mãe</Button>}
         {isProposal(current) && <Button variant="ghost" disabled={busy} onClick={() => void act(() => discard(current))}>Descartar proposta</Button>}
       </>}
       <section className="space-y-2 border-t pt-3" aria-labelledby="mother-material" data-testid="mother-material">
