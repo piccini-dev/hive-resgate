@@ -32,6 +32,7 @@ test.describe('unit · varredura da Biblioteca (discovery)', () => {
     expect(parseDiscoveries({ discoveries: [item({ chunk_index: 1 })] }, chunks)).toEqual([]);
     expect(parseDiscoveries({ discoveries: [item({ chunk_index: 7 })] }, chunks)).toEqual([]);
     expect(parseDiscoveries({ discoveries: [item({ kind: 'opiniao' })] }, chunks)).toEqual([]);
+    expect(parseDiscoveries({ discoveries: [item({ kind: 'História' })] }, chunks)[0]?.kind).toBe('historia');
     expect(parseDiscoveries({ discoveries: [item({ excerpt: 'x'.repeat(601) })] }, chunks)).toEqual([]);
     expect(parseDiscoveries({ discoveries: [item({ title: '' }), item({ summary: 's'.repeat(1201) })] }, chunks)).toEqual([]);
     expect(parseDiscoveries('lixo', chunks)).toEqual([]);

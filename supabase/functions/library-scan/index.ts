@@ -27,6 +27,8 @@ async function rest<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 const RETURN_ROWS = { Prefer: 'return=representation' };
 const is429 = (e: unknown) => /\b429\b/.test(String((e as Error)?.message ?? e));
+// Erro de rede do fetch traz a URL do Gemini com `?key=`: nunca gravar nem devolver a chave.
+const safeError = (e: unknown) => String((e as Error)?.message ?? e).replace(/key=[^&\s)]+/g, 'key=***').slice(0, 500);
 // Claim ativo = lote em curso há menos de 10 min. `finished_at` preenchido com status running = lote
 // terminou e o documento espera o próximo (o check só aceita running/completed/failed).
 const claimActive = (r: Row) => r.status === 'running' && !r.finished_at && Date.parse(r.started_at) > Date.now() - CLAIM_TTL_MS;
@@ -129,7 +131,7 @@ async function scanBatch(doc: Doc, apiKey: string, mothersCache: Map<string, Arr
           linked++;
         }
       } catch (e) {
-        console.warn('[library-scan] link', doc.id, e);
+        console.warn('[library-scan] link', doc.id, safeError(e));
       }
     }
     // Lote incompleto = fim do documento (chunk_count pode estar acima do que existe).
@@ -144,7 +146,7 @@ async function scanBatch(doc: Doc, apiKey: string, mothersCache: Map<string, Arr
   } catch (e) {
     await rest(runPath, {
       method: 'PATCH', headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ status: 'failed', finished_at: new Date().toISOString(), error: String((e as Error).message ?? e).slice(0, 500) }),
+      body: JSON.stringify({ status: 'failed', finished_at: new Date().toISOString(), error: safeError(e) }),
     }).catch((err) => console.warn('[library-scan] release', err));
     throw e;
   }
@@ -170,7 +172,7 @@ async function tick(): Promise<Result> {
         r = await scanBatch(doc, apiKey, mothers);
       } catch (e) {
         batches++;
-        console.error('[library-scan] tick', doc.id, e);
+        console.error('[library-scan] tick', doc.id, safeError(e));
         if (is429(e)) return total; // cota da chave: para tudo e espera o próximo cron
         break;
       }
@@ -187,9 +189,11 @@ async function proposeMothers(userId: string, apiKey: string): Promise<Result> {
   const res: Result = { processed: 0, found: 0, linked: 0, proposed: 0 };
   const loose = await rest<Row[]>(`/knowledge_discoveries?user_id=eq.${userId}&status=eq.active&content_id=is.null&chunk_id=not.is.null&select=id,brand_id,title,summary,excerpt,kind,tags,chunk_id&order=created_at.asc&limit=120`);
   const vecs = await chunkVectors(userId, [...new Set(loose.map((d) => d.chunk_id as string))]);
-  const items = loose.filter((d) => vecs.has(d.chunk_id)).map((d) => ({ id: d.id as string, vec: vecs.get(d.chunk_id)!, tags: (d.tags ?? []) as string[] }));
+  const items = loose.filter((d) => vecs.has(d.chunk_id)).map((d) => ({ id: d.id as string, brand: d.brand_id as string, vec: vecs.get(d.chunk_id)!, tags: (d.tags ?? []) as string[] }));
   res.processed = items.length;
-  for (const ids of groupLoose(items).slice(0, 2)) {
+  // Um mãe é de uma marca só (o perfil vem dela): agrupa dentro de cada marca.
+  const brands = [...new Set(items.map((it) => it.brand))];
+  for (const ids of brands.flatMap((b) => groupLoose(items.filter((it) => it.brand === b))).slice(0, 2)) {
     const group = ids.map((id) => loose.find((d) => d.id === id)!);
     const { sys, usr } = motherPrompt(group.map((d) => ({ title: d.title, summary: d.summary, excerpt: d.excerpt ?? '', kind: d.kind ?? '' })));
     const ai = await callGeminiJson<unknown>(apiKey, sys, usr, { temperature: 0.6, maxOutputTokens: 3000 });
@@ -205,10 +209,15 @@ async function proposeMothers(userId: string, apiKey: string): Promise<Result> {
         metadata: { purpose: 'knowledge_base', origin: 'discovery', discovery_ids: ids },
       }),
     });
-    await rest(`/knowledge_discoveries?user_id=eq.${userId}&id=in.(${ids.join(',')})&status=eq.active&content_id=is.null`, {
-      method: 'PATCH', headers: { Prefer: 'return=minimal' },
+    const taken = await rest<Row[]>(`/knowledge_discoveries?user_id=eq.${userId}&id=in.(${ids.join(',')})&status=eq.active&content_id=is.null&select=id`, {
+      method: 'PATCH', headers: RETURN_ROWS,
       body: JSON.stringify({ status: 'drafted', content_id: content.id, updated_at: new Date().toISOString() }),
     });
+    // Outra chamada levou o grupo inteiro (duplo clique): o mãe ficaria sem material.
+    if (!taken.length) {
+      await rest(`/contents?id=eq.${content.id}&user_id=eq.${userId}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
+      continue;
+    }
     res.proposed++;
   }
   return res;
@@ -248,8 +257,8 @@ Deno.serve(async (req: Request) => {
     if (input.action === 'propose_mothers') return jsonResponse({ success: true, ...(await proposeMothers(userId, apiKey)) });
     return errorResponse('action inválida', 400);
   } catch (e) {
-    console.error('[library-scan]', e);
-    return errorResponse(is429(e) ? 'Limite da chave Gemini atingido. Tente mais tarde.' : 'Erro na varredura da Biblioteca', is429(e) ? 429 : 500, String(e));
+    console.error('[library-scan]', safeError(e));
+    return errorResponse(is429(e) ? 'Limite da chave Gemini atingido. Tente mais tarde.' : 'Erro na varredura da Biblioteca', is429(e) ? 429 : 500, safeError(e));
   }
 });
 

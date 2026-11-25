@@ -41,7 +41,8 @@ export function parseDiscoveries(
     if (!it || typeof it !== 'object') continue;
     const chunk = chunks.find((c) => c.chunk_index === Number(it.chunk_index));
     const title = str(it.title), summary = str(it.summary), excerpt = squash(str(it.excerpt));
-    const kind = str(it.kind) as Kind;
+    // A IA às vezes acentua ou capitaliza ("História"); a lista do banco é sem acento e minúscula.
+    const kind = str(it.kind).toLowerCase().normalize('NFD').replace(/\p{M}/gu, '') as Kind;
     const tags = [...new Set((Array.isArray(it.tags) ? it.tags : []).map((t) => str(t).toLowerCase()).filter((t) => t && t.length <= 40))].slice(0, 6);
     if (!chunk || !title || title.length > 240 || !summary || summary.length > 1200) continue;
     // Literal: a IA não pode parafrasear o trecho (o Marcos confere a origem pelo excerpt).
