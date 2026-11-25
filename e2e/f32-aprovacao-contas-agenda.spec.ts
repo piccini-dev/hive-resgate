@@ -112,7 +112,9 @@ test.describe('F32 · aprovação, contas e distribuição diária',()=>{
     expect((await sql<{n:number}>(`select count(*)::int n from schedule_commands where user_id='${e2eUser().id}'`))[0].n).toBe(14);
     const first=rows[0];await page.goto('/agenda?focus='+first.id);await expect(page.getByTestId('piece-panel')).toBeVisible();await expect(page.getByTestId('panel-account')).toHaveText(first.account_id===acc.a?'E2E':'@segunda-e2e');
     await page.getByRole('button',{name:'Fechar',exact:true}).click();
-    await expect(page.getByTestId('calendar-piece')).toHaveCount(7);
+    // ?focus abre o mês da peça focada; perto da virada do mês, parte das 7 datas cai no mês seguinte.
+    const sameMonth=new Set(rows.filter(r=>r.d.slice(0,7)===first.d.slice(0,7)).map(r=>r.root)).size;
+    expect(sameMonth).toBeGreaterThan(0);await expect(page.getByTestId('calendar-piece')).toHaveCount(sameMonth);
     await page.getByRole('button',{name:'Semana',exact:true}).click();await expect(page.getByTestId('calendar-position').first()).toBeVisible();
     const group=page.getByTestId('calendar-piece').first();await expect(group.getByTestId('agenda-account')).toHaveCount(2);
     await page.getByRole('button',{name:'Dia',exact:true}).click();await expect(page.getByTestId('calendar-piece').first()).toBeVisible();
