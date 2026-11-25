@@ -164,6 +164,7 @@ async function main() {
     await db.query('SET search_path=public,extensions');
     await db.query(await readFile(path.join(ROOT,'e2e/local/storage.sql'),'utf8'));
     await db.query(await readFile(path.join(ROOT,'supabase/migrations/20261119000001_marcas_permissoes.sql'),'utf8'));
+    await db.query(await readFile(path.join(ROOT,'supabase/migrations/20261125000001_estoque_vivo.sql'),'utf8'));
     const password='LocalOnly!'+randomBytes(20).toString('hex'),email='e2e-local@example.test';
     const created=await fetch(backend+'/auth/v1/admin/users',{method:'POST',headers:{apikey:service,Authorization:'Bearer '+service,'Content-Type':'application/json'},body:JSON.stringify({email,password,email_confirm:true})});
     const user=await created.json();if(!created.ok)throw Error('Auth local: '+created.status+' '+JSON.stringify(user));
