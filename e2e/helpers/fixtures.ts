@@ -77,6 +77,21 @@ export async function seedValidatedContents(
   return out;
 }
 
+// Estoque vivo: n descobertas 'active' ligadas ao conteúdo-mãe, na marca Bee (o usuário de teste é membro;
+// a RLS discoveries_own exige). Sem documento: document_id é opcional. Ids em ordem de created_at (a da tela).
+export async function seedDiscoveries(contentId: string, n: number): Promise<string[]> {
+  const { id: userId } = e2eUser();
+  const rows = await sql<{ id: string }>(`with ins as (
+    insert into knowledge_discoveries (user_id, brand_id, title, summary, excerpt, kind, tags, status, content_id, created_at)
+    select '${userId}', '0b000000-0000-4000-8000-000000000002', 'Material ' || g || ' · ' || left(c.title, 200), 'Resumo do material ' || g || '.',
+      'Trecho literal ' || g || '.', 'conceito', array['e2e'], 'active', c.id, now() + g * interval '1 second'
+    from contents c cross join generate_series(1, ${n}) g where c.id = '${contentId}'
+    returning id, created_at)
+    select id from ins order by created_at`);
+  if (rows.length !== n) throw new Error(`seedDiscoveries: conteúdo ${contentId} não encontrado.`);
+  return rows.map((r) => r.id);
+}
+
 // Plano ACJ da campanha (4 fases do mock) — aprovado por padrão.
 export async function seedAcjPlan(campaignId: string, opts: { status?: 'approved' | 'recommended'; adoption?: 'native' | 'late' } = {}): Promise<string> {
   const { id: userId } = e2eUser();

@@ -49,6 +49,8 @@ test.describe('F29 · base reutilizável → proposta → post → destinos',()=
     await expect(page.getByTestId('production-summary')).toBeVisible({timeout:120000});
     expect(calls.filter(c=>c.action==='image')).toHaveLength(1);
     expect((await sql<{status:string}>(`select status from user_posts where id='${old}'`))[0].status).toBe('archived');
+    // Campanha fora do acervo não passa pelo estoque: a peça não reserva material.
+    expect(await sql(`select discovery_ids::text ids from content_piece_plans where cycle_id='${f.cycle}'`)).toEqual([{ids:'{}'}]);
     let rows=await sql<{id:string;account_id:string|null;text_approved:boolean;status:string}>(`select id,account_id,text_approved,status from user_posts where cycle_id='${f.cycle}' and status<>'archived'`);
     expect(rows).toHaveLength(1);expect(rows[0]).toMatchObject({account_id:null,text_approved:false,status:'pending_approval'});
     await page.reload();await expect(page.getByTestId('production-summary')).toBeVisible({timeout:60000});
